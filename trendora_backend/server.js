@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const opportunitiesRoutes = require('./routes/opportunities');
-
+const newsRoutes = require('./routes/news');
 const app = express();
 const PORT = 3000;
 
@@ -161,7 +161,10 @@ app.use(
   '/api/opportunities',
   opportunitiesRoutes
 );
-
+app.use(
+  '/api/news',
+  newsRoutes
+);
 app.use((req, res) => {
   res.status(404).json({
     success: false,
