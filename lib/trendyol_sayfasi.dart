@@ -247,7 +247,7 @@ class _TrendyolSayfasiState extends State<TrendyolSayfasi> {
 
   Widget _sayfaGovdesi() {
     if (_yukleniyor) {
-      return const ListView(
+      return ListView(
         physics: AlwaysScrollableScrollPhysics(),
         children: [
           SizedBox(height: 180),
@@ -289,7 +289,7 @@ class _TrendyolSayfasiState extends State<TrendyolSayfasi> {
     }
 
     if (_urunler.isEmpty) {
-      return const ListView(
+      return ListView(
         physics: AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.all(20),
         children: [

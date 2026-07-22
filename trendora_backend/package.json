@@ -1,33 +1,333 @@
-{
-  "name": "trendora_backend",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "node startup.js",
-    "dev": "nodemon server.js",
-    "collector": "node telegram/collector.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "axios": "^1.18.1",
-    "bcrypt": "^6.0.0",
-    "cheerio": "^1.2.0",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "input": "^1.0.1",
-    "jsonwebtoken": "^9.0.3",
-    "multer": "^2.2.0",
-    "openai": "^6.48.0",
-    "rss-parser": "^3.13.0",
-    "sqlite3": "^6.0.1",
-    "telegram": "^2.26.22"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.14"
+console.log('BENİM YENİ SERVER ÇALIŞTI');
+
+require('dotenv').config();
+
+const express = require('express');
+const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child_process');
+
+const opportunitiesRoutes = require('./routes/opportunities');
+const newsRoutes = require('./routes/news');
+
+const app = express();
+const PORT = Number(process.env.PORT) || 3000;
+
+const opportunitiesFilePath = path.join(
+  __dirname,
+  'database',
+  'opportunities.json'
+);
+
+const telegramCollectorPath = path.join(
+  __dirname,
+  'telegram',
+  'collector.js'
+);
+
+const TELEGRAM_REFRESH_MINUTES = 30;
+let telegramCollectorRunning = false;
+
+app.use(cors());
+app.use(express.json());
+
+function readOpportunitiesDatabase() {
+  try {
+    if (!fs.existsSync(opportunitiesFilePath)) {
+      return {
+        updatedAt: null,
+        items: []
+      };
+    }
+
+    const rawData = fs.readFileSync(
+      opportunitiesFilePath,
+      'utf8'
+    );
+
+    const parsedData = JSON.parse(rawData);
+
+    return {
+      updatedAt: parsedData.updatedAt || null,
+      items: Array.isArray(parsedData.items)
+        ? parsedData.items
+        : []
+    };
+  } catch (error) {
+    console.error(
+      'opportunities.json okunamadı:',
+      error.message
+    );
+
+    return {
+      updatedAt: null,
+      items: []
+    };
   }
 }
+
+function normalize(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase();
+}
+
+function isOpportunityActive(item) {
+  if (item.active === false) {
+    return false;
+  }
+
+  const now = new Date();
+
+  if (item.catalogStartDate) {
+    const startDate = new Date(
+      `${item.catalogStartDate}T00:00:00`
+    );
+
+    if (now < startDate) {
+      return false;
+    }
+  }
+
+  if (item.catalogEndDate) {
+    const endDate = new Date(
+      `${item.catalogEndDate}T23:59:59`
+    );
+
+    if (now > endDate) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function prepareOpportunity(item) {
+  return {
+    ...item,
+    url: item.officialUrl || item.url || '',
+    verified: Boolean(item.verifiedAt),
+    status: isOpportunityActive(item)
+      ? 'active'
+      : 'expired'
+  };
+}
+
+function runTelegramCollector() {
+  if (telegramCollectorRunning) {
+    console.log(
+      'Telegram collector zaten çalışıyor; yeni çalışma atlandı.'
+    );
+    return;
+  }
+
+  if (!fs.existsSync(telegramCollectorPath)) {
+    console.error(
+      `Telegram collector bulunamadı: ${telegramCollectorPath}`
+    );
+    return;
+  }
+
+  telegramCollectorRunning = true;
+
+  console.log('');
+  console.log('Telegram collector başlatılıyor...');
+
+  const collectorProcess = spawn(
+    process.execPath,
+    [telegramCollectorPath],
+    {
+      cwd: __dirname,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    }
+  );
+
+  collectorProcess.stdout.on('data', data => {
+    process.stdout.write(`[Telegram] ${data}`);
+  });
+
+  collectorProcess.stderr.on('data', data => {
+    process.stderr.write(`[Telegram hata] ${data}`);
+  });
+
+  collectorProcess.on('error', error => {
+    telegramCollectorRunning = false;
+
+    console.error(
+      'Telegram collector başlatılamadı:',
+      error.message
+    );
+  });
+
+  collectorProcess.on('close', code => {
+    telegramCollectorRunning = false;
+
+    if (code === 0) {
+      console.log(
+        'Telegram collector başarıyla tamamlandı.'
+      );
+    } else {
+      console.error(
+        `Telegram collector hata koduyla kapandı: ${code}`
+      );
+    }
+  });
+}
+
+app.get('/', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Trendora sunucusu çalışıyor.',
+    endpoints: {
+      opportunities:
+        '/api/opportunities',
+      telegram:
+        '/api/opportunities/telegram',
+      a101:
+        '/api/opportunities/a101',
+      bim:
+        '/api/opportunities/bim',
+      trendyol:
+        '/api/opportunities/trendyol',
+      news:
+        '/api/news'
+    }
+  });
+});
+
+/*
+  Eski Flutter kodu /api/trendyol adresini kullanıyorsa
+  çalışmaya devam etsin diye bu adres korunuyor.
+*/
+app.get('/api/trendyol', (req, res) => {
+  try {
+    const database = readOpportunitiesDatabase();
+
+    const items = database.items
+      .map(prepareOpportunity)
+      .filter(item => {
+        return (
+          normalize(item.source) === 'trendyol' &&
+          item.status === 'active'
+        );
+      });
+
+    res.json({
+      success: true,
+      count: items.length,
+      updatedAt: database.updatedAt,
+      opportunities: items,
+      products: items,
+      items,
+      data: items
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Trendyol fırsatları okunamadı.',
+      error: error.message
+    });
+  }
+});
+
+/*
+  A101, BİM, Trendyol, Telegram ve diğer fırsatlar
+  routes/opportunities.js dosyasından yönetilir.
+*/
+app.use(
+  '/api/opportunities',
+  opportunitiesRoutes
+);
+
+app.use(
+  '/api/news',
+  newsRoutes
+);
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message:
+      `Adres bulunamadı: ${req.method} ${req.originalUrl}`
+  });
+});
+
+const server = app.listen(
+  PORT,
+  '0.0.0.0',
+  () => {
+    console.log('');
+    console.log(
+      `Trendora sunucusu çalışıyor. PORT: ${PORT}`
+    );
+
+    console.log(
+      `Tüm fırsatlar: /api/opportunities`
+    );
+
+    console.log(
+      `Telegram: /api/opportunities/telegram`
+    );
+
+    console.log(
+      `A101: /api/opportunities/a101`
+    );
+
+    console.log(
+      `BİM: /api/opportunities/bim`
+    );
+
+    console.log(
+      `Trendyol: /api/opportunities/trendyol`
+    );
+
+    /*
+      Sunucu ayağa kalktıktan birkaç saniye sonra
+      Telegram verileri ilk kez çekilir.
+    */
+    setTimeout(
+      runTelegramCollector,
+      5000
+    );
+
+    /*
+      Sunucu açık kaldığı sürece Telegram fırsatları
+      30 dakikada bir yenilenir.
+    */
+    setInterval(
+      runTelegramCollector,
+      TELEGRAM_REFRESH_MINUTES * 60 * 1000
+    );
+  }
+);
+
+server.on('error', error => {
+  console.error(
+    'Trendora sunucusu başlatılamadı:',
+    error.message
+  );
+});
+
+function shutdown(signal) {
+  console.log(
+    `${signal} alındı. Sunucu kapatılıyor...`
+  );
+
+  server.close(() => {
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    process.exit(1);
+  }, 10000).unref();
+}
+
+process.on('SIGTERM', () => {
+  shutdown('SIGTERM');
+});
+
+process.on('SIGINT', () => {
+  shutdown('SIGINT');
+});
