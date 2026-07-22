@@ -407,7 +407,7 @@ router.get("/", async (req, res) => {
 
     const breakingOnly =
       String(req.query.breaking || "").toLowerCase() === "true";
-
+const period = String(req.query.period || "24h").toLowerCase();
     const forceRefresh =
       String(req.query.refresh || "").toLowerCase() === "true";
 
@@ -419,7 +419,21 @@ router.get("/", async (req, res) => {
     const data = await getNewsData(forceRefresh);
 
     let filteredNews = data.items;
+if (
+  requestedCategory &&
+  requestedCategory !== "tumu" &&
+  requestedCategory !== "son_dakika"
+) {
+  filteredNews = filteredNews.filter(
+    (item) => item.category === requestedCategory
+  );
+}
 
+if (requestedCategory === "son_dakika" || breakingOnly) {
+  filteredNews = filteredNews.filter(
+    (item) => item.isBreaking
+  );
+}
     if (requestedCategory && requestedCategory !== "tumu") {
       filteredNews = filteredNews.filter(
         (item) => item.category === requestedCategory
@@ -446,10 +460,11 @@ router.get("/", async (req, res) => {
       workingSources,
       totalSources: NEWS_SOURCES.length,
       filters: {
-        category: requestedCategory || "tumu",
-        breakingOnly,
-        limit,
-      },
+  category: requestedCategory || "tumu",
+  breakingOnly,
+  period,
+  limit,
+},
       news: filteredNews.slice(0, limit),
     });
   } catch (error) {
