@@ -21,6 +21,18 @@ const PAGE_FETCH_TIMEOUT_MS = 12000;
 const PAGE_FETCH_CONCURRENCY = 4;
 const MAX_PAGE_BYTES = 1_500_000;
 
+const PUBLIC_IMAGE_DIR = path.join(
+  __dirname,
+  '..',
+  'public',
+  'opportunity-images'
+);
+
+const PUBLIC_BASE_URL = String(
+  process.env.PUBLIC_BASE_URL ||
+  'https://trendora-icj9.onrender.com'
+).replace(/\/+$/g, '');
+
 function requiredEnv(name) {
   const value = String(process.env[name] || '').trim();
 
@@ -664,7 +676,160 @@ function looksLikeProductTitle(title) {
   return true;
 }
 
-async function fetchPageMetadata(url, expectedTitle) {
+
+function ensurePublicImageDirectory() {
+  if (!fs.existsSync(PUBLIC_IMAGE_DIR)) {
+    fs.mkdirSync(PUBLIC_IMAGE_DIR, {
+      recursive: true
+    });
+  }
+}
+
+function mediaMimeType(message) {
+  return String(
+    message?.file?.mimeType ||
+    message?.media?.document?.mimeType ||
+    message?.media?.photo
+      ? 'image/jpeg'
+      : ''
+  ).toLowerCase();
+}
+
+function extensionFromMimeType(mimeType) {
+  if (mimeType.includes('png')) return '.png';
+  if (mimeType.includes('webp')) return '.webp';
+  if (mimeType.includes('gif')) return '.gif';
+  return '.jpg';
+}
+
+async function downloadTelegramImage(
+  client,
+  base
+) {
+  const message = base.message;
+
+  if (!message || !message.media) {
+    return '';
+  }
+
+  const mimeType = mediaMimeType(message);
+
+  if (
+    mimeType &&
+    !mimeType.startsWith('image/')
+  ) {
+    return '';
+  }
+
+  try {
+    ensurePublicImageDirectory();
+
+    const fileBuffer = await client.downloadMedia(
+      message.media,
+      {
+        workers: 1
+      }
+    );
+
+    if (
+      !fileBuffer ||
+      !Buffer.isBuffer(fileBuffer) ||
+      fileBuffer.length === 0
+    ) {
+      return '';
+    }
+
+    const extension =
+      extensionFromMimeType(mimeType);
+
+    const safeChannel = String(
+      base.channel.username ||
+      base.channel.channelId ||
+      'telegram'
+    ).replace(/[^a-zA-Z0-9_-]/g, '_');
+
+    const fileName =
+      `${safeChannel}_${base.message.id}${extension}`;
+
+    const filePath = path.join(
+      PUBLIC_IMAGE_DIR,
+      fileName
+    );
+
+    fs.writeFileSync(
+      filePath,
+      fileBuffer
+    );
+
+    return `${PUBLIC_BASE_URL}/opportunity-images/${encodeURIComponent(fileName)}`;
+  } catch (error) {
+    console.error(
+      'Telegram görseli indirilemedi:',
+      error.message
+    );
+
+    return '';
+  }
+}
+
+function extractFirstHtmlImage(html, baseUrl) {
+  const patterns = [
+    /<img[^>]+(?:src|data-src|data-original)=["']([^"']+)["'][^>]*>/i,
+    /"imageUrl"\s*:\s*"([^"]+)"/i,
+    /"image"\s*:\s*"([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+
+    if (!match || !match[1]) {
+      continue;
+    }
+
+    const candidate = absoluteUrl(
+      match[1].replace(/\\u002F/g, '/'),
+      baseUrl
+    );
+
+    if (isLikelyProductImage(candidate)) {
+      return candidate;
+    }
+  }
+
+  return '';
+}
+
+function extractClientRedirect(html, baseUrl) {
+  const patterns = [
+    /<meta[^>]+http-equiv=["']refresh["'][^>]+content=["'][^"']*url=([^"']+)["']/i,
+    /window\.location(?:\.href)?\s*=\s*["']([^"']+)["']/i,
+    /location\.href\s*=\s*["']([^"']+)["']/i,
+    /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+
+    if (match && match[1]) {
+      const resolved = absoluteUrl(
+        match[1].trim(),
+        baseUrl
+      );
+
+      if (
+        resolved &&
+        resolved !== baseUrl
+      ) {
+        return resolved;
+      }
+    }
+  }
+
+  return '';
+}
+
+
+async function fetchPageMetadata(url, expectedTitle, redirectDepth = 0) {
   const controller =
     new AbortController();
 
@@ -723,6 +888,23 @@ async function fetchPageMetadata(url, expectedTitle) {
     ).slice(0, MAX_PAGE_BYTES);
 
     const finalUrl = response.url || url;
+
+    const clientRedirect = extractClientRedirect(
+      html,
+      finalUrl
+    );
+
+    if (
+      clientRedirect &&
+      redirectDepth < 2
+    ) {
+      return fetchPageMetadata(
+        clientRedirect,
+        expectedTitle,
+        redirectDepth + 1
+      );
+    }
+
     const products = extractJsonLdProducts(html);
     const product = products[0] || null;
 
@@ -744,15 +926,22 @@ async function fetchPageMetadata(url, expectedTitle) {
     const jsonLdImage =
       imageFromJsonLd(product, finalUrl);
 
+    const resolvedOgImage =
+      absoluteUrl(ogImage, finalUrl);
+
+    const fallbackHtmlImage =
+      extractFirstHtmlImage(
+        html,
+        finalUrl
+      );
+
     const imageUrl =
       isLikelyProductImage(jsonLdImage)
         ? jsonLdImage
         : (
-            isLikelyProductImage(
-              absoluteUrl(ogImage, finalUrl)
-            )
-              ? absoluteUrl(ogImage, finalUrl)
-              : ''
+            isLikelyProductImage(resolvedOgImage)
+              ? resolvedOgImage
+              : fallbackHtmlImage
           );
 
     const jsonLdPrice =
@@ -891,7 +1080,7 @@ function createBaseOpportunity(channel, message) {
   };
 }
 
-async function enrichOpportunity(base) {
+async function enrichOpportunity(client, base) {
   const metadata = base.productUrl
     ? await fetchPageMetadata(
         base.productUrl,
@@ -968,9 +1157,18 @@ async function enrichOpportunity(base) {
     `${base.text} ${metadata.pageTitle || ''}`,
     [
       ...base.urls,
+      base.productUrl,
       finalUrl
     ]
   );
+
+  const telegramImageUrl =
+    metadata.imageUrl
+      ? ''
+      : await downloadTelegramImage(
+          client,
+          base
+        );
 
   return {
     id: `telegram:${base.channel.type}:${base.channel.username || base.channel.channelId}:${base.message.id}`,
@@ -1005,7 +1203,11 @@ async function enrichOpportunity(base) {
     url: finalUrl,
     officialUrl: finalUrl,
     imageUrl:
-      metadata.imageUrl || '',
+      metadata.imageUrl ||
+      telegramImageUrl ||
+      '',
+    telegramImageUrl:
+      telegramImageUrl || '',
     publishedAt:
       messageDateToIso(base.message),
     collectedAt:
@@ -1147,7 +1349,10 @@ async function collectChannel(client, channel) {
   const enriched = await mapWithConcurrency(
     baseItems,
     PAGE_FETCH_CONCURRENCY,
-    enrichOpportunity
+    base => enrichOpportunity(
+      client,
+      base
+    )
   );
 
   return enriched.filter(Boolean);
