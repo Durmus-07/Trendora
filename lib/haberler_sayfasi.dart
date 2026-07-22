@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 class HaberlerSayfasi extends StatefulWidget {
   const HaberlerSayfasi({super.key});
@@ -13,7 +14,7 @@ class HaberlerSayfasi extends StatefulWidget {
 
 class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
   static const String _backendUrl =
-      'http://127.0.0.1:3000/news?limit=60';
+      'https://trendora-icj9.onrender.com/api/news?limit=200';
 
   static const Duration _otomatikYenilemeSuresi =
       Duration(seconds: 30);
@@ -21,22 +22,92 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
   final List<TrendoraHaber> _tumHaberler = [];
 
   final List<HaberKategori> _kategoriler = const [
-    HaberKategori('Tümü', 'tumu', Icons.dynamic_feed_rounded),
-    HaberKategori('Son Dakika', 'son_dakika', Icons.flash_on_rounded),
-    HaberKategori('Türkiye', 'turkiye', Icons.flag_rounded),
-    HaberKategori('Dünya', 'dunya', Icons.public_rounded),
-    HaberKategori('Ekonomi', 'ekonomi', Icons.account_balance_rounded),
-    HaberKategori('Borsa', 'borsa', Icons.show_chart_rounded),
-    HaberKategori('Kripto', 'kripto', Icons.currency_bitcoin_rounded),
-    HaberKategori('Yapay Zekâ', 'yapay_zeka', Icons.smart_toy_rounded),
-    HaberKategori('Teknoloji', 'teknoloji', Icons.memory_rounded),
-    HaberKategori('Spor', 'spor', Icons.sports_soccer_rounded),
-    HaberKategori('Gündem', 'gundem', Icons.newspaper_rounded),
-  ];
-
+  HaberKategori(
+    'Genel',
+    'genel',
+    Icons.dynamic_feed_rounded,
+  ),
+  HaberKategori(
+    'Son Dakika',
+    'son_dakika',
+    Icons.flash_on_rounded,
+  ),
+  HaberKategori(
+    'Gündem',
+    'gundem',
+    Icons.local_fire_department_rounded,
+  ),
+  HaberKategori(
+    'Spor',
+    'spor',
+    Icons.sports_soccer_rounded,
+  ),
+  HaberKategori(
+    'Ekonomi',
+    'ekonomi',
+    Icons.account_balance_rounded,
+  ),
+];
+  final List<HaberZamanFiltresi> _zamanFiltreleri = const [
+  HaberZamanFiltresi(
+    '1 Saat',
+    '1h',
+    Duration(hours: 1),
+  ),
+  HaberZamanFiltresi(
+    '4 Saat',
+    '4h',
+    Duration(hours: 4),
+  ),
+  HaberZamanFiltresi(
+    '12 Saat',
+    '12h',
+    Duration(hours: 12),
+  ),
+  HaberZamanFiltresi(
+    '24 Saat',
+    '24h',
+    Duration(hours: 24),
+  ),
+  HaberZamanFiltresi(
+    '1 Hafta',
+    '7d',
+    Duration(days: 7),
+  ),
+  HaberZamanFiltresi(
+    '1 Ay',
+    '30d',
+    Duration(days: 30),
+  ),
+  HaberZamanFiltresi(
+    '2 Ay',
+    '60d',
+    Duration(days: 60),
+  ),
+  HaberZamanFiltresi(
+    '6 Ay',
+    '180d',
+    Duration(days: 180),
+  ),
+  HaberZamanFiltresi(
+    '12 Ay',
+    '365d',
+    Duration(days: 365),
+  ),
+  HaberZamanFiltresi(
+    'Tümü',
+    'all',
+    null,
+  ),
+];
   Timer? _yenilemeZamanlayicisi;
+  final ScrollController _kaydirmaDenetleyicisi = ScrollController();
 
-  String _seciliKategori = 'tumu';
+  static const int _sayfaBoyutu = 20;
+  int _gosterilenHaberSayisi = _sayfaBoyutu;
+
+  String _seciliKategori = 'genel';
+  String _seciliZaman = '24h';
   bool _ilkYukleme = true;
   bool _yenileniyor = false;
   String? _hataMesaji;
@@ -45,49 +116,139 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
   int _toplamKaynakSayisi = 0;
 
   List<TrendoraHaber> get _gorunenHaberler {
-    if (_seciliKategori == 'tumu') {
-      return List.unmodifiable(_tumHaberler);
+    Iterable<TrendoraHaber> sonuc;
+
+    switch (_seciliKategori) {
+      case 'son_dakika':
+        sonuc = _tumHaberler.where(_sonDakikaMi);
+        break;
+
+      case 'gundem':
+        sonuc = _tumHaberler.where(_gundemHaberiMi);
+        break;
+
+      case 'spor':
+        sonuc = _tumHaberler.where(
+          (haber) => _haberKategorisi(haber) == 'spor',
+        );
+        break;
+
+      case 'ekonomi':
+        sonuc = _tumHaberler.where(
+          (haber) => _haberKategorisi(haber) == 'ekonomi',
+        );
+        break;
+
+      case 'genel':
+      default:
+        sonuc = _tumHaberler;
+
+        final filtre = _zamanFiltreleri.firstWhere(
+          (item) => item.kod == _seciliZaman,
+          orElse: () => _zamanFiltreleri.last,
+        );
+
+        if (filtre.sure != null) {
+          final simdi = DateTime.now();
+
+          sonuc = sonuc.where((haber) {
+            final yas = simdi.difference(haber.publishedAt);
+
+            return !yas.isNegative && yas <= filtre.sure!;
+          });
+        }
+        break;
     }
 
-    if (_seciliKategori == 'son_dakika') {
-      return _tumHaberler
-          .where(_sonDakikaMi)
-          .toList(growable: false);
-    }
+    final liste = sonuc.toList(growable: false)
+      ..sort(
+        (a, b) => b.publishedAt.compareTo(a.publishedAt),
+      );
 
-    return _tumHaberler
-        .where(
-          (haber) => _haberKategorisi(haber) == _seciliKategori,
-        )
-        .toList(growable: false);
+    return liste;
   }
+
+  List<TrendoraHaber> get _sayfalanmisHaberler {
+    final tumSonuclar = _gorunenHaberler;
+    final adet = _gosterilenHaberSayisi.clamp(
+      0,
+      tumSonuclar.length,
+    );
+
+    return tumSonuclar.take(adet).toList(growable: false);
+  }
+
+  bool get _dahaFazlaHaberVar =>
+      _sayfalanmisHaberler.length < _gorunenHaberler.length;
 
   bool _sonDakikaMi(TrendoraHaber haber) {
-    final metin = _haberMetni(haber);
+  final metin = _haberMetni(haber);
+  final haberYasi = DateTime.now().difference(haber.publishedAt);
 
-    return haber.isBreaking ||
-        metin.contains('son dakika') ||
-        metin.contains('flaş') ||
-        metin.contains('acil gelişme');
+  if (haberYasi.isNegative) {
+    return false;
   }
 
+  final sonDakikaIfadesiVar =
+      haber.isBreaking ||
+      metin.contains('son dakika') ||
+      metin.contains('flaş') ||
+      metin.contains('acil gelişme') ||
+      metin.contains('sıcak gelişme');
+
+  return sonDakikaIfadesiVar &&
+      haberYasi.inHours <= 12;
+}
+bool _gundemHaberiMi(TrendoraHaber haber) {
+  if (_sonDakikaMi(haber)) {
+    return false;
+  }
+
+  final haberYasi = DateTime.now().difference(haber.publishedAt);
+
+  if (haberYasi.isNegative || haberYasi.inDays > 3) {
+    return false;
+  }
+
+  final kategori = _haberKategorisi(haber);
+  final metin = _haberMetni(haber);
+
+  final gundemKelimesiVar = _kelimeVar(
+    metin,
+    const [
+      'gündem',
+      'açıklama yaptı',
+      'yeni karar',
+      'duyuruldu',
+      'belli oldu',
+      'yürürlüğe girdi',
+      'meclis',
+      'bakanlık',
+      'cumhurbaşkanı',
+      'deprem',
+      'yangın',
+      'operasyon',
+      'seçim',
+      'mahkeme',
+      'zam',
+      'yasak',
+      'kritik gelişme',
+    ],
+  );
+
+  return kategori == 'gundem' || gundemKelimesiVar;
+}
   String _haberKategorisi(TrendoraHaber haber) {
     final backendKategorisi = haber.category
         .trim()
         .toLowerCase()
         .replaceAll(' ', '_');
 
-    const desteklenenKategoriler = {
-      'turkiye',
-      'dunya',
-      'ekonomi',
-      'borsa',
-      'kripto',
-      'yapay_zeka',
-      'teknoloji',
-      'spor',
-      'gundem',
-    };
+   const desteklenenKategoriler = {
+  'ekonomi',
+  'spor',
+  'gundem',
+};
 
     if (desteklenenKategoriler.contains(backendKategorisi)) {
       return backendKategorisi;
@@ -237,6 +398,7 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
   void initState() {
     super.initState();
 
+    _kaydirmaDenetleyicisi.addListener(_kaydirmaDinleyicisi);
     _haberleriGetir();
 
     _yenilemeZamanlayicisi = Timer.periodic(
@@ -248,7 +410,32 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
   @override
   void dispose() {
     _yenilemeZamanlayicisi?.cancel();
+    _kaydirmaDenetleyicisi
+      ..removeListener(_kaydirmaDinleyicisi)
+      ..dispose();
     super.dispose();
+  }
+
+  void _kaydirmaDinleyicisi() {
+    if (!_kaydirmaDenetleyicisi.hasClients || !_dahaFazlaHaberVar) {
+      return;
+    }
+
+    final konum = _kaydirmaDenetleyicisi.position;
+
+    if (konum.pixels >= konum.maxScrollExtent - 260) {
+      setState(() {
+        _gosterilenHaberSayisi += _sayfaBoyutu;
+      });
+    }
+  }
+
+  void _sayfalamayiSifirla() {
+    _gosterilenHaberSayisi = _sayfaBoyutu;
+
+    if (_kaydirmaDenetleyicisi.hasClients) {
+      _kaydirmaDenetleyicisi.jumpTo(0);
+    }
   }
 
   Future<void> _haberleriGetir({
@@ -321,19 +508,40 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
       if (!mounted) return;
 
       setState(() {
-        _tumHaberler
-          ..clear()
-          ..addAll(yeniHaberler);
+        if (yeniHaberler.isNotEmpty) {
+          final benzersiz = <String, TrendoraHaber>{};
+
+          for (final haber in yeniHaberler) {
+            final anahtar = haber.id.trim().isNotEmpty
+                ? haber.id.trim()
+                : haber.url.trim().isNotEmpty
+                    ? haber.url.trim()
+                    : '${haber.title}|${haber.publishedAt.toIso8601String()}';
+
+            benzersiz[anahtar] = haber;
+          }
+
+          final siraliHaberler = benzersiz.values.toList()
+            ..sort(
+              (a, b) => b.publishedAt.compareTo(a.publishedAt),
+            );
+
+          _tumHaberler
+            ..clear()
+            ..addAll(siraliHaberler);
+
+          _sonGuncelleme = DateTime.now();
+          _hataMesaji = null;
+        }
 
         _calisanKaynakSayisi =
             _intDegeri(decoded['workingSources']);
+
         _toplamKaynakSayisi =
             _intDegeri(decoded['totalSources']);
 
-        _sonGuncelleme = DateTime.now();
         _ilkYukleme = false;
         _yenileniyor = false;
-        _hataMesaji = null;
       });
     } on TimeoutException {
       _hatayiGoster(
@@ -412,6 +620,14 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
   void _kategoriSec(String kategori) {
     setState(() {
       _seciliKategori = kategori;
+      _sayfalamayiSifirla();
+    });
+  }
+
+  void _zamanSec(String kod) {
+    setState(() {
+      _seciliZaman = kod;
+      _sayfalamayiSifirla();
     });
   }
 
@@ -494,12 +710,13 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
       );
     }
 
-    final haberler = _gorunenHaberler;
+    final haberler = _sayfalanmisHaberler;
 
     return Column(
       children: [
         _durumPaneli(theme),
         _kategoriCubugu(),
+        if (_seciliKategori == 'genel') _zamanFiltresiCubugu(),
         Expanded(
           child: RefreshIndicator(
             onRefresh: () => _haberleriGetir(zorlaYenile: true),
@@ -515,10 +732,23 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
                     ],
                   )
                 : ListView.builder(
+                    controller: _kaydirmaDenetleyicisi,
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
-                    itemCount: haberler.length,
+                    itemCount:
+                        haberler.length + (_dahaFazlaHaberVar ? 1 : 0),
                     itemBuilder: (context, index) {
+                      if (index >= haberler.length) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 18),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                            ),
+                          ),
+                        );
+                      }
+
                       return _haberKarti(
                         haberler[index],
                         index,
@@ -653,11 +883,70 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
     );
   }
 
+  Widget _zamanFiltresiCubugu() {
+    return SizedBox(
+      height: 54,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(14, 5, 14, 7),
+        scrollDirection: Axis.horizontal,
+        itemCount: _zamanFiltreleri.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final filtre = _zamanFiltreleri[index];
+          return _zamanChip(filtre);
+        },
+      ),
+    );
+  }
+
+  Widget _zamanChip(HaberZamanFiltresi filtre) {
+    final secili = filtre.kod == _seciliZaman;
+
+    return ChoiceChip(
+      selected: secili,
+      onSelected: (_) => _zamanSec(filtre.kod),
+      label: Text(filtre.ad),
+      labelStyle: TextStyle(
+        color: secili
+            ? Colors.white
+            : const Color(0xFF42526B),
+        fontSize: 12,
+        fontWeight: secili
+            ? FontWeight.w800
+            : FontWeight.w600,
+      ),
+      selectedColor: const Color(0xFF24476B),
+      backgroundColor: Colors.white,
+      side: BorderSide(
+        color: secili
+            ? const Color(0xFF24476B)
+            : const Color(0xFFDDE3EC),
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  Future<void> _haberKaynakAc(TrendoraHaber haber) async {
+  final uri = Uri.tryParse(haber.url);
+
+  if (uri == null) return;
+
+  await launchUrl(
+    uri,
+    mode: LaunchMode.externalApplication,
+  );
+}
   Widget _haberKarti(TrendoraHaber haber, int index) {
     final sonDakika = haber.isBreaking;
     final imageUrl = haber.imageUrl.trim();
-
-    return Container(
+  
+    return InkWell(
+  onTap: () => _haberKaynakAc(haber),
+  borderRadius: BorderRadius.circular(19),
+  child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
@@ -801,8 +1090,10 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
           ),
         ],
       ),
-    );
-  }
+    ), 
+); 
+}
+  
 
   Widget _gorselYerTutucu(TrendoraHaber haber) {
     return Container(
@@ -997,7 +1288,17 @@ class HaberKategori {
     this.icon,
   );
 }
+class HaberZamanFiltresi {
+  final String ad;
+  final String kod;
+  final Duration? sure;
 
+  const HaberZamanFiltresi(
+    this.ad,
+    this.kod,
+    this.sure,
+  );
+}
 class TrendoraHaber {
   final String id;
   final String title;

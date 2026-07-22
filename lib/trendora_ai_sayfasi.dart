@@ -16,8 +16,8 @@ class _TrendoraAiSayfasiState extends State<TrendoraAiSayfasi>
   // adb reverse tcp:3000 tcp:3000
   //
   // komutunu çalıştır. Böylece telefon, bilgisayardaki backend'e
-  // 127.0.0.1:3000 adresinden ulaşabilir.
-  static const String _backendBaseUrl = 'http://127.0.0.1:3000';
+  // https://trendora-icj9.onrender.com adresinden ulaşabilir.
+  static const String _backendBaseUrl = 'https://trendora-icj9.onrender.com';
 
   final TextEditingController _mesajController = TextEditingController();
   final ScrollController _scrollController = ScrollController();

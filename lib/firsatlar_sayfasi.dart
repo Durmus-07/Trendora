@@ -7,7 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'trendyol_sayfasi.dart';
 
-const String firsatlarApiAdresi = 'http://127.0.0.1:3000';
+const String firsatlarApiAdresi = 'https://trendora-icj9.onrender.com';
 
 class FirsatlarSayfasi extends StatefulWidget {
   const FirsatlarSayfasi({super.key});
@@ -278,6 +278,22 @@ class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
                   kategori: 'ecommerce',
                   kaynak: 'n11',
                   renk: Colors.green,
+                );
+              },
+            ),
+
+            _kategoriKarti(
+              baslik: 'Telegram Fırsatları',
+              aciklama:
+                  'Takip edilen fırsat kanallarından gelen güncel paylaşımlar',
+              renk: Colors.lightBlue,
+              ikon: Icons.send_outlined,
+              onTap: () {
+                _kategoriSayfasiniAc(
+                  baslik: 'Telegram Fırsatları',
+                  kategori: 'all',
+                  kaynak: 'telegram',
+                  renk: Colors.lightBlue,
                 );
               },
             ),
@@ -720,14 +736,33 @@ class _CanliFirsatlarListeSayfasiState
     });
 
     try {
+      final String? kaynak = widget.kaynak?.trim().toLowerCase();
+
+      final Set<String> dogrudanKaynaklar = {
+        'a101',
+        'bim',
+        'sok',
+        'migros',
+        'telegram',
+      };
+
       final Map<String, String> sorgu = {
-        'category': widget.kategori,
         'limit': '100',
       };
 
-      if (widget.kaynak != null &&
-          widget.kaynak!.isNotEmpty) {
-        sorgu['source'] = widget.kaynak!;
+      /*
+        Telegram fırsatlarının source alanı "telegram" olduğu için
+        Amazon, Hepsiburada, Trendyol ve n11 ayrımı mağaza/link
+        bilgisine bakılarak Flutter tarafında yapılır.
+      */
+      if (kaynak != null &&
+          kaynak.isNotEmpty &&
+          dogrudanKaynaklar.contains(kaynak)) {
+        sorgu['source'] = kaynak;
+      } else if (kaynak == null || kaynak.isEmpty) {
+        if (widget.kategori != 'all') {
+          sorgu['category'] = widget.kategori;
+        }
       }
 
       final Uri uri = Uri.parse(
@@ -742,7 +777,7 @@ class _CanliFirsatlarListeSayfasiState
           'Accept': 'application/json',
         },
       ).timeout(
-        const Duration(seconds: 15),
+        const Duration(seconds: 20),
       );
 
       if (response.statusCode != 200) {
@@ -760,6 +795,7 @@ class _CanliFirsatlarListeSayfasiState
 
       final List<FirsatModeli> gelenFirsatlar = hamListe
           .whereType<Map<String, dynamic>>()
+          .where(_kayitBuSayfayaAitMi)
           .map(FirsatModeli.fromJson)
           .toList();
 
@@ -768,6 +804,13 @@ class _CanliFirsatlarListeSayfasiState
       setState(() {
         _firsatlar = gelenFirsatlar;
         _sonGuncelleme = DateTime.now();
+      });
+    } on TimeoutException {
+      if (!mounted) return;
+
+      setState(() {
+        _hataMesaji =
+            'Sunucu zamanında cevap vermedi. Birkaç saniye sonra tekrar dene.';
       });
     } catch (e) {
       if (!mounted) return;
@@ -784,6 +827,84 @@ class _CanliFirsatlarListeSayfasiState
         _yenileniyor = false;
       });
     }
+  }
+
+  bool _kayitBuSayfayaAitMi(
+    Map<String, dynamic> json,
+  ) {
+    final String? istenenKaynak =
+        widget.kaynak?.trim().toLowerCase();
+
+    if (istenenKaynak == null || istenenKaynak.isEmpty) {
+      return true;
+    }
+
+    final String source = _normalize(
+      json['source'],
+    );
+
+    if (istenenKaynak == 'telegram') {
+      return source == 'telegram';
+    }
+
+    if ({
+      'a101',
+      'bim',
+      'sok',
+      'migros',
+    }.contains(istenenKaynak)) {
+      return source == istenenKaynak;
+    }
+
+    final String aranacakMetin = [
+      json['source'],
+      json['sourceName'],
+      json['source_name'],
+      json['store'],
+      json['seller'],
+      json['title'],
+      json['description'],
+      json['url'],
+      json['officialUrl'],
+      json['telegramMessageUrl'],
+    ].map(_normalize).join(' ');
+
+    switch (istenenKaynak) {
+      case 'trendyol':
+        return aranacakMetin.contains('trendyol') ||
+            aranacakMetin.contains('ty.gl');
+
+      case 'hepsiburada':
+        return aranacakMetin.contains('hepsiburada') ||
+            aranacakMetin.contains('hb.biz') ||
+            aranacakMetin.contains('app.hb.biz');
+
+      case 'amazon':
+        return aranacakMetin.contains('amazon') ||
+            aranacakMetin.contains('amzn') ||
+            aranacakMetin.contains('amazon.com.tr');
+
+      case 'n11':
+        return aranacakMetin.contains('n11') ||
+            aranacakMetin.contains('sl.n11');
+
+      default:
+        return source == istenenKaynak ||
+            aranacakMetin.contains(istenenKaynak);
+    }
+  }
+
+  String _normalize(dynamic value) {
+    return (value ?? '')
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replaceAll('ı', 'i')
+        .replaceAll('ş', 's')
+        .replaceAll('ğ', 'g')
+        .replaceAll('ü', 'u')
+        .replaceAll('ö', 'o')
+        .replaceAll('ç', 'c');
   }
 
   List<dynamic> _jsonListesiniBul(dynamic decoded) {
