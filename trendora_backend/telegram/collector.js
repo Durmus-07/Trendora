@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { TelegramClient } = require('telegram');
 const { StringSession } = require('telegram/sessions');
 
@@ -686,13 +687,23 @@ function ensurePublicImageDirectory() {
 }
 
 function mediaMimeType(message) {
-  return String(
+  const directMime = String(
     message?.file?.mimeType ||
     message?.media?.document?.mimeType ||
-    message?.media?.photo
-      ? 'image/jpeg'
-      : ''
+    ''
   ).toLowerCase();
+
+  if (directMime) return directMime;
+
+  if (
+    message?.photo ||
+    message?.media?.photo ||
+    message?.media?.webpage?.photo
+  ) {
+    return 'image/jpeg';
+  }
+
+  return '';
 }
 
 function extensionFromMimeType(mimeType) {
@@ -702,73 +713,136 @@ function extensionFromMimeType(mimeType) {
   return '.jpg';
 }
 
-async function downloadTelegramImage(
-  client,
-  base
-) {
+function bufferLooksLikeImage(buffer) {
+  if (!buffer || buffer.length < 12) return false;
+
+  const hex = buffer.subarray(0, 12).toString('hex');
+  const ascii = buffer.subarray(0, 12).toString('ascii');
+
+  return (
+    hex.startsWith('ffd8ff') ||
+    hex.startsWith('89504e470d0a1a0a') ||
+    ascii.startsWith('GIF87a') ||
+    ascii.startsWith('GIF89a') ||
+    (ascii.startsWith('RIFF') && ascii.includes('WEBP'))
+  );
+}
+
+function extensionFromBuffer(buffer, fallbackMimeType = '') {
+  const hex = buffer.subarray(0, 12).toString('hex');
+  const ascii = buffer.subarray(0, 12).toString('ascii');
+
+  if (hex.startsWith('89504e470d0a1a0a')) return '.png';
+  if (ascii.startsWith('GIF87a') || ascii.startsWith('GIF89a')) return '.gif';
+  if (ascii.startsWith('RIFF') && ascii.includes('WEBP')) return '.webp';
+  if (hex.startsWith('ffd8ff')) return '.jpg';
+
+  return extensionFromMimeType(fallbackMimeType);
+}
+
+async function downloadTelegramImage(client, base) {
   const message = base.message;
 
-  if (!message || !message.media) {
-    return '';
-  }
+  if (!message || !message.media) return '';
 
   const mimeType = mediaMimeType(message);
 
-  if (
-    mimeType &&
-    !mimeType.startsWith('image/')
-  ) {
+  if (mimeType && !mimeType.startsWith('image/')) {
     return '';
   }
 
   try {
     ensurePublicImageDirectory();
 
-    const fileBuffer = await client.downloadMedia(
+    const targets = [
+      message,
       message.media,
-      {
-        workers: 1
-      }
-    );
+      message.photo,
+      message.media?.photo,
+      message.media?.webpage?.photo
+    ].filter(Boolean);
 
-    if (
-      !fileBuffer ||
-      !Buffer.isBuffer(fileBuffer) ||
-      fileBuffer.length === 0
-    ) {
-      return '';
+    let fileBuffer = null;
+
+    for (const target of targets) {
+      try {
+        const downloaded = await client.downloadMedia(target, { workers: 1 });
+        if (!downloaded) continue;
+
+        const candidate = Buffer.isBuffer(downloaded)
+          ? downloaded
+          : Buffer.from(downloaded);
+
+        if (candidate.length > 0 && bufferLooksLikeImage(candidate)) {
+          fileBuffer = candidate;
+          break;
+        }
+      } catch {
+        // Diğer Telegram medya biçimi denenir.
+      }
     }
 
-    const extension =
-      extensionFromMimeType(mimeType);
+    if (!fileBuffer) return '';
 
+    const extension = extensionFromBuffer(fileBuffer, mimeType);
     const safeChannel = String(
-      base.channel.username ||
-      base.channel.channelId ||
-      'telegram'
+      base.channel.username || base.channel.channelId || 'telegram'
     ).replace(/[^a-zA-Z0-9_-]/g, '_');
 
-    const fileName =
-      `${safeChannel}_${base.message.id}${extension}`;
-
-    const filePath = path.join(
-      PUBLIC_IMAGE_DIR,
-      fileName
-    );
-
-    fs.writeFileSync(
-      filePath,
-      fileBuffer
-    );
+    const fileName = `${safeChannel}_${base.message.id}${extension}`;
+    fs.writeFileSync(path.join(PUBLIC_IMAGE_DIR, fileName), fileBuffer);
 
     return `${PUBLIC_BASE_URL}/opportunity-images/${encodeURIComponent(fileName)}`;
   } catch (error) {
-    console.error(
-      'Telegram görseli indirilemedi:',
-      error.message
-    );
-
+    console.error('Telegram görseli indirilemedi:', error.message);
     return '';
+  }
+}
+
+async function downloadRemoteImage(imageUrl, uniqueKey) {
+  if (!isLikelyProductImage(imageUrl)) return '';
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PAGE_FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(imageUrl, {
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8'
+      }
+    });
+
+    if (!response.ok) return '';
+
+    const contentLength = Number(response.headers.get('content-length') || 0);
+    if (contentLength > 8000000) return '';
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length || buffer.length > 8000000 || !bufferLooksLikeImage(buffer)) {
+      return '';
+    }
+
+    ensurePublicImageDirectory();
+
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+    const extension = extensionFromBuffer(buffer, contentType);
+    const hash = crypto
+      .createHash('sha1')
+      .update(`${uniqueKey}:${imageUrl}`)
+      .digest('hex')
+      .slice(0, 24);
+
+    const fileName = `product_${hash}${extension}`;
+    fs.writeFileSync(path.join(PUBLIC_IMAGE_DIR, fileName), buffer);
+
+    return `${PUBLIC_BASE_URL}/opportunity-images/${encodeURIComponent(fileName)}`;
+  } catch {
+    return '';
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -799,30 +873,39 @@ function extractFirstHtmlImage(html, baseUrl) {
   return '';
 }
 
+function decodeEscapedUrl(value) {
+  return decodeHtmlEntities(
+    String(value || '')
+      .replace(/\\u002F/gi, '/')
+      .replace(/\\u003A/gi, ':')
+      .replace(/\\\//g, '/')
+  );
+}
+
 function extractClientRedirect(html, baseUrl) {
   const patterns = [
-    /<meta[^>]+http-equiv=["']refresh["'][^>]+content=["'][^"']*url=([^"']+)["']/i,
+    /<meta[^>]+http-equiv=["']refresh["'][^>]+content=["'][^"']*url\s*=\s*([^"']+)["']/i,
     /window\.location(?:\.href)?\s*=\s*["']([^"']+)["']/i,
-    /location\.href\s*=\s*["']([^"']+)["']/i,
-    /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i
+    /(?:window\.)?location\.href\s*=\s*["']([^"']+)["']/i,
+    /(?:window\.)?location\.replace\(\s*["']([^"']+)["']\s*\)/i,
+    /(?:window\.)?location\.assign\(\s*["']([^"']+)["']\s*\)/i,
+    /document\.location(?:\.href)?\s*=\s*["']([^"']+)["']/i,
+    /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i,
+    /["'](?:redirectUrl|redirect_url|targetUrl|target_url|destinationUrl|destination_url|deeplink|deepLink|url)["']\s*:\s*["']([^"']+)["']/i
   ];
 
   for (const pattern of patterns) {
     const match = html.match(pattern);
+    if (!match || !match[1]) continue;
 
-    if (match && match[1]) {
-      const resolved = absoluteUrl(
-        match[1].trim(),
-        baseUrl
-      );
+    const resolved = absoluteUrl(decodeEscapedUrl(match[1].trim()), baseUrl);
+    if (resolved && resolved !== baseUrl) return resolved;
+  }
 
-      if (
-        resolved &&
-        resolved !== baseUrl
-      ) {
-        return resolved;
-      }
-    }
+  const n11Match = html.match(/https?:\\?\/\\?\/[^\s"'<>]*n11\.com[^\s"'<>]*/i);
+  if (n11Match && n11Match[0]) {
+    const resolved = absoluteUrl(decodeEscapedUrl(n11Match[0]), baseUrl);
+    if (resolved && resolved !== baseUrl) return resolved;
   }
 
   return '';
@@ -1082,153 +1165,102 @@ function createBaseOpportunity(channel, message) {
 
 async function enrichOpportunity(client, base) {
   const metadata = base.productUrl
-    ? await fetchPageMetadata(
-        base.productUrl,
-        base.title
-      )
-    : {
-        ok: false,
-        finalUrl: base.messageUrl
-      };
+    ? await fetchPageMetadata(base.productUrl, base.title)
+    : { ok: false, finalUrl: base.messageUrl };
 
-  /*
-    Ürün sayfası doğrulanamadıysa ve mesaj da net ürün değilse kayıt alınmaz.
-  */
-  const verifiedProduct =
-    metadata.verifiedProduct === true;
+  const preliminaryStore = detectStore(
+    base.text,
+    [...base.urls, base.productUrl, metadata.finalUrl || '']
+  );
+
+  const verifiedProduct = metadata.verifiedProduct === true;
 
   if (
+    preliminaryStore !== 'N11' &&
     base.productUrl &&
     metadata.ok &&
     !verifiedProduct &&
-    titleSimilarity(
-      base.title,
-      metadata.pageTitle || ''
-    ) < 0.15
+    titleSimilarity(base.title, metadata.pageTitle || '') < 0.15
   ) {
     return null;
   }
 
-  const livePrice =
-    metadata.livePrice || null;
-
-  const currentPrice =
-    livePrice ||
-    base.advertisedPrice ||
-    null;
+  const livePrice = metadata.livePrice || null;
+  const currentPrice = livePrice || base.advertisedPrice || null;
 
   const oldPrice =
-    base.advertisedOldPrice &&
-    currentPrice &&
-    base.advertisedOldPrice > currentPrice
+    base.advertisedOldPrice && currentPrice && base.advertisedOldPrice > currentPrice
       ? base.advertisedOldPrice
       : null;
 
   const mismatchPercent =
-    livePrice &&
-    base.advertisedPrice
-      ? priceDifferencePercent(
-          livePrice,
-          base.advertisedPrice
-        )
+    livePrice && base.advertisedPrice
+      ? priceDifferencePercent(livePrice, base.advertisedPrice)
       : null;
 
-  const priceMatches =
-    mismatchPercent === null
-      ? null
-      : mismatchPercent <= 5;
-
-  const finalUrl =
-    metadata.finalUrl ||
-    base.productUrl ||
-    base.messageUrl;
+  const priceMatches = mismatchPercent === null ? null : mismatchPercent <= 5;
+  const finalUrl = metadata.finalUrl || base.productUrl || base.messageUrl;
 
   const finalTitle =
     verifiedProduct &&
     metadata.pageTitle &&
-    titleSimilarity(
-      base.title,
-      metadata.pageTitle
-    ) >= 0.25
+    titleSimilarity(base.title, metadata.pageTitle) >= 0.25
       ? metadata.pageTitle.slice(0, 180)
       : base.title;
 
   const store = detectStore(
     `${base.text} ${metadata.pageTitle || ''}`,
-    [
-      ...base.urls,
-      base.productUrl,
-      finalUrl
-    ]
+    [...base.urls, base.productUrl, finalUrl]
   );
 
-  const telegramImageUrl =
-    metadata.imageUrl
-      ? ''
-      : await downloadTelegramImage(
-          client,
-          base
-        );
+  const localProductImageUrl = metadata.imageUrl
+    ? await downloadRemoteImage(
+        metadata.imageUrl,
+        `${base.channel.username || base.channel.channelId}:${base.message.id}`
+      )
+    : '';
+
+  const telegramImageUrl = localProductImageUrl
+    ? ''
+    : await downloadTelegramImage(client, base);
+
+  const finalImageUrl =
+    localProductImageUrl || telegramImageUrl || metadata.imageUrl || '';
 
   return {
     id: `telegram:${base.channel.type}:${base.channel.username || base.channel.channelId}:${base.message.id}`,
     source: 'telegram',
     sourceName: base.channel.name,
-    sourceChannel:
-      base.channel.username
-        ? `@${base.channel.username}`
-        : base.channel.channelId,
-    telegramMessageId:
-      String(base.message.id),
-    telegramMessageUrl:
-      base.messageUrl,
+    sourceChannel: base.channel.username ? `@${base.channel.username}` : base.channel.channelId,
+    telegramMessageId: String(base.message.id),
+    telegramMessageUrl: base.messageUrl,
     title: finalTitle,
     description: base.text,
-    category: detectCategory(
-      `${finalTitle} ${base.text}`
-    ),
+    category: detectCategory(`${finalTitle} ${base.text}`),
     store,
     oldPrice,
-    advertisedPrice:
-      base.advertisedPrice,
+    advertisedPrice: base.advertisedPrice,
     livePrice,
     price: currentPrice,
     currentPrice,
-    discountPercent:
-      calculateDiscountPercent(
-        oldPrice,
-        currentPrice
-      ),
+    discountPercent: calculateDiscountPercent(oldPrice, currentPrice),
     currency: 'TRY',
     url: finalUrl,
     officialUrl: finalUrl,
-    imageUrl:
-      metadata.imageUrl ||
-      telegramImageUrl ||
-      '',
-    telegramImageUrl:
-      telegramImageUrl || '',
-    publishedAt:
-      messageDateToIso(base.message),
-    collectedAt:
-      new Date().toISOString(),
+    imageUrl: finalImageUrl,
+    telegramImageUrl: telegramImageUrl || '',
+    originalImageUrl: metadata.imageUrl || '',
+    publishedAt: messageDateToIso(base.message),
+    collectedAt: new Date().toISOString(),
     active: true,
-    verifiedAt:
-      verifiedProduct
-        ? new Date().toISOString()
-        : null,
+    verifiedAt: verifiedProduct ? new Date().toISOString() : null,
     verified: verifiedProduct,
     priceMatches,
-    priceDifferencePercent:
-      mismatchPercent,
+    priceDifferencePercent: mismatchPercent,
     priceStatus:
       priceMatches === false
         ? 'changed'
-        : (
-            priceMatches === true
-              ? 'matched'
-              : 'unknown'
-          ),
+        : (priceMatches === true ? 'matched' : 'unknown'),
     rawLinks: base.urls
   };
 }
