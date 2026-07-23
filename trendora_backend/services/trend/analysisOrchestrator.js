@@ -1,5 +1,5 @@
 const { buildFallbackAnalysis } = require('./fallbackAnalyzer');
-const { fetchMarketData } = require('./marketDataService');
+const { fetchMarketData } = require('../marketDataService');
 const { classifyQuestion } = require('./questionClassifier');
 const { buildSourcePlan } = require('./sourceRouter');
 const { collectNewsEvidence } = require('./newsEvidenceCollector');
