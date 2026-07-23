@@ -1,3 +1,5 @@
+const { buildFallbackAnalysis } = require('./fallbackAnalyzer');
+const { fetchMarketData } = require('./marketDataService');
 const { classifyQuestion } = require('./questionClassifier');
 const { buildSourcePlan } = require('./sourceRouter');
 const { collectNewsEvidence } = require('./newsEvidenceCollector');
@@ -130,7 +132,15 @@ async function analyzeQuestion(query) {
 
   const classification = classifyQuestion(cleanedQuery);
   const sourcePlan = buildSourcePlan(classification);
+let marketData = null;
 
+if (classification.domain === 'finance') {
+  try {
+    marketData = await fetchMarketData(cleanedQuery, classification);
+  } catch (error) {
+    console.error('Canlı piyasa verisi alınamadı:', error.message);
+  }
+}
   let webResult = null;
   let webError = null;
 
@@ -141,18 +151,42 @@ async function analyzeQuestion(query) {
     console.error('Trendora web araştırması başarısız:', error.message);
   }
 
-  if (webResult) {
-    const normalized = normalizeAnalysis(
-      webResult,
-      cleanedQuery,
-      classification,
-      sourcePlan
-    );
+  if (webResult || marketData) {
+   const base = webResult || buildFallbackAnalysis(
+  cleanedQuery,
+  classification,
+  []
+);
+
+if (marketData) {
+  base.dailyPrice = marketData.dailyPrice;
+  base.yearlyPrice = marketData.yearlyPrice;
+  base.sources = [
+    marketData.source,
+    ...(base.sources || [])
+  ];
+
+  base.directAnswer =
+    `${marketData.displayName} güncel fiyatı ${marketData.dailyPrice.current} ${marketData.currency}. ` +
+    (base.directAnswer || '');
+
+  base.summary =
+    `${marketData.displayName} için canlı piyasa verisi başarıyla alındı. ` +
+    (base.summary || '');
+}
+
+const normalized = normalizeAnalysis(
+  base,
+  cleanedQuery,
+  classification,
+  sourcePlan
+);
 
     return {
       ...normalized,
       engine: {
-        version: '3.0.0',
+        version: '4.0.0',
+        usedLiveMarketData: Boolean(marketData),
         mode: 'web-research',
         usedLiveWebResearch: true,
         entityRecognition: classification.entity?.found || false,
@@ -192,7 +226,8 @@ async function analyzeQuestion(query) {
   return {
     ...fallback,
     engine: {
-      version: '3.0.0',
+      version: '4.0.0',
+      usedLiveMarketData: Boolean(marketData),
       mode: 'limited-fallback',
       usedLiveWebResearch: false,
       entityRecognition: classification.entity?.found || false,
