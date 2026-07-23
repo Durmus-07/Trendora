@@ -10,21 +10,34 @@ const {
   confidenceLabel
 } = require('./probabilityEngine');
 
+function finiteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function positivePrice(value) {
+  const number = finiteNumber(value);
+  return number != null && number > 0 ? number : null;
+}
+
+function nonNegativeNumber(value) {
+  const number = finiteNumber(value);
+  return number != null && number >= 0 ? number : null;
+}
+
 function cleanRange(range) {
-  const available = Boolean(range?.available);
+  const low = positivePrice(range?.low);
+  const mid = positivePrice(range?.mid);
+  const high = positivePrice(range?.high);
+  const available = Boolean(range?.available) &&
+    [low, mid, high].some(value => value != null);
 
   return {
     available,
     currency: available ? String(range?.currency || 'TRY') : null,
-    low: available && Number.isFinite(Number(range?.low))
-      ? Number(range.low)
-      : null,
-    mid: available && Number.isFinite(Number(range?.mid))
-      ? Number(range.mid)
-      : null,
-    high: available && Number.isFinite(Number(range?.high))
-      ? Number(range.high)
-      : null,
+    low: available ? low : null,
+    mid: available ? mid : null,
+    high: available ? high : null,
     label: String(
       range?.label ||
       (available ? 'Tahmini aralık' : 'Aralık hesaplanamadı')
@@ -33,22 +46,89 @@ function cleanRange(range) {
   };
 }
 
-function cleanPriceBlock(raw, keys) {
-  const available = Boolean(raw?.available);
+function cleanPriceBlock(raw, keys, priceKeys = []) {
   const result = {
-    available,
-    currency: available ? String(raw?.currency || 'TRY') : null,
+    available: false,
+    currency: null,
     date: raw?.date || null,
     source: raw?.source ? String(raw.source) : null
   };
 
+  let hasValue = false;
+
   for (const key of keys) {
-    result[key] = available && Number.isFinite(Number(raw?.[key]))
-      ? Number(raw[key])
-      : null;
+    let value;
+
+    if (priceKeys.includes(key)) {
+      value = positivePrice(raw?.[key]);
+    } else if (key === 'volume') {
+      value = nonNegativeNumber(raw?.[key]);
+    } else {
+      value = finiteNumber(raw?.[key]);
+    }
+
+    result[key] = value;
+    if (value != null) hasValue = true;
   }
 
+  result.available = Boolean(raw?.available) && hasValue;
+  result.currency = result.available
+    ? String(raw?.currency || 'TRY')
+    : null;
+
   return result;
+}
+
+function cleanTechnical(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+
+  const keys = [
+    'rsi14',
+    'sma20',
+    'sma50',
+    'sma200',
+    'volumeRatio',
+    'changePercent',
+    'ema20',
+    'ema50',
+    'ema100',
+    'ema200',
+    'macd',
+    'macdSignal',
+    'macdHistogram',
+    'atr14',
+    'atrPercent',
+    'support1',
+    'support2',
+    'resistance1',
+    'resistance2',
+    'score'
+  ];
+
+  const result = {};
+
+  for (const key of keys) {
+    const value = finiteNumber(raw?.[key]);
+    result[key] = value;
+  }
+
+  result.direction = ['positive', 'negative', 'neutral'].includes(raw?.direction)
+    ? raw.direction
+    : 'neutral';
+
+  return result;
+}
+
+function cleanStatistics(raw) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+
+  return {
+    trendStrength: finiteNumber(source.trendStrength),
+    dataConfidence: finiteNumber(source.dataConfidence),
+    riskScore: finiteNumber(source.riskScore),
+    newsImpact: finiteNumber(source.newsImpact),
+    marketInterest: finiteNumber(source.marketInterest)
+  };
 }
 
 function cleanSources(sources) {
@@ -73,6 +153,13 @@ function cleanSources(sources) {
     .slice(0, 12);
 }
 
+function cleanText(value) {
+  return String(value || '')
+    .replace(/```(?:json)?/gi, '')
+    .replace(/\*\*/g, '')
+    .trim();
+}
+
 function normalizeAnalysis(raw, query, classification, sourcePlan) {
   const confidence = clamp(raw?.confidence, 0, 100);
 
@@ -84,12 +171,43 @@ function normalizeAnalysis(raw, query, classification, sourcePlan) {
     period: classification.period,
     entity: classification.entity,
     sourcePlan,
-    answerTitle: String(raw?.answerTitle || 'Trendora Analizi'),
-    directAnswer: String(raw?.directAnswer || raw?.summary || ''),
-    summary: String(raw?.summary || ''),
-    dailyPrice: cleanPriceBlock(raw?.dailyPrice, ['open', 'average', 'close']),
-    yearlyPrice: cleanPriceBlock(raw?.yearlyPrice, ['low52w', 'average52w', 'high52w']),
+    answerTitle: cleanText(raw?.answerTitle || 'Trendora Analizi'),
+    directAnswer: cleanText(raw?.directAnswer || raw?.summary || ''),
+    summary: cleanText(raw?.summary || ''),
+    dailyPrice: cleanPriceBlock(
+      raw?.dailyPrice,
+      [
+        'current',
+        'open',
+        'high',
+        'low',
+        'average',
+        'vwap',
+        'close',
+        'previousClose',
+        'change',
+        'changePercent',
+        'volume'
+      ],
+      [
+        'current',
+        'open',
+        'high',
+        'low',
+        'average',
+        'vwap',
+        'close',
+        'previousClose'
+      ]
+    ),
+    yearlyPrice: cleanPriceBlock(
+      raw?.yearlyPrice,
+      ['low52w', 'average52w', 'high52w'],
+      ['low52w', 'average52w', 'high52w']
+    ),
     estimatedRange: cleanRange(raw?.estimatedRange),
+    technical: cleanTechnical(raw?.technical),
+    statistics: cleanStatistics(raw?.statistics),
     scenarios: normalizeScenarios(raw?.scenarios),
     confidence: Math.round(confidence),
     confidenceLabel: confidenceLabel(confidence),
@@ -98,26 +216,44 @@ function normalizeAnalysis(raw, query, classification, sourcePlan) {
           type: ['positive', 'negative', 'neutral'].includes(item?.type)
             ? item.type
             : 'neutral',
-          title: String(item?.title || 'Sinyal'),
-          detail: String(item?.detail || ''),
+          title: cleanText(item?.title || 'Sinyal'),
+          detail: cleanText(item?.detail || ''),
           weight: Math.round(clamp(item?.weight, 0, 100))
         }))
       : [],
     keyFactors: Array.isArray(raw?.keyFactors)
-      ? raw.keyFactors.map(String).slice(0, 10)
+      ? raw.keyFactors.map(cleanText).filter(Boolean).slice(0, 10)
       : [],
     missingInformation: Array.isArray(raw?.missingInformation)
-      ? raw.missingInformation.map(String).slice(0, 10)
+      ? raw.missingInformation.map(cleanText).filter(Boolean).slice(0, 10)
       : [],
     nextChecks: Array.isArray(raw?.nextChecks)
-      ? raw.nextChecks.map(String).slice(0, 10)
+      ? raw.nextChecks.map(cleanText).filter(Boolean).slice(0, 10)
       : [],
     sources: cleanSources(raw?.sources),
-    disclaimer: String(
+    disclaimer: cleanText(
       raw?.disclaimer ||
       'Bu sonuç mevcut açık verilerden üretilmiş olasılık analizidir. Nihai karar kullanıcıya aittir.'
     )
   };
+}
+
+function firstValidPrice(...values) {
+  for (const value of values) {
+    const number = positivePrice(value);
+    if (number != null) return number;
+  }
+  return null;
+}
+
+function formatMarketPrice(value, currency) {
+  const number = positivePrice(value);
+  if (number == null) return null;
+
+  return `${number.toLocaleString('tr-TR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  })} ${currency || 'TRY'}`;
 }
 
 async function analyzeQuestion(query) {
@@ -131,74 +267,116 @@ async function analyzeQuestion(query) {
 
   const classification = classifyQuestion(cleanedQuery);
   const sourcePlan = buildSourcePlan(classification);
-let marketData = null;
 
-if (classification.domain === 'finance') {
-  try {
-    marketData = await fetchMarketData(cleanedQuery, classification);
-  } catch (error) {
-    console.error('Canlı piyasa verisi alınamadı:', error.message);
+  let marketData = null;
+
+  if (classification.domain === 'finance') {
+    try {
+      marketData = await fetchMarketData(cleanedQuery, classification);
+    } catch (error) {
+      console.error('Canlı piyasa verisi alınamadı:', error.message);
+    }
   }
-}
+
   let webResult = null;
   let webError = null;
 
   try {
-    webResult = await researchWithWeb(cleanedQuery, classification, sourcePlan);
+    webResult = await researchWithWeb(
+      cleanedQuery,
+      classification,
+      sourcePlan
+    );
   } catch (error) {
     webError = error;
     console.error('Trendora web araştırması başarısız:', error.message);
   }
 
   if (webResult || marketData) {
-   const base = webResult || buildFallbackAnalysis(
-  cleanedQuery,
-  classification,
-  []
-);
+    const base = webResult
+      ? {
+          ...webResult,
+          dailyPrice: { ...(webResult.dailyPrice || {}) },
+          yearlyPrice: { ...(webResult.yearlyPrice || {}) },
+          estimatedRange: { ...(webResult.estimatedRange || {}) },
+          technical: { ...(webResult.technical || {}) },
+          statistics: { ...(webResult.statistics || {}) },
+          sources: [...(webResult.sources || [])]
+        }
+      : buildFallbackAnalysis(
+          cleanedQuery,
+          classification,
+          []
+        );
 
-if (marketData) {
-  base.dailyPrice = marketData.dailyPrice;
-  base.yearlyPrice = marketData.yearlyPrice;
-  base.sources = [
-    marketData.source,
-    ...(base.sources || [])
-  ];
+    if (marketData) {
+      const marketCurrent = firstValidPrice(
+        marketData.dailyPrice?.current,
+        marketData.dailyPrice?.close,
+        marketData.dailyPrice?.open,
+        marketData.dailyPrice?.vwap,
+        marketData.dailyPrice?.average
+      );
 
-  base.directAnswer =
-    `${marketData.displayName} güncel fiyatı ${marketData.dailyPrice.current} ${marketData.currency}. ` +
-    (base.directAnswer || '');
+      base.dailyPrice = {
+        ...(marketData.dailyPrice || {}),
+        current: marketCurrent,
+        close: firstValidPrice(
+          marketData.dailyPrice?.close,
+          marketCurrent
+        )
+      };
 
-  base.summary =
-    `${marketData.displayName} için canlı piyasa verisi başarıyla alındı. ` +
-    (base.summary || '');
-}
+      base.yearlyPrice = {
+        ...(marketData.yearlyPrice || {})
+      };
 
-const normalized = normalizeAnalysis(
-  base,
-  cleanedQuery,
-  classification,
-  sourcePlan
-);
-return {
-  ...normalized,
-  engine: {
-    version: '4.0.0',
-    mode: marketData && webResult ? 'market-plus-web' : marketData ? 'market-data' : 'web-research',
-    usedLiveMarketData: Boolean(marketData),
-    usedLiveWebResearch: Boolean(webResult),
-    entityRecognition: classification.entity?.found || false,
-    generatedAt: new Date().toISOString()
-  }
-};
+      base.technical = {
+        ...(base.technical || {}),
+        ...(marketData.technical || {})
+      };
+
+      base.sources = [
+        marketData.source,
+        ...(base.sources || [])
+      ].filter(Boolean);
+
+      const displayedPrice = formatMarketPrice(
+        marketCurrent,
+        marketData.currency
+      );
+
+      if (displayedPrice) {
+        base.directAnswer =
+          `${marketData.displayName} güncel fiyatı ${displayedPrice}. ` +
+          (base.directAnswer || '');
+      }
+
+      base.summary =
+        `${marketData.displayName} için canlı piyasa verisi başarıyla alındı. ` +
+        (base.summary || '');
+    }
+
+    const normalized = normalizeAnalysis(
+      base,
+      cleanedQuery,
+      classification,
+      sourcePlan
+    );
+
     return {
       ...normalized,
       engine: {
-        version: '4.0.0',
+        version: '4.0.1',
+        mode: marketData && webResult
+          ? 'market-plus-web'
+          : marketData
+            ? 'market-data'
+            : 'web-research',
         usedLiveMarketData: Boolean(marketData),
-        mode: 'web-research',
-        usedLiveWebResearch: true,
+        usedLiveWebResearch: Boolean(webResult),
         entityRecognition: classification.entity?.found || false,
+        webResearchError: webError ? webError.message : null,
         generatedAt: new Date().toISOString()
       }
     };
@@ -235,8 +413,8 @@ return {
   return {
     ...fallback,
     engine: {
-      version: '4.0.0',
-      usedLiveMarketData: Boolean(marketData),
+      version: '4.0.1',
+      usedLiveMarketData: false,
       mode: 'limited-fallback',
       usedLiveWebResearch: false,
       entityRecognition: classification.entity?.found || false,

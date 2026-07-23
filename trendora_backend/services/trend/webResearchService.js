@@ -6,17 +6,65 @@ function getClient() {
   return new OpenAI({ apiKey });
 }
 
+function stripCodeFences(value) {
+  return String(value || '')
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+}
+
+function extractFirstJsonObject(value) {
+  const text = stripCodeFences(value);
+  const start = text.indexOf('{');
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === '{') depth += 1;
+
+    if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, index + 1);
+    }
+  }
+
+  return null;
+}
+
 function safeJsonParse(text) {
-  const raw = String(text || '').trim();
+  const raw = stripCodeFences(text);
+  if (!raw) return null;
 
   try {
     return JSON.parse(raw);
   } catch (_) {
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) return null;
+    const extracted = extractFirstJsonObject(raw);
+    if (!extracted) return null;
 
     try {
-      return JSON.parse(match[0]);
+      return JSON.parse(extracted);
     } catch (_) {
       return null;
     }
@@ -49,45 +97,56 @@ GÖREV:
 2. Kullanıcı hisseyi kısa koduyla yazmışsa kodu doğru şirketle eşleştir. Örnek: BIMAS=BİM, ASELS=ASELSAN, THYAO=Türk Hava Yolları, TUPRS=Tüpraş.
 3. Sorunun türüne göre doğru ölçütleri kullan. Her soruya aynı şablonu uygulama.
 4. Finansal varlıklarda günlük ve 52 haftalık verileri ASLA birbirine karıştırma.
-5. dailyPrice yalnızca açılış, günlük ortalama ve kapanış içerir.
+5. dailyPrice yalnızca günlük piyasa verilerini içerir.
 6. yearlyPrice yalnızca 52 haftalık en düşük, 52 haftalık ortalama ve 52 haftalık en yüksek içerir.
-7. Bir fiyatı güvenilir kaynaktan doğrulayamazsan sayı uydurma; ilgili available alanını false yap.
+7. Bir fiyatı güvenilir kaynaktan doğrulayamazsan sayı uydurma. 0 yazma; null kullan ve ilgili available alanını false yap.
 8. Gelecek/olasılık sorularında en az 3 senaryo üret. Yüzdeler toplamı tam 100 olsun.
 9. Yüzdeleri keyfi verme. Veri zayıfsa güven puanını düşür ve bunu açıkça söyle.
 10. Kesin emir verme. "Al", "sat", "kesin yükselir" deme.
 11. Kaynakların başlık, site adı ve gerçek URL bilgisini döndür.
-12. Günlük ortalama doğrudan güvenilir kaynaktan bulunamıyorsa, gün içi yüksek ve düşükten hesaplanmış gibi davranma. available=true yalnız gerçekten desteklenen veri varsa kullanılmalı.
+12. Günlük ortalama doğrudan güvenilir kaynaktan bulunamıyorsa, gün içi yüksek ve düşükten hesaplanmış gibi davranma.
+13. JSON dışında hiçbir karakter, açıklama, Markdown, kod bloğu veya kaynakça metni yazma.
+14. Sayısal veri yoksa 0 yerine null kullan.
+15. directAnswer ve summary alanlarının içine Markdown işaretleri ekleme.
 
-SADECE geçerli JSON döndür. Markdown kullanma.
+SADECE geçerli JSON döndür.
 Şema:
 {
   "answerTitle": "kısa başlık",
   "directAnswer": "soruya doğrudan, somut cevap",
   "summary": "analitik özet",
   "dailyPrice": {
-    "available": true,
+    "available": false,
     "currency": "TRY",
-    "open": 0,
-    "average": 0,
-    "close": 0,
-    "date": "YYYY-MM-DD veya null",
-    "source": "kaynak adı veya null"
+    "current": null,
+    "open": null,
+    "high": null,
+    "low": null,
+    "average": null,
+    "vwap": null,
+    "close": null,
+    "previousClose": null,
+    "change": null,
+    "changePercent": null,
+    "volume": null,
+    "date": null,
+    "source": null
   },
   "yearlyPrice": {
-    "available": true,
+    "available": false,
     "currency": "TRY",
-    "low52w": 0,
-    "average52w": 0,
-    "high52w": 0,
-    "date": "YYYY-MM-DD veya null",
-    "source": "kaynak adı veya null"
+    "low52w": null,
+    "average52w": null,
+    "high52w": null,
+    "date": null,
+    "source": null
   },
   "estimatedRange": {
-    "available": true,
+    "available": false,
     "currency": "TRY",
-    "low": 0,
-    "mid": 0,
-    "high": 0,
+    "low": null,
+    "mid": null,
+    "high": null,
     "label": "Makul piyasa aralığı",
     "basis": "aralığın nasıl çıkarıldığı"
   },
@@ -97,6 +156,13 @@ SADECE geçerli JSON döndür. Markdown kullanma.
     {"name":"Olumsuz senaryo","probability":0,"description":"..."}
   ],
   "confidence": 0,
+  "statistics": {
+    "trendStrength": null,
+    "dataConfidence": null,
+    "riskScore": null,
+    "newsImpact": null,
+    "marketInterest": null
+  },
   "signals": [
     {"type":"positive|negative|neutral","title":"...","detail":"...","weight":0}
   ],
@@ -116,13 +182,15 @@ Kaynak sayısı mümkünse 4-10 arasında olsun.
 `;
 }
 
-async function researchWithWeb(query, classification, sourcePlan) {
-  const client = getClient();
-  if (!client) return null;
+async function requestResearch(client, query, classification, sourcePlan, retry = false) {
+  const instructions = buildInstructions(classification, sourcePlan) +
+    (retry
+      ? '\nÖNEMLİ: Önceki yanıt geçerli JSON değildi. Bu kez yalnızca tek bir geçerli JSON nesnesi döndür.'
+      : '');
 
-  const response = await client.responses.create({
+  return client.responses.create({
     model: process.env.TRENDORA_ANALYSIS_MODEL || 'gpt-4.1-mini',
-    instructions: buildInstructions(classification, sourcePlan),
+    instructions,
     input: query,
     tools: [
       {
@@ -131,16 +199,44 @@ async function researchWithWeb(query, classification, sourcePlan) {
       }
     ]
   });
+}
 
-  const parsed = safeJsonParse(response.output_text);
+async function researchWithWeb(query, classification, sourcePlan) {
+  const client = getClient();
+  if (!client) return null;
+
+  let response = await requestResearch(
+    client,
+    query,
+    classification,
+    sourcePlan,
+    false
+  );
+
+  let parsed = safeJsonParse(response.output_text);
 
   if (!parsed) {
-    throw new Error('Web araştırma sonucu geçerli JSON olarak çözülemedi.');
+    console.warn('Trendora web araştırması ilk yanıtta geçerli JSON üretmedi; ikinci deneme yapılıyor.');
+
+    response = await requestResearch(
+      client,
+      query,
+      classification,
+      sourcePlan,
+      true
+    );
+
+    parsed = safeJsonParse(response.output_text);
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Web araştırma sonucu iki denemede de geçerli JSON olarak çözülemedi.');
   }
 
   return parsed;
 }
 
 module.exports = {
-  researchWithWeb
+  researchWithWeb,
+  safeJsonParse
 };
