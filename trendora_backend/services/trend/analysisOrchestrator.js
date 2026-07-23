@@ -4,7 +4,6 @@ const { classifyQuestion } = require('./questionClassifier');
 const { buildSourcePlan } = require('./sourceRouter');
 const { collectNewsEvidence } = require('./newsEvidenceCollector');
 const { researchWithWeb } = require('./webResearchService');
-const { buildFallbackAnalysis } = require('./fallbackAnalyzer');
 const {
   clamp,
   normalizeScenarios,
