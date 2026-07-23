@@ -180,7 +180,17 @@ const normalized = normalizeAnalysis(
   classification,
   sourcePlan
 );
-
+return {
+  ...normalized,
+  engine: {
+    version: '4.0.0',
+    mode: marketData && webResult ? 'market-plus-web' : marketData ? 'market-data' : 'web-research',
+    usedLiveMarketData: Boolean(marketData),
+    usedLiveWebResearch: Boolean(webResult),
+    entityRecognition: classification.entity?.found || false,
+    generatedAt: new Date().toISOString()
+  }
+};
     return {
       ...normalized,
       engine: {
