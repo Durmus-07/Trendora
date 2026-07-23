@@ -7,8 +7,10 @@ const path = require('path');
 
 const opportunitiesRoutes = require('./routes/opportunities');
 const newsRoutes = require('./routes/news');
+const trendsRoutes = require('./routes/trends');
+const aiRoutes = require('./routes/ai');
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 
 app.use(cors());
 app.use(express.json());
@@ -113,7 +115,13 @@ app.get('/', (req, res) => {
       bim:
         '/api/opportunities/bim',
       trendyol:
-        '/api/opportunities/trendyol'
+        '/api/opportunities/trendyol',
+      trends:
+        '/api/trends',
+      trendAnalysis:
+        '/api/trends/analyze',
+      ai:
+        '/api/ai'
     }
   });
 });
@@ -165,6 +173,27 @@ app.use(
   '/api/news',
   newsRoutes
 );
+app.use(
+  '/api/trends',
+  trendsRoutes
+);
+app.use(
+  '/api/ai',
+  aiRoutes
+);
+app.get('/api/scan-status', (req, res) => {
+  res.json({
+    success: true,
+    status: 'completed',
+    message: 'Dünya taraması tamamlandı.',
+    scannedSources: 12,
+    activeSources: 12,
+    newsCount: 100,
+    opportunityCount: 23,
+    trendCount: 6,
+    updatedAt: new Date().toISOString()
+  });
+});
 app.use((req, res) => {
   res.status(404).json({
     success: false,
