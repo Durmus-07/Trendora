@@ -1,4 +1,5 @@
 const { classifyQuestion } = require('./questionClassifier');
+const { buildSourcePlan } = require('./sourceRouter');
 const { collectNewsEvidence } = require('./newsEvidenceCollector');
 const { researchWithWeb } = require('./webResearchService');
 const { buildFallbackAnalysis } = require('./fallbackAnalyzer');
@@ -31,6 +32,24 @@ function cleanRange(range) {
   };
 }
 
+function cleanPriceBlock(raw, keys) {
+  const available = Boolean(raw?.available);
+  const result = {
+    available,
+    currency: available ? String(raw?.currency || 'TRY') : null,
+    date: raw?.date || null,
+    source: raw?.source ? String(raw.source) : null
+  };
+
+  for (const key of keys) {
+    result[key] = available && Number.isFinite(Number(raw?.[key]))
+      ? Number(raw[key])
+      : null;
+  }
+
+  return result;
+}
+
 function cleanSources(sources) {
   if (!Array.isArray(sources)) return [];
 
@@ -53,7 +72,7 @@ function cleanSources(sources) {
     .slice(0, 12);
 }
 
-function normalizeAnalysis(raw, query, classification) {
+function normalizeAnalysis(raw, query, classification, sourcePlan) {
   const confidence = clamp(raw?.confidence, 0, 100);
 
   return {
@@ -61,9 +80,14 @@ function normalizeAnalysis(raw, query, classification) {
     domain: classification.domain,
     category: classification.label,
     intent: classification.intent,
+    period: classification.period,
+    entity: classification.entity,
+    sourcePlan,
     answerTitle: String(raw?.answerTitle || 'Trendora Analizi'),
     directAnswer: String(raw?.directAnswer || raw?.summary || ''),
     summary: String(raw?.summary || ''),
+    dailyPrice: cleanPriceBlock(raw?.dailyPrice, ['open', 'average', 'close']),
+    yearlyPrice: cleanPriceBlock(raw?.yearlyPrice, ['low52w', 'average52w', 'high52w']),
     estimatedRange: cleanRange(raw?.estimatedRange),
     scenarios: normalizeScenarios(raw?.scenarios),
     confidence: Math.round(confidence),
@@ -98,19 +122,20 @@ function normalizeAnalysis(raw, query, classification) {
 async function analyzeQuestion(query) {
   const cleanedQuery = String(query || '').trim();
 
-  if (cleanedQuery.length < 3) {
-    const error = new Error('Analiz için en az 3 karakterlik bir soru yazmalısın.');
+  if (cleanedQuery.length < 2) {
+    const error = new Error('Analiz için en az 2 karakterlik bir soru yazmalısın.');
     error.statusCode = 400;
     throw error;
   }
 
   const classification = classifyQuestion(cleanedQuery);
+  const sourcePlan = buildSourcePlan(classification);
 
   let webResult = null;
   let webError = null;
 
   try {
-    webResult = await researchWithWeb(cleanedQuery, classification);
+    webResult = await researchWithWeb(cleanedQuery, classification, sourcePlan);
   } catch (error) {
     webError = error;
     console.error('Trendora web araştırması başarısız:', error.message);
@@ -120,40 +145,57 @@ async function analyzeQuestion(query) {
     const normalized = normalizeAnalysis(
       webResult,
       cleanedQuery,
-      classification
+      classification,
+      sourcePlan
     );
 
     return {
       ...normalized,
       engine: {
-        version: '2.0.0',
+        version: '3.0.0',
         mode: 'web-research',
         usedLiveWebResearch: true,
+        entityRecognition: classification.entity?.found || false,
         generatedAt: new Date().toISOString()
       }
     };
   }
 
   let evidence = [];
+  const evidenceQuery = classification.entity?.found
+    ? `${classification.entity.name} ${classification.entity.symbol || ''}`.trim()
+    : cleanedQuery;
 
   try {
-    evidence = await collectNewsEvidence(cleanedQuery, 30);
+    evidence = await collectNewsEvidence(evidenceQuery, 30);
   } catch (error) {
     console.error('Yedek haber kanıtları alınamadı:', error.message);
   }
 
-  const fallback = normalizeAnalysis(
-    buildFallbackAnalysis(cleanedQuery, classification, evidence),
+  const fallbackRaw = buildFallbackAnalysis(
     cleanedQuery,
-    classification
+    classification,
+    evidence
+  );
+
+  const fallback = normalizeAnalysis(
+    {
+      ...fallbackRaw,
+      dailyPrice: { available: false },
+      yearlyPrice: { available: false }
+    },
+    cleanedQuery,
+    classification,
+    sourcePlan
   );
 
   return {
     ...fallback,
     engine: {
-      version: '2.0.0',
+      version: '3.0.0',
       mode: 'limited-fallback',
       usedLiveWebResearch: false,
+      entityRecognition: classification.entity?.found || false,
       webResearchError: webError ? webError.message : null,
       generatedAt: new Date().toISOString()
     }

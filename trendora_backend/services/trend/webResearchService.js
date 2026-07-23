@@ -2,9 +2,7 @@ const OpenAI = require('openai');
 
 function getClient() {
   const apiKey = process.env.OPENAI_API_KEY;
-
   if (!apiKey) return null;
-
   return new OpenAI({ apiKey });
 }
 
@@ -25,21 +23,40 @@ function safeJsonParse(text) {
   }
 }
 
-function buildInstructions(classification) {
+function buildInstructions(classification, sourcePlan) {
+  const entity = classification?.entity?.found
+    ? `${classification.entity.name} (${classification.entity.symbol})`
+    : 'Belirli bir varlık eşleşmedi';
+
   return `
 Sen Trendora'nın araştırma ve karar destek motorusun.
 Türkçe yanıt ver.
-Kullanıcının sorusu ${classification.label} alanında ve niyeti ${classification.intent}.
+
+SINIFLANDIRMA:
+- Alan: ${classification.label}
+- Niyet: ${classification.intent}
+- Dönem: ${classification.period?.label || 'Genel'}
+- Tanınan varlık: ${entity}
+- Varlık türü: ${classification.entity?.subtype || 'belirsiz'}
+
+KAYNAK PLANI:
+- Gerekli kanıtlar: ${(sourcePlan?.required || []).join(' | ')}
+- Tercih edilen alan adları: ${(sourcePlan?.preferredDomains || []).join(' | ')}
+- Notlar: ${(sourcePlan?.notes || []).join(' | ')}
 
 GÖREV:
 1. Web araması yap ve güncel, açık, güvenilir kaynaklardan somut veri topla.
-2. Sorunun türüne göre doğru ölçütleri kullan. Her soruya aynı şablonu uygulama.
-3. Fiyat sorularında mümkünse makul fiyat aralığı, ortanca/ortalama, alt-üst bant ve fiyatı değiştiren unsurları ver.
-4. Gelecek/olasılık sorularında en az 3 senaryo üret. Yüzdeler toplamı tam 100 olsun.
-5. Yüzdeleri keyfi verme. Veri zayıfsa güven puanını düşür ve bunu açıkça söyle.
-6. Kesin emir verme. "Al", "sat", "kesin yükselir" deme. Kullanıcının nihai kararı kendisinin vereceğini belirt.
-7. Kaynakların başlık, site adı ve gerçek URL bilgisini döndür.
-8. Sağlık, hukuk veya güvenlik gibi yüksek riskli konularda yalnızca genel bilgi ver; profesyonel desteğin gerekli olabileceğini belirt.
+2. Kullanıcı hisseyi kısa koduyla yazmışsa kodu doğru şirketle eşleştir. Örnek: BIMAS=BİM, ASELS=ASELSAN, THYAO=Türk Hava Yolları, TUPRS=Tüpraş.
+3. Sorunun türüne göre doğru ölçütleri kullan. Her soruya aynı şablonu uygulama.
+4. Finansal varlıklarda günlük ve 52 haftalık verileri ASLA birbirine karıştırma.
+5. dailyPrice yalnızca açılış, günlük ortalama ve kapanış içerir.
+6. yearlyPrice yalnızca 52 haftalık en düşük, 52 haftalık ortalama ve 52 haftalık en yüksek içerir.
+7. Bir fiyatı güvenilir kaynaktan doğrulayamazsan sayı uydurma; ilgili available alanını false yap.
+8. Gelecek/olasılık sorularında en az 3 senaryo üret. Yüzdeler toplamı tam 100 olsun.
+9. Yüzdeleri keyfi verme. Veri zayıfsa güven puanını düşür ve bunu açıkça söyle.
+10. Kesin emir verme. "Al", "sat", "kesin yükselir" deme.
+11. Kaynakların başlık, site adı ve gerçek URL bilgisini döndür.
+12. Günlük ortalama doğrudan güvenilir kaynaktan bulunamıyorsa, gün içi yüksek ve düşükten hesaplanmış gibi davranma. available=true yalnız gerçekten desteklenen veri varsa kullanılmalı.
 
 SADECE geçerli JSON döndür. Markdown kullanma.
 Şema:
@@ -47,6 +64,24 @@ SADECE geçerli JSON döndür. Markdown kullanma.
   "answerTitle": "kısa başlık",
   "directAnswer": "soruya doğrudan, somut cevap",
   "summary": "analitik özet",
+  "dailyPrice": {
+    "available": true,
+    "currency": "TRY",
+    "open": 0,
+    "average": 0,
+    "close": 0,
+    "date": "YYYY-MM-DD veya null",
+    "source": "kaynak adı veya null"
+  },
+  "yearlyPrice": {
+    "available": true,
+    "currency": "TRY",
+    "low52w": 0,
+    "average52w": 0,
+    "high52w": 0,
+    "date": "YYYY-MM-DD veya null",
+    "source": "kaynak adı veya null"
+  },
   "estimatedRange": {
     "available": true,
     "currency": "TRY",
@@ -62,33 +97,32 @@ SADECE geçerli JSON döndür. Markdown kullanma.
     {"name":"Olumsuz senaryo","probability":0,"description":"..."}
   ],
   "confidence": 0,
-  "confidenceLabel": "Düşük|Orta|Yüksek",
   "signals": [
     {"type":"positive|negative|neutral","title":"...","detail":"...","weight":0}
   ],
   "keyFactors": ["..."],
   "missingInformation": ["..."],
-  "nextChecks": ["kullanıcının karar vermeden önce kontrol etmesi gerekenler"],
+  "nextChecks": ["..."],
   "sources": [
     {"title":"...","publisher":"...","url":"https://...","publishedAt":null,"evidenceType":"web"}
   ],
   "disclaimer": "..."
 }
 
-estimatedRange uygun değilse available=false ve low/mid/high değerlerini null yap.
-confidence 0-100 arasında olmalı.
-signals weight 0-100 arasında olmalı.
+Finans dışı sorularda dailyPrice ve yearlyPrice available=false olmalı.
+estimatedRange uygun değilse available=false ve low/mid/high null olmalı.
+confidence ve signals weight 0-100 arasında olmalı.
 Kaynak sayısı mümkünse 4-10 arasında olsun.
 `;
 }
 
-async function researchWithWeb(query, classification) {
+async function researchWithWeb(query, classification, sourcePlan) {
   const client = getClient();
   if (!client) return null;
 
   const response = await client.responses.create({
     model: process.env.TRENDORA_ANALYSIS_MODEL || 'gpt-4.1-mini',
-    instructions: buildInstructions(classification),
+    instructions: buildInstructions(classification, sourcePlan),
     input: query,
     tools: [
       {

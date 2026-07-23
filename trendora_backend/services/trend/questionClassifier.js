@@ -1,3 +1,6 @@
+const { resolveEntity } = require('./entityEngine');
+const { detectIntent } = require('./intentEngine');
+
 function normalizeText(value) {
   return String(value || '')
     .toLocaleLowerCase('tr-TR')
@@ -31,8 +34,7 @@ const DOMAIN_RULES = [
     label: 'Finans',
     keywords: [
       'hisse', 'borsa', 'bist', 'altın', 'gümüş', 'dolar', 'euro',
-      'kripto', 'bitcoin', 'fon', 'tahvil', 'faiz', 'tüpraş', 'aselsan',
-      'temettü', 'yatırım'
+      'kripto', 'bitcoin', 'fon', 'tahvil', 'faiz', 'temettü', 'yatırım'
     ]
   },
   {
@@ -63,55 +65,38 @@ const DOMAIN_RULES = [
   }
 ];
 
-function inferIntent(query) {
-  const value = normalizeText(query);
-
-  if (/kaç\s*(tl|lira)|fiyat aralığı|piyasa değeri|kaç olmalı|ederi/.test(value)) {
-    return 'valuation';
-  }
-
-  if (/alınır mı|mantıklı mı|değer mi|hangisi|karşılaştır/.test(value)) {
-    return 'decision_support';
-  }
-
-  if (/yüksel|düşer|artar|azalır|devam eder|gelecek|önümüzdeki/.test(value)) {
-    return 'forecast';
-  }
-
-  if (/risk|olasılık|ihtimal|başarılı olur mu/.test(value)) {
-    return 'probability';
-  }
-
-  return 'general_analysis';
-}
-
 function classifyQuestion(query) {
   const value = normalizeText(query);
+  const entity = resolveEntity(query);
+  const detectedIntent = detectIntent(query);
+
   let best = {
-    domain: 'general',
-    label: 'Genel Analiz',
-    score: 0,
-    matchedKeywords: []
+    domain: entity.found ? entity.domain : 'general',
+    label: entity.found ? 'Finans' : 'Genel Analiz',
+    score: entity.found ? 100 : 0,
+    matchedKeywords: entity.found ? [entity.symbol || entity.name] : []
   };
 
-  for (const rule of DOMAIN_RULES) {
-    const matchedKeywords = rule.keywords.filter(keyword =>
-      value.includes(keyword)
-    );
+  if (!entity.found) {
+    for (const rule of DOMAIN_RULES) {
+      const matchedKeywords = rule.keywords.filter(keyword => value.includes(keyword));
 
-    if (matchedKeywords.length > best.score) {
-      best = {
-        domain: rule.domain,
-        label: rule.label,
-        score: matchedKeywords.length,
-        matchedKeywords
-      };
+      if (matchedKeywords.length > best.score) {
+        best = {
+          domain: rule.domain,
+          label: rule.label,
+          score: matchedKeywords.length,
+          matchedKeywords
+        };
+      }
     }
   }
 
   return {
     ...best,
-    intent: inferIntent(query),
+    intent: detectedIntent.type,
+    period: detectedIntent.period,
+    entity,
     normalizedQuery: value
   };
 }
