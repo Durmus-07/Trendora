@@ -70,6 +70,62 @@ function sma(values, period) {
   return average(values.slice(-period));
 }
 
+function emaSeries(values, period) {
+  if (!Array.isArray(values) || values.length < period) return [];
+  const clean = values.filter(Number.isFinite);
+  if (clean.length < period) return [];
+
+  const multiplier = 2 / (period + 1);
+  const result = new Array(clean.length).fill(null);
+  let current = average(clean.slice(0, period));
+  result[period - 1] = current;
+
+  for (let i = period; i < clean.length; i += 1) {
+    current = ((clean[i] - current) * multiplier) + current;
+    result[i] = current;
+  }
+
+  return result;
+}
+
+function ema(values, period) {
+  const series = emaSeries(values, period);
+  if (!series.length) return null;
+  return finite(series[series.length - 1]);
+}
+
+function macd(values) {
+  if (!Array.isArray(values) || values.length < 35) {
+    return { macd: null, signal: null, histogram: null };
+  }
+
+  const fast = emaSeries(values, 12);
+  const slow = emaSeries(values, 26);
+  const macdSeries = [];
+
+  for (let i = 0; i < values.length; i += 1) {
+    if (fast[i] != null && slow[i] != null) {
+      macdSeries.push(fast[i] - slow[i]);
+    }
+  }
+
+  if (macdSeries.length < 9) {
+    return { macd: null, signal: null, histogram: null };
+  }
+
+  const signalSeries = emaSeries(macdSeries, 9);
+  const macdValue = finite(macdSeries[macdSeries.length - 1]);
+  const signalValue = finite(signalSeries[signalSeries.length - 1]);
+
+  return {
+    macd: macdValue,
+    signal: signalValue,
+    histogram: macdValue != null && signalValue != null
+      ? macdValue - signalValue
+      : null
+  };
+}
+
 function rsi(values, period = 14) {
   if (!Array.isArray(values) || values.length <= period) return null;
   const window = values.slice(-(period + 1));
@@ -98,6 +154,61 @@ function calculateVwap(high, low, close, volume) {
     denominator += v;
   }
   return denominator > 0 ? numerator / denominator : average(close);
+}
+
+function atr(rows, period = 14) {
+  if (!Array.isArray(rows) || rows.length <= period) return null;
+
+  const trueRanges = [];
+  for (let i = 1; i < rows.length; i += 1) {
+    const high = finite(rows[i]?.high);
+    const low = finite(rows[i]?.low);
+    const previousClose = finite(rows[i - 1]?.close);
+    if (high == null || low == null || previousClose == null) continue;
+
+    trueRanges.push(Math.max(
+      high - low,
+      Math.abs(high - previousClose),
+      Math.abs(low - previousClose)
+    ));
+  }
+
+  if (trueRanges.length < period) return null;
+  return average(trueRanges.slice(-period));
+}
+
+function calculateSupportResistance(rows, lookback = 60) {
+  if (!Array.isArray(rows) || !rows.length) {
+    return { support1: null, support2: null, resistance1: null, resistance2: null };
+  }
+
+  const recent = rows.slice(-lookback);
+  const lows = recent.map((row) => finite(row.low)).filter(Number.isFinite);
+  const highs = recent.map((row) => finite(row.high)).filter(Number.isFinite);
+  const closes = recent.map((row) => finite(row.close)).filter(Number.isFinite);
+
+  if (!lows.length || !highs.length || !closes.length) {
+    return { support1: null, support2: null, resistance1: null, resistance2: null };
+  }
+
+  const sortedLows = [...lows].sort((a, b) => a - b);
+  const sortedHighs = [...highs].sort((a, b) => b - a);
+  const current = closes[closes.length - 1];
+
+  const supports = sortedLows
+    .filter((value) => value <= current)
+    .filter((value, index, list) => index === 0 || Math.abs(value - list[index - 1]) / current > 0.01);
+
+  const resistances = sortedHighs
+    .filter((value) => value >= current)
+    .filter((value, index, list) => index === 0 || Math.abs(value - list[index - 1]) / current > 0.01);
+
+  return {
+    support1: finite(supports[0]),
+    support2: finite(supports[1]),
+    resistance1: finite(resistances[0]),
+    resistance2: finite(resistances[1])
+  };
 }
 
 function buildTechnicalScore({ current, sma20, sma50, sma200, rsi14, volumeRatio, changePercent }) {
@@ -183,13 +294,27 @@ async function fetchMarketData(query, classification) {
     ? latest.volume / averageVolume20
     : null;
 
+  const macdValues = macd(closes);
+  const supportResistance = calculateSupportResistance(rows);
+  const atr14 = atr(rows, 14);
+
   const indicators = {
     rsi14: rsi(closes, 14),
     sma20: sma(closes, 20),
     sma50: sma(closes, 50),
     sma200: sma(closes, 200),
     volumeRatio,
-    changePercent
+    changePercent,
+    ema20: ema(closes, 20),
+    ema50: ema(closes, 50),
+    ema100: ema(closes, 100),
+    ema200: ema(closes, 200),
+    macd: macdValues.macd,
+    macdSignal: macdValues.signal,
+    macdHistogram: macdValues.histogram,
+    atr14,
+    atrPercent: atr14 != null && current ? (atr14 / current) * 100 : null,
+    ...supportResistance
   };
 
   const technicalScore = buildTechnicalScore({ current, ...indicators });
