@@ -360,209 +360,9 @@ class _TrendyolSayfasiState extends State<TrendyolSayfasi> {
   Widget _urunKarti(
     TrendyolFirsati firsat,
   ) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 13),
-      elevation: 2,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(17),
-      ),
-      child: InkWell(
-        onTap: firsat.url.isEmpty
-            ? null
-            : () {
-                _firsatiAc(firsat);
-              },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (firsat.imageUrl.isNotEmpty)
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Image.network(
-                  firsat.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (
-                    context,
-                    error,
-                    stackTrace,
-                  ) {
-                    return _gorselYerTutucu();
-                  },
-                  loadingBuilder: (
-                    context,
-                    child,
-                    loadingProgress,
-                  ) {
-                    if (loadingProgress == null) {
-                      return child;
-                    }
-
-                    return Container(
-                      color: Colors.grey.shade100,
-                      alignment: Alignment.center,
-                      child:
-                          const CircularProgressIndicator(
-                        strokeWidth: 2,
-                      ),
-                    );
-                  },
-                ),
-              )
-            else
-              _gorselYerTutucu(),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding:
-                            const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              Colors.orange.withOpacity(0.12),
-                          borderRadius:
-                              BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'TRENDYOL',
-                          style: TextStyle(
-                            color: Colors.orange,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      if (firsat.indirimOrani > 0)
-                        Text(
-                          '%${firsat.indirimOrani} indirim',
-                          style: const TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    firsat.baslik.isEmpty
-                        ? 'Trendyol Fırsatı'
-                        : firsat.baslik,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (firsat.aciklama.isNotEmpty) ...[
-                    const SizedBox(height: 7),
-                    Text(
-                      firsat.aciklama,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  if (firsat.fiyat.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Text(
-                          firsat.fiyat,
-                          style: const TextStyle(
-                            fontSize: 21,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (firsat.eskiFiyat.isNotEmpty)
-                          ...[
-                            const SizedBox(width: 10),
-                            Text(
-                              firsat.eskiFiyat,
-                              style: const TextStyle(
-                                color: Colors.grey,
-                                decoration:
-                                    TextDecoration.lineThrough,
-                              ),
-                            ),
-                          ],
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  const Divider(),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.campaign_outlined,
-                        size: 17,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          firsat.kaynakAdi.isEmpty
-                              ? 'Telegram fırsat kaynağı'
-                              : firsat.kaynakAdi,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (firsat.url.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: () {
-                          _firsatiAc(firsat);
-                        },
-                        icon: const Icon(
-                          Icons.open_in_new,
-                        ),
-                        label: const Text(
-                          'Fırsata Git',
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _gorselYerTutucu() {
-    return Container(
-      height: 135,
-      width: double.infinity,
-      color: Colors.grey.shade100,
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.image_not_supported_outlined,
-            size: 36,
-            color: Colors.grey.shade500,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Ürün görseli hazırlanıyor',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
+    return TrendyolMetinFirsatKarti(
+      firsat: firsat,
+      onAc: () => _firsatiAc(firsat),
     );
   }
 
@@ -577,6 +377,423 @@ class _TrendyolSayfasiState extends State<TrendyolSayfasi> {
   }
 }
 
+
+class TrendyolMetinFirsatKarti extends StatefulWidget {
+  final TrendyolFirsati firsat;
+  final VoidCallback onAc;
+
+  const TrendyolMetinFirsatKarti({
+    super.key,
+    required this.firsat,
+    required this.onAc,
+  });
+
+  @override
+  State<TrendyolMetinFirsatKarti> createState() =>
+      _TrendyolMetinFirsatKartiState();
+}
+
+class _TrendyolMetinFirsatKartiState
+    extends State<TrendyolMetinFirsatKarti> {
+  bool _kaydedildi = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final TrendyolFirsati firsat = widget.firsat;
+    final bool linkHazir = _gecerliWebAdresi(firsat.url);
+    final bool fiyatVar = firsat.fiyat.trim().isNotEmpty;
+    final bool trendyolLinki =
+        firsat.url.toLowerCase().contains('trendyol') ||
+            firsat.url.toLowerCase().contains('ty.gl');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: const Color(0xFFF27A1A).withOpacity(0.18),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.055),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: linkHazir ? widget.onAc : null,
+          borderRadius: BorderRadius.circular(22),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _firsatRozeti(firsat),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF27A1A).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(
+                            radius: 4.5,
+                            backgroundColor: Color(0xFFF27A1A),
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            'TRENDYOL',
+                            style: TextStyle(
+                              color: Color(0xFFF27A1A),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.25,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 15),
+                Text(
+                  firsat.baslik.isEmpty
+                      ? 'Trendyol Fırsatı'
+                      : firsat.baslik,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    height: 1.22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.25,
+                  ),
+                ),
+                if (firsat.aciklama.isNotEmpty &&
+                    firsat.aciklama.trim() != firsat.baslik.trim()) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    firsat.aciklama,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontSize: 14,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+                if (fiyatVar || firsat.eskiFiyat.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (fiyatVar)
+                        Expanded(
+                          child: Text(
+                            '💰 ${firsat.fiyat}',
+                            style: const TextStyle(
+                              color: Color(0xFF128447),
+                              fontSize: 27,
+                              height: 1,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.6,
+                            ),
+                          ),
+                        ),
+                      if (firsat.indirimOrani > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 11,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFE8E8),
+                            borderRadius: BorderRadius.circular(13),
+                          ),
+                          child: Text(
+                            '-%${firsat.indirimOrani}',
+                            style: const TextStyle(
+                              color: Color(0xFFD92525),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (firsat.eskiFiyat.isNotEmpty) ...[
+                    const SizedBox(height: 7),
+                    Text(
+                      firsat.eskiFiyat,
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 15,
+                        decoration: TextDecoration.lineThrough,
+                        decorationThickness: 2,
+                      ),
+                    ),
+                  ],
+                ],
+                const SizedBox(height: 15),
+                Divider(
+                  height: 1,
+                  color: Colors.grey.shade200,
+                ),
+                const SizedBox(height: 13),
+                _bilgiSatiri(
+                  Icons.storefront_outlined,
+                  firsat.kaynakAdi.isEmpty
+                      ? 'Trendyol'
+                      : firsat.kaynakAdi,
+                  const Color(0xFFF27A1A),
+                ),
+                const SizedBox(height: 8),
+                _bilgiSatiri(
+                  Icons.schedule_outlined,
+                  _zamanMetni(firsat.eklenmeTarihi),
+                  Colors.blueGrey,
+                ),
+                if (linkHazir || fiyatVar || trendyolLinki) ...[
+                  const SizedBox(height: 8),
+                  _dogrulamaSatiri(
+                    linkHazir: linkHazir,
+                    fiyatVar: fiyatVar,
+                    trendyolLinki: trendyolLinki,
+                  ),
+                ],
+                const SizedBox(height: 15),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _kaydedildi = !_kaydedildi;
+                          });
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              duration: const Duration(seconds: 1),
+                              content: Text(
+                                _kaydedildi
+                                    ? 'Fırsat bu oturum için kaydedildi.'
+                                    : 'Fırsat kayıtlardan çıkarıldı.',
+                              ),
+                            ),
+                          );
+                        },
+                        icon: Icon(
+                          _kaydedildi
+                              ? Icons.bookmark
+                              : Icons.bookmark_border,
+                        ),
+                        label: Text(
+                          _kaydedildi ? 'Kaydedildi' : 'Kaydet',
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          foregroundColor: const Color(0xFF202A44),
+                          side: BorderSide(
+                            color: Colors.grey.shade300,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: FilledButton.icon(
+                        onPressed: linkHazir ? widget.onAc : null,
+                        icon: const Icon(Icons.shopping_cart_checkout),
+                        label: const Text('Fırsata Git'),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          backgroundColor: const Color(0xFFF27A1A),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _firsatRozeti(TrendyolFirsati firsat) {
+    final String metin;
+    final IconData ikon;
+
+    if (firsat.indirimOrani >= 40) {
+      metin = 'SÜPER FIRSAT';
+      ikon = Icons.local_fire_department;
+    } else if (firsat.indirimOrani >= 20) {
+      metin = 'FLAŞ İNDİRİM';
+      ikon = Icons.bolt;
+    } else if (firsat.indirimOrani > 0) {
+      metin = 'FİYAT DÜŞTÜ';
+      ikon = Icons.trending_down;
+    } else {
+      metin = 'GÜNCEL FIRSAT';
+      ikon = Icons.local_offer_outlined;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 7,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF0E8),
+        borderRadius: BorderRadius.circular(13),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            ikon,
+            size: 16,
+            color: const Color(0xFFE84A1A),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            metin,
+            style: const TextStyle(
+              color: Color(0xFFE84A1A),
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.35,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _bilgiSatiri(
+    IconData ikon,
+    String metin,
+    Color renk,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          ikon,
+          size: 18,
+          color: renk,
+        ),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            metin,
+            style: TextStyle(
+              color: Colors.grey.shade800,
+              fontSize: 13,
+              height: 1.3,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _dogrulamaSatiri({
+    required bool linkHazir,
+    required bool fiyatVar,
+    required bool trendyolLinki,
+  }) {
+    final List<String> bilgiler = [];
+
+    if (trendyolLinki) {
+      bilgiler.add('Trendyol bağlantısı eşleşti');
+    }
+    if (fiyatVar) {
+      bilgiler.add('Fiyat bilgisi mevcut');
+    }
+    if (linkHazir) {
+      bilgiler.add('Bağlantı hazır');
+    }
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(
+          Icons.verified_outlined,
+          size: 18,
+          color: Color(0xFF128447),
+        ),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            bilgiler.join('  •  '),
+            style: const TextStyle(
+              color: Color(0xFF128447),
+              fontSize: 12,
+              height: 1.35,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  bool _gecerliWebAdresi(String adres) {
+    final Uri? uri = Uri.tryParse(adres.trim());
+
+    return uri != null &&
+        (uri.scheme == 'http' || uri.scheme == 'https') &&
+        uri.host.isNotEmpty;
+  }
+
+  String _zamanMetni(DateTime? tarih) {
+    if (tarih == null) {
+      return 'Güncel kaynak kaydı';
+    }
+
+    final Duration fark = DateTime.now().difference(tarih.toLocal());
+
+    if (fark.isNegative || fark.inMinutes < 1) {
+      return 'Az önce';
+    }
+    if (fark.inMinutes < 60) {
+      return '${fark.inMinutes} dakika önce';
+    }
+    if (fark.inHours < 24) {
+      return '${fark.inHours} saat önce';
+    }
+    if (fark.inDays < 7) {
+      return '${fark.inDays} gün önce';
+    }
+
+    return '${tarih.day.toString().padLeft(2, '0')}.'
+        '${tarih.month.toString().padLeft(2, '0')}.'
+        '${tarih.year}';
+  }
+}
+
 class TrendyolFirsati {
   final String baslik;
   final String aciklama;
@@ -586,6 +803,7 @@ class TrendyolFirsati {
   final int indirimOrani;
   final String imageUrl;
   final String url;
+  final DateTime? eklenmeTarihi;
 
   const TrendyolFirsati({
     required this.baslik,
@@ -596,6 +814,7 @@ class TrendyolFirsati {
     required this.indirimOrani,
     required this.imageUrl,
     required this.url,
+    required this.eklenmeTarihi,
   });
 
   factory TrendyolFirsati.fromJson(
@@ -649,11 +868,30 @@ class TrendyolFirsati {
             json['link'] ??
             json['telegramMessageUrl'],
       ),
+      eklenmeTarihi: _tarih(
+        json['createdAt'] ??
+            json['created_at'] ??
+            json['publishedAt'] ??
+            json['date'],
+      ),
     );
   }
 
   static String _metin(dynamic value) {
     return (value ?? '').toString().trim();
+  }
+
+  static DateTime? _tarih(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+
+    if (value is int) {
+      final int milliseconds =
+          value > 9999999999 ? value : value * 1000;
+      return DateTime.fromMillisecondsSinceEpoch(milliseconds);
+    }
+
+    return DateTime.tryParse(value.toString().trim());
   }
 
   static int _sayi(dynamic value) {

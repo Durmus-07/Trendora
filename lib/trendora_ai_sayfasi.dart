@@ -108,7 +108,7 @@ class _TrendoraAiSayfasiState extends State<TrendoraAiSayfasi>
     try {
       final http.Response response = await http
           .post(
-            Uri.parse('$_backendBaseUrl/ai'),
+            Uri.parse('$_backendBaseUrl/api/ai'),
             headers: const <String, String>{
               'Content-Type': 'application/json; charset=UTF-8',
             },

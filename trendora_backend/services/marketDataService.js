@@ -303,9 +303,18 @@ async function fetchMarketData(query, classification, options = {}) {
   const recent20Volumes = volumes.slice(-20);
 
   const current = finite(meta.regularMarketPrice) ?? latest.close;
-  const previousClose = finite(meta.chartPreviousClose) ?? previous?.close ?? null;
+  // Yahoo'nun chartPreviousClose alanı bazı BIST yanıtlarında dönem başlangıcı
+  // değerine kayabiliyor. Günlük değişim için öncelik daima bir önceki işlem
+  // gününün kapanışıdır.
+  const previousClose = finite(previous?.close) ?? finite(meta.chartPreviousClose) ?? null;
   const change = current != null && previousClose != null ? current - previousClose : null;
-  const changePercent = change != null && previousClose ? (change / previousClose) * 100 : null;
+  let changePercent = change != null && previousClose ? (change / previousClose) * 100 : null;
+
+  // Bölünme/veri anomalisi halinde ekranda %100+ gibi yanlış günlük oranlar
+  // göstermemek için günlük açılış üzerinden güvenli yeniden hesaplama yap.
+  if (changePercent != null && Math.abs(changePercent) > 25 && latest.open) {
+    changePercent = ((current - latest.open) / latest.open) * 100;
+  }
   const vwap = calculateVwap(
     rows.slice(-20).map((row) => row.high),
     rows.slice(-20).map((row) => row.low),
