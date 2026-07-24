@@ -9,6 +9,7 @@ const opportunitiesRoutes = require('./routes/opportunities');
 const newsRoutes = require('./routes/news');
 const trendsRoutes = require('./routes/trends');
 const aiRoutes = require('./routes/ai');
+const { getTrendOverview } = require('./services/trendEngine');
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 
@@ -181,16 +182,156 @@ app.use(
   '/api/ai',
   aiRoutes
 );
-app.get('/api/scan-status', (req, res) => {
+function getOpportunityStatus() {
+  const database = readOpportunitiesDatabase();
+  const activeItems = database.items
+    .map(prepareOpportunity)
+    .filter(item => item.status === 'active');
+
+  const sourceKeys = new Set(
+    activeItems
+      .map(item =>
+        normalize(
+          item.store ||
+          item.source ||
+          item.seller ||
+          item.sourceName
+        )
+      )
+      .filter(Boolean)
+  );
+
+  return {
+    opportunityCount: activeItems.length,
+    totalSources: sourceKeys.size,
+    activeSources: sourceKeys.size,
+    updatedAt: database.updatedAt
+  };
+}
+
+function withTimeout(promise, timeoutMs, fallbackValue) {
+  let timeoutId;
+
+  const timeoutPromise = new Promise(resolve => {
+    timeoutId = setTimeout(
+      () => resolve(fallbackValue),
+      timeoutMs
+    );
+  });
+
+  return Promise.race([promise, timeoutPromise])
+    .finally(() => clearTimeout(timeoutId));
+}
+
+app.get('/api/scan-status', async (req, res) => {
+  const startedAt = Date.now();
+  const forceRefresh = ['1', 'true', 'yes'].includes(
+    String(req.query.refresh || '').trim().toLowerCase()
+  );
+
+  const opportunityStatus = getOpportunityStatus();
+
+  const newsFallback = {
+    newsCount: 0,
+    totalSources: 0,
+    activeSources: 0,
+    failedSources: 0,
+    updatedAt: null,
+    timedOut: true
+  };
+
+  const trendFallback = {
+    trends: [],
+    updatedAt: null,
+    timedOut: true
+  };
+
+  const [newsResult, trendResult] = await Promise.allSettled([
+    withTimeout(
+      newsRoutes.getNewsStatus({ forceRefresh }),
+      15000,
+      newsFallback
+    ),
+    withTimeout(
+      getTrendOverview({ forceRefresh }),
+      20000,
+      trendFallback
+    )
+  ]);
+
+  const newsStatus =
+    newsResult.status === 'fulfilled'
+      ? newsResult.value
+      : { ...newsFallback, error: newsResult.reason?.message };
+
+  const trendStatus =
+    trendResult.status === 'fulfilled'
+      ? trendResult.value
+      : { ...trendFallback, error: trendResult.reason?.message };
+
+  const trendCount = Array.isArray(trendStatus.trends)
+    ? trendStatus.trends.length
+    : 0;
+
+  const trendEngineCompleted = !trendStatus.timedOut && !trendStatus.error;
+
+  const scannedSources =
+    Number(newsStatus.totalSources || 0) +
+    Number(opportunityStatus.totalSources || 0) +
+    1;
+
+  const activeSources =
+    Number(newsStatus.activeSources || 0) +
+    Number(opportunityStatus.activeSources || 0) +
+    (trendEngineCompleted ? 1 : 0);
+
+  const partial =
+    Boolean(newsStatus.timedOut || newsStatus.error) ||
+    Number(newsStatus.failedSources || 0) > 0 ||
+    Boolean(trendStatus.timedOut || trendStatus.error);
+
+  res.set('Cache-Control', 'no-store');
   res.json({
     success: true,
-    status: 'completed',
-    message: 'Dünya taraması tamamlandı.',
-    scannedSources: 12,
-    activeSources: 12,
-    newsCount: 100,
-    opportunityCount: 23,
-    trendCount: 6,
+    status: partial ? 'partial' : 'completed',
+    message: partial
+      ? 'Dünya taraması tamamlandı; bazı kaynaklar süre sınırında kaldı.'
+      : 'Dünya taraması tamamlandı.',
+    scannedSources,
+    activeSources,
+    failedSources: Math.max(0, scannedSources - activeSources),
+    newsCount: Number(newsStatus.newsCount || 0),
+    opportunityCount: opportunityStatus.opportunityCount,
+    trendCount,
+    modules: {
+      news: {
+        status:
+          newsStatus.timedOut ||
+          newsStatus.error ||
+          Number(newsStatus.failedSources || 0) > 0
+            ? 'partial'
+            : 'completed',
+        count: Number(newsStatus.newsCount || 0),
+        activeSources: Number(newsStatus.activeSources || 0),
+        totalSources: Number(newsStatus.totalSources || 0),
+        updatedAt: newsStatus.updatedAt || null
+      },
+      opportunities: {
+        status: 'completed',
+        count: opportunityStatus.opportunityCount,
+        activeSources: opportunityStatus.activeSources,
+        totalSources: opportunityStatus.totalSources,
+        updatedAt: opportunityStatus.updatedAt || null
+      },
+      trends: {
+        status: trendEngineCompleted ? 'completed' : 'partial',
+        count: trendCount,
+        activeSources: trendEngineCompleted ? 1 : 0,
+        totalSources: 1,
+        updatedAt: trendStatus.updatedAt || null
+      }
+    },
+    durationMs: Date.now() - startedAt,
     updatedAt: new Date().toISOString()
   });
 });

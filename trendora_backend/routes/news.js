@@ -515,4 +515,26 @@ router.get("/sources", (req, res) => {
   });
 });
 
+async function getNewsStatus(options = {}) {
+  const forceRefresh = options.forceRefresh === true;
+  const data = await getNewsData(forceRefresh);
+
+  const activeSources = data.sourceResults.filter(
+    (source) => source.ok
+  ).length;
+
+  return {
+    newsCount: data.items.length,
+    totalSources: NEWS_SOURCES.length,
+    activeSources,
+    failedSources: Math.max(0, NEWS_SOURCES.length - activeSources),
+    updatedAt:
+      data.createdAt > 0
+        ? new Date(data.createdAt).toISOString()
+        : null,
+    fromCache: data.fromCache === true,
+  };
+}
+
 module.exports = router;
+module.exports.getNewsStatus = getNewsStatus;
