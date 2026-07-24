@@ -7,6 +7,7 @@ const { collectNewsEvidence } = require('./newsEvidenceCollector');
 const { researchWithWeb } = require('./webResearchService');
 const { clamp, normalizeScenarios, confidenceLabel } = require('./probabilityEngine');
 const { analyzeEvidence, sourceWeight, getHostname } = require('./evidenceAnalyzer');
+const { buildTechnicalPlan, buildPlanSignals } = require('./technicalLevelEngine');
 
 const WEB_TIMEOUT_MS = Number(process.env.TRENDORA_WEB_TIMEOUT_MS || 10000);
 const FALLBACK_NEWS_TIMEOUT_MS = Number(process.env.TRENDORA_FALLBACK_NEWS_TIMEOUT_MS || 6500);
@@ -98,6 +99,7 @@ function normalizeAnalysis(raw, query, classification, sourcePlan) {
     dailyPrice: cleanPriceBlock(raw?.dailyPrice, ['current','open','high','low','average','vwap','close','previousClose','change','changePercent','volume'], ['current','open','high','low','average','vwap','close','previousClose']),
     yearlyPrice: cleanPriceBlock(raw?.yearlyPrice, ['low52w','average52w','high52w'], ['low52w','average52w','high52w']),
     estimatedRange: cleanRange(raw?.estimatedRange), technical: cleanTechnical(raw?.technical), statistics: cleanStatistics(raw?.statistics),
+    technicalPlan: raw?.technicalPlan && typeof raw.technicalPlan === 'object' ? raw.technicalPlan : { available: false },
     scenarios: normalizeScenarios(raw?.scenarios), confidence: Math.round(confidence), confidenceLabel: confidenceLabel(confidence),
     signals: Array.isArray(raw?.signals) ? raw.signals.slice(0, 10).map(item => ({ type: ['positive','negative','neutral'].includes(item?.type) ? item.type : 'neutral', title: cleanText(item?.title || 'Sinyal'), detail: cleanText(item?.detail || ''), weight: Math.round(clamp(item?.weight, 0, 100)) })) : [],
     keyFactors: Array.isArray(raw?.keyFactors) ? raw.keyFactors.map(cleanText).filter(Boolean).slice(0,10) : [],
@@ -219,7 +221,10 @@ async function runBistScanner(query, classification, sourcePlan, mode) {
     });
   });
 
-  const ranked = results.sort((a, b) => b.scanScore - a.scanScore).slice(0, 10);
+  const ranked = results
+    .sort((a, b) => b.scanScore - a.scanScore)
+    .slice(0, 10)
+    .map(item => ({ ...item, technicalPlan: buildTechnicalPlan(item.data) }));
   const labels = { rising: 'yükseliş eğilimi', falling: 'zayıflama eğilimi', stable: 'dengeli/yatay eğilim' };
   const headline = labels[mode] || labels.rising;
   const confidence = Math.round(clamp(58 + Math.min(22, ranked.length * 2), 58, 82));
@@ -231,7 +236,7 @@ async function runBistScanner(query, classification, sourcePlan, mode) {
     return {
       type,
       title: `#${idx + 1} ${item.symbol} — ${item.scanScore}/100`,
-      detail: `${item.name}; fiyat ${fmt(current, item.data.currency)}. RSI ${finiteNumber(t.rsi14)?.toFixed(1) || '-'}, EMA20 ${t.ema20 != null && t.ema50 != null ? (t.ema20 >= t.ema50 ? 'EMA50 üzerinde' : 'EMA50 altında') : 'ölçülemedi'}, hacim ${finiteNumber(t.volumeRatio)?.toFixed(2) || '-'}x, risk ${riskLabel(item.riskScore)}.`,
+      detail: `${item.name}; fiyat ${fmt(current, item.data.currency)}. RSI ${finiteNumber(t.rsi14)?.toFixed(1) || '-'}, EMA20 ${t.ema20 != null && t.ema50 != null ? (t.ema20 >= t.ema50 ? 'EMA50 üzerinde' : 'EMA50 altında') : 'ölçülemedi'}, hacim ${finiteNumber(t.volumeRatio)?.toFixed(2) || '-'}x, risk ${riskLabel(item.riskScore)}. Kırılım ${fmt(item.technicalPlan?.breakout?.level, item.data.currency)}, takip ${fmt(item.technicalPlan?.followZone?.low, item.data.currency)} - ${fmt(item.technicalPlan?.followZone?.high, item.data.currency)}, kâr alma ${fmt(item.technicalPlan?.profitTaking?.first, item.data.currency)} / ${fmt(item.technicalPlan?.profitTaking?.second, item.data.currency)}, geçersizlik ${fmt(item.technicalPlan?.invalidation?.level, item.data.currency)}.`,
       weight: item.scanScore
     };
   });
@@ -250,7 +255,7 @@ async function runBistScanner(query, classification, sourcePlan, mode) {
     disclaimer: 'Bu liste yatırım tavsiyesi değildir. Teknik tarama, olasılık ve önceliklendirme amacı taşır.'
   };
   const normalized = normalizeAnalysis(raw, query, classification, sourcePlan);
-  return { ...normalized, scanResults: ranked.map(x => ({ symbol:x.symbol, name:x.name, score:x.scanScore, riskScore:x.riskScore, riskLabel:riskLabel(x.riskScore), current:firstValidPrice(x.data.dailyPrice?.current,x.data.dailyPrice?.close), currency:x.data.currency, technical:x.data.technical })), engine: { version:'4.4.0', mode:'bist-market-scanner', usedLiveMarketData:true, usedLiveWebResearch:false, usedFallbackNews:false, entityRecognition:false, generatedAt:new Date().toISOString() } };
+  return { ...normalized, scanResults: ranked.map(x => ({ symbol:x.symbol, name:x.name, score:x.scanScore, riskScore:x.riskScore, riskLabel:riskLabel(x.riskScore), current:firstValidPrice(x.data.dailyPrice?.current,x.data.dailyPrice?.close), currency:x.data.currency, technical:x.data.technical, technicalPlan:x.technicalPlan })), engine: { version:'5.0.0', mode:'bist-market-scanner', usedLiveMarketData:true, usedLiveWebResearch:false, usedFallbackNews:false, entityRecognition:false, generatedAt:new Date().toISOString() } };
 }
 
 function removeFalseMissing(items, marketData) {
@@ -317,17 +322,21 @@ async function analyzeQuestion(query) {
     base.dailyPrice = { ...marketData.dailyPrice, current, close: firstValidPrice(marketData.dailyPrice?.close, current) };
     base.yearlyPrice = { ...marketData.yearlyPrice };
     base.technical = { ...(base.technical || {}), ...(marketData.technical || {}) };
+    const technicalPlan = buildTechnicalPlan(marketData);
+    base.technicalPlan = technicalPlan;
     base.statistics = { ...(base.statistics || {}), trendStrength: technicalScore, dataConfidence: confidence, riskScore, marketInterest: Math.round(clamp((finiteNumber(marketData.technical?.volumeRatio) || 1) * 50, 0, 100)), newsImpact: hasWeb ? Math.round(clamp((finiteNumber(base.statistics?.newsImpact) ?? evidenceProfile.newsImpact) * 0.55 + evidenceProfile.newsImpact * 0.45, 0, 100)) : 15 };
     base.confidence = confidence;
     if (marketScenarios) { base.estimatedRange = marketScenarios.estimatedRange; base.scenarios = marketScenarios.scenarios; }
     base.signals = [
       ...buildTechnicalSignals(marketData.technical || {}),
+      ...buildPlanSignals(technicalPlan),
       ...evidenceProfile.signals,
       ...(base.signals || []).filter(s => !/haber hacmi|olumlu başlık|olumsuz başlık/i.test(String(s?.title)))
-    ].slice(0,10);
+    ].slice(0,14);
     base.keyFactors = [...new Set([
       ...(base.keyFactors || []),
       ...evidenceProfile.keyFactors,
+      ...(technicalPlan.reasons || []),
       `Teknik skor: ${technicalScore}/100`,
       marketData.technical?.volumeRatio != null ? `Hacim oranı: ${Number(marketData.technical.volumeRatio).toFixed(2)}x` : null
     ].filter(Boolean))].slice(0, 10);
@@ -338,11 +347,11 @@ async function analyzeQuestion(query) {
     const priceText = fmt(current, marketData.currency);
     const direction = technicalScore >= 65 ? 'pozitif' : technicalScore <= 42 ? 'negatif' : 'temkinli-nötr';
     base.answerTitle = `${periodLabel} finans değerlendirmesi`;
-    base.directAnswer = `${marketData.displayName} güncel fiyatı ${priceText}. ${periodLabel} için teknik görünüm ${direction}; veri güveni %${confidence}, risk seviyesi ${riskLabel(riskScore)}.`;
+    base.directAnswer = `${marketData.displayName} güncel fiyatı ${priceText}. ${periodLabel} için teknik görünüm ${direction}; veri güveni %${confidence}, risk seviyesi ${riskLabel(riskScore)}. Olası kırılım seviyesi ${fmt(technicalPlan.breakout?.level, marketData.currency)}, takip bölgesi ${fmt(technicalPlan.followZone?.low, marketData.currency)} - ${fmt(technicalPlan.followZone?.high, marketData.currency)}, teknik geçersizlik ${fmt(technicalPlan.invalidation?.level, marketData.currency)}.`;
     base.summary = `${periodLabel} ufku; canlı fiyat serisi, RSI, EMA, SMA, MACD, ATR, hacim, destek-direnç ve erişilebilen haber sinyalleri birlikte değerlendirilerek hesaplandı. Sonuç kesin fiyat tahmini değil, olasılık bandıdır.`;
   }
 
   const normalized = normalizeAnalysis(base, cleanedQuery, classification, sourcePlan);
-  return { ...normalized, engine: { version:'4.4.0', mode: marketData && webResult ? 'market-plus-web' : marketData ? 'market-data' : webResult ? 'web-research' : 'limited-fallback', usedLiveMarketData:Boolean(marketData), usedLiveWebResearch:Boolean(webResult), usedFallbackNews:evidence.length>0, evidenceProfile, entityRecognition:classification.entity?.found||false, webResearchError:webError ? webError.message : null, sourceCoverage: { planned: Array.isArray(sourcePlan?.sources) ? sourcePlan.sources.map(s => s.name) : [], returned: normalized.sources.map(s => s.publisher), autoDiscovery: sourcePlan?.discovery?.enabled === true }, generatedAt:new Date().toISOString() } };
+  return { ...normalized, engine: { version:'5.0.0', mode: marketData && webResult ? 'market-plus-web' : marketData ? 'market-data' : webResult ? 'web-research' : 'limited-fallback', usedLiveMarketData:Boolean(marketData), usedLiveWebResearch:Boolean(webResult), usedFallbackNews:evidence.length>0, evidenceProfile, entityRecognition:classification.entity?.found||false, webResearchError:webError ? webError.message : null, sourceCoverage: { planned: Array.isArray(sourcePlan?.sources) ? sourcePlan.sources.map(s => s.name) : [], returned: normalized.sources.map(s => s.publisher), autoDiscovery: sourcePlan?.discovery?.enabled === true }, generatedAt:new Date().toISOString() } };
 }
 module.exports = { analyzeQuestion, normalizeAnalysis };

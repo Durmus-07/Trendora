@@ -69,6 +69,10 @@ function classifyQuestion(query) {
   const value = normalizeText(query);
   const entity = resolveEntity(query);
   const detectedIntent = detectIntent(query);
+  const isStandaloneEntityQuery = Boolean(
+    entity.found &&
+    value.replace(/[’'`]/g, '').split(' ').filter(Boolean).length <= 4
+  );
 
   let best = {
     domain: entity.found ? entity.domain : 'general',
@@ -97,7 +101,10 @@ function classifyQuestion(query) {
     intent: detectedIntent.type,
     period: detectedIntent.period,
     entity,
-    normalizedQuery: value
+    normalizedQuery: value,
+    // 'ASELS', 'Tüpraş', 'BIST 30' gibi tek başına yazılan varlıklar da
+    // otomatik olarak tam analiz akışına alınır.
+    analysisRequested: detectedIntent.type === 'general_analysis' || isStandaloneEntityQuery
   };
 }
 

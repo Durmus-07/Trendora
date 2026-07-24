@@ -33,6 +33,12 @@ function detectIntent(query) {
   const value = normalizeText(query);
   let type = 'general_analysis';
 
+  // Kullanıcı bir varlık için doğrudan 'analizini yap / incele / yorumla'
+  // dediğinde bunu açık bir genel analiz talebi olarak kabul et. Bu kural,
+  // daha özel niyetlerden (teknik analiz, bilanço, risk vb.) sonra değil,
+  // varsayılan niyet olarak çalışır; dolayısıyla mevcut özel akışları bozmaz.
+  const explicitGeneralAnalysis = /(?:analiz(?:ini|i)?\s*(?:yap|et|çıkar|hazırla)|incele|değerlendir|yorumla|genel\s+analiz|hakkında\s+(?:analiz|değerlendirme))/.test(value);
+
   if (/neden\s+(düştü|düşüyor|geriledi|yükseldi|yükseliyor|arttı)|düşüş nedeni|yükseliş nedeni|sebebi ne/.test(value)) {
     type = 'cause_analysis';
   } else if (/haberleri|haber etkisi|kap açıklaması|kap haberi|gündem/.test(value)) {
@@ -55,6 +61,8 @@ function detectIntent(query) {
     type = 'forecast';
   } else if (/risk|olasılık|ihtimal|başarılı olur mu/.test(value)) {
     type = 'probability';
+  } else if (explicitGeneralAnalysis) {
+    type = 'general_analysis';
   }
 
   return {
