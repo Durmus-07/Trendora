@@ -71,6 +71,17 @@ function safeJsonParse(text) {
   }
 }
 
+function buildSourceDirectory(sourcePlan) {
+  const sources = Array.isArray(sourcePlan?.sources) ? sourcePlan.sources : [];
+  if (!sources.length) return 'Özel kaynak dizini yok; güvenilir ve güncel açık kaynakları keşfet.';
+  return sources.map((source, index) => {
+    const credentialNote = source.directApiRequiresCredentials
+      ? ' (doğrudan API erişimi kimlik bilgisi gerektirebilir; yalnız erişilebilen açık içerikleri kullan)'
+      : '';
+    return `${index + 1}. ${source.name}${source.domain ? ` — ${source.domain}` : ''} — ${source.type}${credentialNote}`;
+  }).join('\n');
+}
+
 function buildInstructions(classification, sourcePlan) {
   const entity = classification?.entity?.found
     ? `${classification.entity.name} (${classification.entity.symbol})`
@@ -92,8 +103,16 @@ KAYNAK PLANI:
 - Tercih edilen alan adları: ${(sourcePlan?.preferredDomains || []).join(' | ')}
 - Notlar: ${(sourcePlan?.notes || []).join(' | ')}
 
+KAYNAK DİZİNİ:
+${buildSourceDirectory(sourcePlan)}
+
+OTOMATİK KAYNAK KEŞFİ:
+- Etkin: ${sourcePlan?.discovery?.enabled === true ? 'evet' : 'hayır'}
+- Yöntem: ${sourcePlan?.discovery?.mode || 'yok'}
+- Kurallar: ${(sourcePlan?.discovery?.rules || []).join(' | ')}
+
 GÖREV:
-1. Web araması yap ve güncel, açık, güvenilir kaynaklardan somut veri topla.
+1. Web araması yap ve güncel, açık, güvenilir kaynaklardan somut veri topla. Önce kaynak dizinindeki resmî ve piyasa kaynaklarını dene; ardından doğrulanmış yeni kaynaklar keşfet.
 2. Kullanıcı hisseyi kısa koduyla yazmışsa kodu doğru şirketle eşleştir. Örnek: BIMAS=BİM, ASELS=ASELSAN, THYAO=Türk Hava Yolları, TUPRS=Tüpraş.
 3. Sorunun türüne göre doğru ölçütleri kullan. Her soruya aynı şablonu uygulama.
 4. Finansal varlıklarda günlük ve 52 haftalık verileri ASLA birbirine karıştırma.
@@ -103,11 +122,16 @@ GÖREV:
 8. Gelecek/olasılık sorularında en az 3 senaryo üret. Yüzdeler toplamı tam 100 olsun.
 9. Yüzdeleri keyfi verme. Veri zayıfsa güven puanını düşür ve bunu açıkça söyle.
 10. Kesin emir verme. "Al", "sat", "kesin yükselir" deme.
-11. Kaynakların başlık, site adı ve gerçek URL bilgisini döndür.
+11. Kaynakların başlık, site adı ve gerçek URL bilgisini döndür. KAP, Borsa İstanbul, Investing, TradingView, Bigpara, Mynet Finans, Döviz.com, Google Finance, X, Threads ve YouTube içinden erişebildiğin kaynakları ayrı ayrı göster; erişemediğin kaynağı kullanılmış gibi yazma.
 12. Günlük ortalama doğrudan güvenilir kaynaktan bulunamıyorsa, gün içi yüksek ve düşükten hesaplanmış gibi davranma.
 13. JSON dışında hiçbir karakter, açıklama, Markdown, kod bloğu veya kaynakça metni yazma.
 14. Sayısal veri yoksa 0 yerine null kullan.
 15. directAnswer ve summary alanlarının içine Markdown işaretleri ekleme.
+16. X, Threads ve YouTube verilerini yalnız ilgi/duyarlılık sinyali say; resmî fiyat veya şirket açıklaması yerine kullanma.
+17. BIST hisselerinde KAP ve Borsa İstanbul bulunabiliyorsa en yüksek kanıt ağırlığını bunlara ver.
+18. BIST 100 ve BIST 30 verilerini, hissenin genel piyasadan ayrışmasını ölçmek için karşılaştırmalı sinyal olarak kullan.
+19. Aynı içeriğin farklı sitelerdeki kopyalarını tek benzersiz içerik say.
+20. Yeni keşfedilen alan adlarını sources dizisine ekle fakat publisher ve URL doğrulanamıyorsa ekleme.
 
 SADECE geçerli JSON döndür.
 Şema:

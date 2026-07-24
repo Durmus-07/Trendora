@@ -6,7 +6,8 @@ const { collectNewsEvidence } = require('./newsEvidenceCollector');
 const { researchWithWeb } = require('./webResearchService');
 const { clamp, normalizeScenarios, confidenceLabel } = require('./probabilityEngine');
 
-const WEB_TIMEOUT_MS = Number(process.env.TRENDORA_WEB_TIMEOUT_MS || 18000);
+const WEB_TIMEOUT_MS = Number(process.env.TRENDORA_WEB_TIMEOUT_MS || 10000);
+const FALLBACK_NEWS_TIMEOUT_MS = Number(process.env.TRENDORA_FALLBACK_NEWS_TIMEOUT_MS || 6500);
 
 function finiteNumber(value) {
   const n = Number(value);
@@ -145,20 +146,38 @@ async function analyzeQuestion(query) {
   if (cleanedQuery.length < 2) { const e = new Error('Analiz için en az 2 karakterlik bir soru yazmalısın.'); e.statusCode = 400; throw e; }
   const classification = classifyQuestion(cleanedQuery);
   const sourcePlan = buildSourcePlan(classification);
-  const marketTask = classification.domain === 'finance' ? fetchMarketData(cleanedQuery, classification) : Promise.resolve(null);
-  const webTask = withTimeout(researchWithWeb(cleanedQuery, classification, sourcePlan), WEB_TIMEOUT_MS, 'Web araştırması');
-  const [marketResult, webResultSettled] = await Promise.allSettled([marketTask, webTask]);
+  const evidenceQuery = classification.entity?.found
+    ? `${classification.entity.name} ${classification.entity.symbol || ''}`.trim()
+    : cleanedQuery;
+  const marketTask = classification.domain === 'finance'
+    ? fetchMarketData(cleanedQuery, classification)
+    : Promise.resolve(null);
+  const webTask = withTimeout(
+    researchWithWeb(cleanedQuery, classification, sourcePlan),
+    WEB_TIMEOUT_MS,
+    'Web araştırması'
+  );
+  const evidenceTask = withTimeout(
+    collectNewsEvidence(evidenceQuery, 24),
+    FALLBACK_NEWS_TIMEOUT_MS,
+    'Yedek haber taraması'
+  );
+
+  // Piyasa, web ve haber katmanları paralel çalışır. Bir kaynak yavaşlarsa
+  // diğer sonuçlar bekletilmez.
+  const [marketResult, webResultSettled, evidenceResult] = await Promise.allSettled([
+    marketTask,
+    webTask,
+    evidenceTask
+  ]);
   const marketData = marketResult.status === 'fulfilled' ? marketResult.value : null;
   const webResult = webResultSettled.status === 'fulfilled' ? webResultSettled.value : null;
   const webError = webResultSettled.status === 'rejected' ? webResultSettled.reason : null;
+  const evidence = evidenceResult.status === 'fulfilled' && Array.isArray(evidenceResult.value)
+    ? evidenceResult.value
+    : [];
   if (marketResult.status === 'rejected') console.error('Canlı piyasa verisi alınamadı:', marketResult.reason?.message || marketResult.reason);
   if (webError) console.error('Trendora web araştırması:', webError.message || webError);
-
-  let evidence = [];
-  if (!webResult) {
-    const evidenceQuery = classification.entity?.found ? `${classification.entity.name} ${classification.entity.symbol || ''}`.trim() : cleanedQuery;
-    try { evidence = await withTimeout(collectNewsEvidence(evidenceQuery, 20), 7000, 'Yedek haber taraması'); } catch (_) { evidence = []; }
-  }
 
   let base = webResult ? { ...webResult, dailyPrice:{...(webResult.dailyPrice||{})}, yearlyPrice:{...(webResult.yearlyPrice||{})}, estimatedRange:{...(webResult.estimatedRange||{})}, technical:{...(webResult.technical||{})}, statistics:{...(webResult.statistics||{})}, sources:[...(webResult.sources||[])] } : buildFallbackAnalysis(cleanedQuery, classification, evidence);
 
@@ -190,6 +209,6 @@ async function analyzeQuestion(query) {
   }
 
   const normalized = normalizeAnalysis(base, cleanedQuery, classification, sourcePlan);
-  return { ...normalized, engine: { version:'4.1.0', mode: marketData && webResult ? 'market-plus-web' : marketData ? 'market-data' : webResult ? 'web-research' : 'limited-fallback', usedLiveMarketData:Boolean(marketData), usedLiveWebResearch:Boolean(webResult), usedFallbackNews:evidence.length>0, entityRecognition:classification.entity?.found||false, webResearchError:webError ? webError.message : null, generatedAt:new Date().toISOString() } };
+  return { ...normalized, engine: { version:'4.2.0', mode: marketData && webResult ? 'market-plus-web' : marketData ? 'market-data' : webResult ? 'web-research' : 'limited-fallback', usedLiveMarketData:Boolean(marketData), usedLiveWebResearch:Boolean(webResult), usedFallbackNews:evidence.length>0, entityRecognition:classification.entity?.found||false, webResearchError:webError ? webError.message : null, sourceCoverage: { planned: Array.isArray(sourcePlan?.sources) ? sourcePlan.sources.map(s => s.name) : [], returned: normalized.sources.map(s => s.publisher), autoDiscovery: sourcePlan?.discovery?.enabled === true }, generatedAt:new Date().toISOString() } };
 }
 module.exports = { analyzeQuestion, normalizeAnalysis };

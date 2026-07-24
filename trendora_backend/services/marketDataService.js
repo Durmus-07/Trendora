@@ -238,6 +238,24 @@ function buildTechnicalScore({ current, sma20, sma50, sma200, rsi14, volumeRatio
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
+
+function choosePreviousClose({ current, latestOpen, previousRowClose, metaPreviousClose, chartPreviousClose }) {
+  const candidates = [metaPreviousClose, previousRowClose, chartPreviousClose]
+    .map(finite)
+    .filter((value) => value != null && value > 0);
+
+  const plausible = candidates.find((value) => {
+    if (current == null || current <= 0) return true;
+    return Math.abs((current - value) / value) <= 0.25;
+  });
+
+  if (plausible != null) return plausible;
+
+  const open = finite(latestOpen);
+  if (open != null && open > 0) return open;
+  return candidates[0] ?? null;
+}
+
 function signalFromScore(score) {
   if (score >= 67) return 'positive';
   if (score <= 43) return 'negative';
@@ -306,14 +324,28 @@ async function fetchMarketData(query, classification, options = {}) {
   // Yahoo'nun chartPreviousClose alanı bazı BIST yanıtlarında dönem başlangıcı
   // değerine kayabiliyor. Günlük değişim için öncelik daima bir önceki işlem
   // gününün kapanışıdır.
-  const previousClose = finite(previous?.close) ?? finite(meta.chartPreviousClose) ?? null;
-  const change = current != null && previousClose != null ? current - previousClose : null;
+  const previousClose = choosePreviousClose({
+    current,
+    latestOpen: latest.open,
+    previousRowClose: previous?.close,
+    metaPreviousClose: meta.regularMarketPreviousClose,
+    chartPreviousClose: meta.chartPreviousClose
+  });
+  let change = current != null && previousClose != null ? current - previousClose : null;
   let changePercent = change != null && previousClose ? (change / previousClose) * 100 : null;
 
-  // Bölünme/veri anomalisi halinde ekranda %100+ gibi yanlış günlük oranlar
-  // göstermemek için günlük açılış üzerinden güvenli yeniden hesaplama yap.
-  if (changePercent != null && Math.abs(changePercent) > 25 && latest.open) {
-    changePercent = ((current - latest.open) / latest.open) * 100;
+  // Bölünme, geçmiş seri uyumsuzluğu veya Yahoo dönem anomalisi varsa
+  // günlük açılışı güvenli referans olarak kullan. Böylece %100+ sahte günlük
+  // değişimler uygulamaya taşınmaz.
+  if (changePercent != null && Math.abs(changePercent) > 25) {
+    const safeOpen = finite(latest.open);
+    if (safeOpen != null && safeOpen > 0) {
+      change = current - safeOpen;
+      changePercent = (change / safeOpen) * 100;
+    } else {
+      change = null;
+      changePercent = null;
+    }
   }
   const vwap = calculateVwap(
     rows.slice(-20).map((row) => row.high),
