@@ -132,6 +132,12 @@ GÖREV:
 18. BIST 100 ve BIST 30 verilerini, hissenin genel piyasadan ayrışmasını ölçmek için karşılaştırmalı sinyal olarak kullan.
 19. Aynı içeriğin farklı sitelerdeki kopyalarını tek benzersiz içerik say.
 20. Yeni keşfedilen alan adlarını sources dizisine ekle fakat publisher ve URL doğrulanamıyorsa ekleme.
+21. directAnswer 2-4 cümle olsun ve yön, ana gerekçe, risk ve dönem bilgisini birlikte versin.
+22. keyFactors genel ifadelerden değil; bulunan somut olay, veri, bilanço, KAP açıklaması, sektör veya makro etkiden oluşsun.
+23. Finans sorularında mümkünse son 30 gündeki KAP/şirket olaylarını, haber duyarlılığını ve teknik veriyi ayrı ayrı değerlendir.
+24. Endeks sorularında bileşen yoğunluğu, sektör katkısı, kur-faiz-enflasyon ve yabancı yatırımcı akışı gibi geniş piyasa değişkenlerini dikkate al.
+25. Her kaynak için yayımlanma tarihini bulunabiliyorsa publishedAt alanına ISO tarih olarak yaz.
+26. Aynı sonuçta hem olumlu hem olumsuz kanıtları göster; yalnız tek yönlü gerekçe üretme.
 
 SADECE geçerli JSON döndür.
 Şema:
@@ -219,7 +225,7 @@ async function requestResearch(client, query, classification, sourcePlan, retry 
     tools: [
       {
         type: 'web_search_preview',
-        search_context_size: 'medium'
+        search_context_size: process.env.TRENDORA_WEB_SEARCH_CONTEXT || 'high'
       }
     ]
   });

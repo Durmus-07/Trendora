@@ -1,6 +1,7 @@
 function normalizeText(value) {
   return String(value || '')
     .toLocaleLowerCase('tr-TR')
+    .replace(/ı/g, 'i')
     .replace(/[’'`]/g, '')
     .replace(/[^a-z0-9çğıöşü\.\-\s]/gi, ' ')
     .replace(/\s+/g, ' ')
@@ -66,6 +67,16 @@ const BIST_ENTITIES = [
   { symbol: 'ALTIN.S1', name: 'Darphane Altın Sertifikası', aliases: ['altın s1', 'altin s1', 'altın.s1', 'altin.s1', 'altın sertifikası', 'darphane altın sertifikası'] }
 ];
 
+
+const INDEX_ENTITIES = [
+  { symbol: 'XU100', name: 'BIST 100 Endeksi', subtype: 'index', aliases: ['bist 100', 'bist100', 'xu100', 'bist yüz'] },
+  { symbol: 'XU030', name: 'BIST 30 Endeksi', subtype: 'index', aliases: ['bist 30', 'bist30', 'xu030', 'bist otuz'] },
+  { symbol: 'XBANK', name: 'BIST Banka Endeksi', subtype: 'index', aliases: ['bist banka', 'banka endeksi', 'xbank'] },
+  { symbol: 'XUSIN', name: 'BIST Sınai Endeksi', subtype: 'index', aliases: ['bist sınai', 'bist sinai', 'sınai endeksi', 'xusin'] },
+  { symbol: 'XUTEK', name: 'BIST Teknoloji Endeksi', subtype: 'index', aliases: ['bist teknoloji', 'teknoloji endeksi', 'xutek'] },
+  { symbol: 'XUHIZ', name: 'BIST Hizmetler Endeksi', subtype: 'index', aliases: ['bist hizmetler', 'hizmetler endeksi', 'xuhiz'] }
+];
+
 const OTHER_FINANCE_ENTITIES = [
   { symbol: 'XAUUSD', name: 'Ons Altın', subtype: 'commodity', aliases: ['ons altın', 'ons altin', 'xauusd'] },
   { symbol: 'GRAM_ALTIN', name: 'Gram Altın', subtype: 'commodity', aliases: ['gram altın', 'gram altin', 'gram'] },
@@ -84,6 +95,46 @@ function tokenBoundaryIncludes(text, candidate) {
   if (!candidate) return false;
   const escaped = candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp(`(^|\\s)${escaped}(?=\\s|$)`, 'i').test(text);
+}
+
+
+function findIndexEntity(query) {
+  const normalized = normalizeText(query);
+  const upperQuery = normalizeTicker(query);
+
+  for (const item of INDEX_ENTITIES) {
+    if (upperQuery.includes(item.symbol)) {
+      return {
+        found: true,
+        domain: 'finance',
+        subtype: 'index',
+        market: 'BIST',
+        symbol: item.symbol,
+        name: item.name,
+        matchedBy: 'symbol',
+        matchedValue: item.symbol,
+        confidence: 100
+      };
+    }
+
+    const alias = item.aliases.map(normalizeText).sort((a, b) => b.length - a.length)
+      .find(candidate => tokenBoundaryIncludes(normalized, candidate));
+    if (alias) {
+      return {
+        found: true,
+        domain: 'finance',
+        subtype: 'index',
+        market: 'BIST',
+        symbol: item.symbol,
+        name: item.name,
+        matchedBy: 'alias',
+        matchedValue: alias,
+        confidence: Math.min(99, 82 + alias.length)
+      };
+    }
+  }
+
+  return null;
 }
 
 function findBistEntity(query) {
@@ -170,7 +221,7 @@ function findOtherFinanceEntity(query) {
 }
 
 function resolveEntity(query) {
-  return findBistEntity(query) || findOtherFinanceEntity(query) || {
+  return findIndexEntity(query) || findBistEntity(query) || findOtherFinanceEntity(query) || {
     found: false,
     domain: null,
     subtype: null,
@@ -187,5 +238,6 @@ module.exports = {
   resolveEntity,
   normalizeText,
   normalizeTicker,
-  BIST_ENTITIES
+  BIST_ENTITIES,
+  INDEX_ENTITIES
 };

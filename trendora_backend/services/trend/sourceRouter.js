@@ -3,7 +3,10 @@ const SOURCE_CATALOG = {
     { id: 'kap', name: 'KAP', domain: 'kap.org.tr', type: 'official-disclosure', priority: 100 },
     { id: 'bist', name: 'Borsa İstanbul', domain: 'borsaistanbul.com', type: 'official-market', priority: 100 },
     { id: 'tcmb', name: 'TCMB', domain: 'tcmb.gov.tr', type: 'official-macro', priority: 95 },
-    { id: 'tuik', name: 'TÜİK', domain: 'tuik.gov.tr', type: 'official-statistics', priority: 90 }
+    { id: 'tuik', name: 'TÜİK', domain: 'tuik.gov.tr', type: 'official-statistics', priority: 90 },
+    { id: 'spk', name: 'SPK', domain: 'spk.gov.tr', type: 'official-regulator', priority: 95 },
+    { id: 'tefas', name: 'TEFAS', domain: 'tefas.gov.tr', type: 'official-fund-data', priority: 96 },
+    { id: 'befas', name: 'BEFAS', domain: 'befas.gov.tr', type: 'official-pension-fund-data', priority: 96 }
   ],
   market: [
     { id: 'yahoo', name: 'Yahoo Finance', domain: 'finance.yahoo.com', type: 'market-data', priority: 90 },
@@ -37,7 +40,7 @@ function buildFinanceSources(subtype, intent) {
   const groups = ['official', 'market', 'social', 'indices'];
   const sources = flattenSources(groups);
 
-  if (subtype === 'bist_stock') {
+  if (['bist_stock', 'index'].includes(subtype)) {
     sources.sort((a, b) => {
       const aOfficial = ['kap', 'bist', 'xu100', 'xu030'].includes(a.id) ? 1 : 0;
       const bOfficial = ['kap', 'bist', 'xu100', 'xu030'].includes(b.id) ? 1 : 0;
@@ -151,7 +154,15 @@ function buildSourcePlan(classification) {
 
     if (subtype === 'bist_stock') {
       plan.required.unshift('BIST hisse sembolü ve şirket eşleşmesi');
-      plan.notes.push('KAP ve Borsa İstanbul verileri bulunursa ilk sırada kullanılmalı.');
+      plan.notes.push('KAP, şirket yatırımcı ilişkileri ve Borsa İstanbul verileri bulunursa ilk sırada kullanılmalı.');
+    }
+    if (subtype === 'index') {
+      plan.required.unshift('Endeks bileşimi, fiyat serisi, hacim ve sektör dağılımı');
+      plan.notes.push('Endeks analizinde tek şirket haberi yerine geniş piyasa, sektör ve makro veri ağırlığı artırılmalı.');
+    }
+    if (subtype === 'fund') {
+      plan.required.unshift('TEFAS/BEFAS fon fiyatı, getiri, risk değeri ve portföy dağılımı');
+      plan.notes.push('Fon analizinde resmî TEFAS veya BEFAS verileri önceliklidir.');
     }
     if (subtype === 'certificate') {
       plan.preferredDomains = unique(['darphane.gov.tr', ...plan.preferredDomains]);

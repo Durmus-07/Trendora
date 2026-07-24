@@ -5,6 +5,7 @@ const { buildSourcePlan } = require('./sourceRouter');
 const { collectNewsEvidence } = require('./newsEvidenceCollector');
 const { researchWithWeb } = require('./webResearchService');
 const { clamp, normalizeScenarios, confidenceLabel } = require('./probabilityEngine');
+const { analyzeEvidence, sourceWeight, getHostname } = require('./evidenceAnalyzer');
 
 const WEB_TIMEOUT_MS = Number(process.env.TRENDORA_WEB_TIMEOUT_MS || 10000);
 const FALLBACK_NEWS_TIMEOUT_MS = Number(process.env.TRENDORA_FALLBACK_NEWS_TIMEOUT_MS || 6500);
@@ -68,9 +69,23 @@ function cleanStatistics(raw) {
 function cleanSources(sources) {
   if (!Array.isArray(sources)) return [];
   const seen = new Set();
-  return sources.map(item => ({ title: String(item?.title || 'Kaynak'), publisher: String(item?.publisher || item?.source || 'Bilinmeyen kaynak'), url: String(item?.url || item?.link || ''), publishedAt: item?.publishedAt || null, evidenceType: String(item?.evidenceType || 'web') }))
+  return sources.map(item => {
+    const url = String(item?.url || item?.link || '');
+    const credibility = Math.round(clamp(item?.credibility ?? sourceWeight({ ...item, url }), 0, 100));
+    const hostname = getHostname(url);
+    return {
+      title: String(item?.title || 'Kaynak'),
+      publisher: String(item?.publisher || item?.source || hostname || 'Bilinmeyen kaynak'),
+      url,
+      publishedAt: item?.publishedAt || null,
+      evidenceType: String(item?.evidenceType || 'web'),
+      credibility,
+      isOfficial: credibility >= 95
+    };
+  })
     .filter(item => item.url && /^https?:\/\//i.test(item.url) && !seen.has(item.url) && seen.add(item.url))
-    .slice(0, 12);
+    .sort((a, b) => b.credibility - a.credibility)
+    .slice(0, 16);
 }
 function normalizeAnalysis(raw, query, classification, sourcePlan) {
   const confidence = clamp(raw?.confidence, 0, 100);
@@ -176,6 +191,7 @@ async function analyzeQuestion(query) {
   const evidence = evidenceResult.status === 'fulfilled' && Array.isArray(evidenceResult.value)
     ? evidenceResult.value
     : [];
+  const evidenceProfile = analyzeEvidence(evidence);
   if (marketResult.status === 'rejected') console.error('Canlı piyasa verisi alınamadı:', marketResult.reason?.message || marketResult.reason);
   if (webError) console.error('Trendora web araştırması:', webError.message || webError);
 
@@ -187,16 +203,27 @@ async function analyzeQuestion(query) {
     const atrPercent = Math.abs(finiteNumber(marketData.technical?.atrPercent) || 0);
     const changePercent = Math.abs(finiteNumber(marketData.dailyPrice?.changePercent) || 0);
     const hasWeb = Boolean(webResult || evidence.length);
-    const confidence = Math.round(clamp(62 + Math.min(16, Math.abs(technicalScore - 50) * .35) + (hasWeb ? 8 : 0), 55, 86));
+    const evidenceBonus = Math.min(10, Math.round((evidenceProfile.qualityScore + evidenceProfile.diversityScore) / 20));
+    const confidence = Math.round(clamp(60 + Math.min(16, Math.abs(technicalScore - 50) * .35) + (webResult ? 7 : 0) + evidenceBonus, 55, 90));
     const riskScore = Math.round(clamp(35 + atrPercent * 5 + changePercent * 2 + (hasWeb ? 0 : 8), 20, 88));
     const marketScenarios = buildMarketScenarios(marketData, classification);
     base.dailyPrice = { ...marketData.dailyPrice, current, close: firstValidPrice(marketData.dailyPrice?.close, current) };
     base.yearlyPrice = { ...marketData.yearlyPrice };
     base.technical = { ...(base.technical || {}), ...(marketData.technical || {}) };
-    base.statistics = { ...(base.statistics || {}), trendStrength: technicalScore, dataConfidence: confidence, riskScore, marketInterest: Math.round(clamp((finiteNumber(marketData.technical?.volumeRatio) || 1) * 50, 0, 100)), newsImpact: hasWeb ? (finiteNumber(base.statistics?.newsImpact) ?? 45) : 15 };
+    base.statistics = { ...(base.statistics || {}), trendStrength: technicalScore, dataConfidence: confidence, riskScore, marketInterest: Math.round(clamp((finiteNumber(marketData.technical?.volumeRatio) || 1) * 50, 0, 100)), newsImpact: hasWeb ? Math.round(clamp((finiteNumber(base.statistics?.newsImpact) ?? evidenceProfile.newsImpact) * 0.55 + evidenceProfile.newsImpact * 0.45, 0, 100)) : 15 };
     base.confidence = confidence;
     if (marketScenarios) { base.estimatedRange = marketScenarios.estimatedRange; base.scenarios = marketScenarios.scenarios; }
-    base.signals = [...buildTechnicalSignals(marketData.technical || {}), ...(base.signals || []).filter(s => !/haber hacmi/i.test(String(s?.title)))].slice(0,10);
+    base.signals = [
+      ...buildTechnicalSignals(marketData.technical || {}),
+      ...evidenceProfile.signals,
+      ...(base.signals || []).filter(s => !/haber hacmi|olumlu başlık|olumsuz başlık/i.test(String(s?.title)))
+    ].slice(0,10);
+    base.keyFactors = [...new Set([
+      ...(base.keyFactors || []),
+      ...evidenceProfile.keyFactors,
+      `Teknik skor: ${technicalScore}/100`,
+      marketData.technical?.volumeRatio != null ? `Hacim oranı: ${Number(marketData.technical.volumeRatio).toFixed(2)}x` : null
+    ].filter(Boolean))].slice(0, 10);
     base.sources = [marketData.source, ...(base.sources || []), ...evidence].filter(Boolean);
     base.missingInformation = removeFalseMissing(base.missingInformation, marketData);
     if (!hasWeb) base.missingInformation = [...new Set([...(base.missingInformation || []), 'Güncel haber ve KAP açıklamalarının tam taraması'])];
@@ -209,6 +236,6 @@ async function analyzeQuestion(query) {
   }
 
   const normalized = normalizeAnalysis(base, cleanedQuery, classification, sourcePlan);
-  return { ...normalized, engine: { version:'4.2.0', mode: marketData && webResult ? 'market-plus-web' : marketData ? 'market-data' : webResult ? 'web-research' : 'limited-fallback', usedLiveMarketData:Boolean(marketData), usedLiveWebResearch:Boolean(webResult), usedFallbackNews:evidence.length>0, entityRecognition:classification.entity?.found||false, webResearchError:webError ? webError.message : null, sourceCoverage: { planned: Array.isArray(sourcePlan?.sources) ? sourcePlan.sources.map(s => s.name) : [], returned: normalized.sources.map(s => s.publisher), autoDiscovery: sourcePlan?.discovery?.enabled === true }, generatedAt:new Date().toISOString() } };
+  return { ...normalized, engine: { version:'4.3.0', mode: marketData && webResult ? 'market-plus-web' : marketData ? 'market-data' : webResult ? 'web-research' : 'limited-fallback', usedLiveMarketData:Boolean(marketData), usedLiveWebResearch:Boolean(webResult), usedFallbackNews:evidence.length>0, evidenceProfile, entityRecognition:classification.entity?.found||false, webResearchError:webError ? webError.message : null, sourceCoverage: { planned: Array.isArray(sourcePlan?.sources) ? sourcePlan.sources.map(s => s.name) : [], returned: normalized.sources.map(s => s.publisher), autoDiscovery: sourcePlan?.discovery?.enabled === true }, generatedAt:new Date().toISOString() } };
 }
 module.exports = { analyzeQuestion, normalizeAnalysis };

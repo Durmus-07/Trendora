@@ -11,6 +11,15 @@ function cloneMarketData(value) {
 }
 
 
+const INDEX_ALIASES = {
+  XU100: 'XU100.IS', BIST100: 'XU100.IS',
+  XU030: 'XU030.IS', BIST30: 'XU030.IS',
+  XBANK: 'XBANK.IS', BISTBANKA: 'XBANK.IS',
+  XUSIN: 'XUSIN.IS', BISTSINAI: 'XUSIN.IS',
+  XUTEK: 'XUTEK.IS', BISTTEKNOLOJI: 'XUTEK.IS',
+  XUHIZ: 'XUHIZ.IS', BISTHIZMETLER: 'XUHIZ.IS'
+};
+
 const BIST_ALIASES = {
   ASELS: 'ASELS.IS', ASELSAN: 'ASELS.IS',
   TUPRS: 'TUPRS.IS', TUPRAS: 'TUPRS.IS', TÜPRAŞ: 'TUPRS.IS',
@@ -48,12 +57,17 @@ function resolveYahooSymbol(query, classification) {
     .flatMap((item) => item.split(/[^A-Z0-9.]+/).filter(Boolean));
 
   for (const candidate of candidates) {
+    if (INDEX_ALIASES[candidate]) return INDEX_ALIASES[candidate];
     if (BIST_ALIASES[candidate]) return BIST_ALIASES[candidate];
     if (/^[A-Z]{3,6}\.IS$/.test(candidate)) return candidate;
-    if (/^[A-Z]{3,6}$/.test(candidate) && cleanedQuery.includes('HISSE')) {
+    if (/^[A-Z]{3,6}$/.test(candidate) && classification?.entity?.subtype === 'bist_stock') {
       return `${candidate}.IS`;
     }
   }
+
+  if (/BIST\s*100|BIST100|XU100/.test(cleanedQuery)) return 'XU100.IS';
+  if (/BIST\s*30|BIST30|XU030/.test(cleanedQuery)) return 'XU030.IS';
+  if (/BIST\s*BANKA|BANKA\s*ENDEKSI|XBANK/.test(cleanedQuery)) return 'XBANK.IS';
 
   if (/ALTIN|GOLD/.test(cleanedQuery)) return 'GC=F';
   if (/GUMUS|SILVER/.test(cleanedQuery)) return 'SI=F';
