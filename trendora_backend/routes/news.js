@@ -1,5 +1,7 @@
 const express = require("express");
 const Parser = require("rss-parser");
+const fs = require("fs");
+const path = require("path");
 
 const router = express.Router();
 
@@ -64,31 +66,51 @@ const NEWS_SOURCES = [
     priority: 85,
   },
   {
+    name: "Google Haberler - Genel",
+    category: "gundem",
+    googleQuery: "Türkiye",
+    priority: 82,
+  },
+  {
+    name: "Google Haberler - Gündem",
+    category: "gundem",
+    googleQuery: "gündem Türkiye",
+    priority: 84,
+  },
+  {
+    name: "Google Haberler - Ekonomi",
+    category: "ekonomi",
+    googleQuery: "ekonomi OR enflasyon OR faiz OR dolar OR altın",
+    priority: 82,
+  },
+  {
+    name: "Google Haberler - Spor",
+    category: "spor",
+    googleQuery: "spor OR futbol OR basketbol",
+    priority: 78,
+  },
+  {
     name: "Google Haberler - Yapay Zekâ",
     category: "yapay_zeka",
-    url:
-      "https://news.google.com/rss/search?q=yapay+zeka&hl=tr&gl=TR&ceid=TR:tr",
+    googleQuery: "yapay zeka",
     priority: 80,
   },
   {
     name: "Google Haberler - Teknoloji",
     category: "teknoloji",
-    url:
-      "https://news.google.com/rss/search?q=teknoloji&hl=tr&gl=TR&ceid=TR:tr",
+    googleQuery: "teknoloji",
     priority: 75,
   },
   {
     name: "Google Haberler - Borsa",
     category: "borsa",
-    url:
-      "https://news.google.com/rss/search?q=borsa+OR+BIST&hl=tr&gl=TR&ceid=TR:tr",
+    googleQuery: "borsa OR BIST",
     priority: 80,
   },
   {
     name: "Google Haberler - Kripto",
     category: "kripto",
-    url:
-      "https://news.google.com/rss/search?q=kripto+OR+bitcoin&hl=tr&gl=TR&ceid=TR:tr",
+    googleQuery: "kripto OR bitcoin",
     priority: 75,
   },
   {
@@ -100,12 +122,31 @@ const NEWS_SOURCES = [
 ];
 
 const CACHE_DURATION_MS = 3 * 60 * 1000;
+const MAX_ARCHIVE_ITEMS = 12000;
+const ARCHIVE_RETENTION_MS = 370 * 24 * 60 * 60 * 1000;
+const ARCHIVE_FILE = path.join(__dirname, "..", "database", "news_archive.json");
+
+const PERIODS = {
+  "1h": 60 * 60 * 1000,
+  "4h": 4 * 60 * 60 * 1000,
+  "12h": 12 * 60 * 60 * 1000,
+  "24h": 24 * 60 * 60 * 1000,
+  "7d": 7 * 24 * 60 * 60 * 1000,
+  "30d": 30 * 24 * 60 * 60 * 1000,
+  "60d": 60 * 24 * 60 * 60 * 1000,
+  "180d": 180 * 24 * 60 * 60 * 1000,
+  "365d": 365 * 24 * 60 * 60 * 1000,
+  all: null,
+};
 
 let newsCache = {
   createdAt: 0,
   items: [],
   sourceResults: [],
+  period: "24h",
 };
+
+let archiveWriteQueue = Promise.resolve();
 
 function cleanText(value) {
   if (!value) return "";
@@ -126,19 +167,14 @@ function cleanText(value) {
 
 function getGoogleNewsPublisher(title) {
   if (!title) return "";
-
   const parts = String(title).split(" - ");
-  if (parts.length < 2) return "";
-
-  return parts[parts.length - 1].trim();
+  return parts.length < 2 ? "" : parts[parts.length - 1].trim();
 }
 
 function removeGoogleNewsPublisher(title) {
   if (!title) return "";
-
   const parts = String(title).split(" - ");
   if (parts.length < 2) return cleanText(title);
-
   parts.pop();
   return cleanText(parts.join(" - "));
 }
@@ -153,10 +189,7 @@ function extractImage(item) {
   ];
 
   for (const candidate of candidates) {
-    if (
-      typeof candidate === "string" &&
-      /^https?:\/\//i.test(candidate)
-    ) {
+    if (typeof candidate === "string" && /^https?:\/\//i.test(candidate)) {
       return candidate;
     }
   }
@@ -170,28 +203,15 @@ function extractImage(item) {
     .filter(Boolean)
     .join(" ");
 
-  const imageMatch = html.match(
-    /<img[^>]+src=["'](https?:\/\/[^"']+)["']/i
-  );
-
+  const imageMatch = html.match(/<img[^>]+src=["'](https?:\/\/[^"']+)["']/i);
   return imageMatch ? imageMatch[1] : "";
 }
 
 function parsePublishedDate(item) {
   const rawDate =
-    item?.isoDate ||
-    item?.pubDate ||
-    item?.published ||
-    item?.updated ||
-    "";
-
+    item?.isoDate || item?.pubDate || item?.published || item?.updated || "";
   const parsed = new Date(rawDate);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return new Date(0);
-  }
-
-  return parsed;
+  return Number.isNaN(parsed.getTime()) ? new Date(0) : parsed;
 }
 
 function normalizeForDeduplication(text) {
@@ -204,13 +224,11 @@ function normalizeForDeduplication(text) {
 
 function createDeduplicationKey(item) {
   const normalizedTitle = normalizeForDeduplication(item.title);
-
   return normalizedTitle || item.url;
 }
 
 function calculateTrendScore(item) {
   let score = 45;
-
   const ageMinutes =
     (Date.now() - new Date(item.publishedAt).getTime()) / 60000;
 
@@ -226,18 +244,23 @@ function calculateTrendScore(item) {
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
+function googleNewsUrl(query, period) {
+  const periodQuery = period && period !== "all" ? ` when:${period}` : "";
+  return `https://news.google.com/rss/search?q=${encodeURIComponent(
+    `${query}${periodQuery}`
+  )}&hl=tr&gl=TR&ceid=TR:tr`;
+}
+
+function sourceUrl(source, period) {
+  if (source.googleQuery) return googleNewsUrl(source.googleQuery, period);
+  return source.url;
+}
+
 function normalizeItem(item, source) {
   const isGoogleNews = source.name.startsWith("Google Haberler");
-
   const rawTitle = cleanText(item?.title);
-  const title = isGoogleNews
-    ? removeGoogleNewsPublisher(rawTitle)
-    : rawTitle;
-
-  const googlePublisher = isGoogleNews
-    ? getGoogleNewsPublisher(rawTitle)
-    : "";
-
+  const title = isGoogleNews ? removeGoogleNewsPublisher(rawTitle) : rawTitle;
+  const googlePublisher = isGoogleNews ? getGoogleNewsPublisher(rawTitle) : "";
   const description = cleanText(
     item?.contentSnippet ||
       item?.summary ||
@@ -245,16 +268,13 @@ function normalizeItem(item, source) {
       item?.content ||
       ""
   );
-
   const publishedDate = parsePublishedDate(item);
   const sourceName =
     googlePublisher ||
     cleanText(item?.creator) ||
     cleanText(item?.author) ||
     source.name;
-
   const titleLower = title.toLocaleLowerCase("tr-TR");
-
   const isBreaking =
     source.category === "son_dakika" ||
     titleLower.includes("son dakika") ||
@@ -262,9 +282,9 @@ function normalizeItem(item, source) {
     titleLower.includes("acil");
 
   const normalized = {
-    id: Buffer.from(
-      `${source.name}|${item?.link || ""}|${title}`
-    ).toString("base64url"),
+    id: Buffer.from(`${source.name}|${item?.link || ""}|${title}`).toString(
+      "base64url"
+    ),
     title,
     description,
     url: item?.link || item?.guid || "",
@@ -288,26 +308,17 @@ function normalizeItem(item, source) {
   };
 }
 
-async function fetchSource(source) {
+async function fetchSource(source, period = "24h") {
   try {
-    const feed = await parser.parseURL(source.url);
-
+    const url = sourceUrl(source, period);
+    const feed = await parser.parseURL(url);
     const items = (feed.items || [])
       .map((item) => normalizeItem(item, source))
-      .filter((item) => item.title && item.url);
+      .filter((item) => item.title && item.url && item.publishedAt !== new Date(0).toISOString());
 
-    return {
-      ok: true,
-      source: source.name,
-      count: items.length,
-      items,
-    };
+    return { ok: true, source: source.name, count: items.length, items };
   } catch (error) {
-    console.error(
-      `[NEWS] ${source.name} okunamadı:`,
-      error?.message || error
-    );
-
+    console.error(`[NEWS] ${source.name} okunamadı:`, error?.message || error);
     return {
       ok: false,
       source: source.name,
@@ -342,113 +353,143 @@ function deduplicateAndSort(items) {
   }
 
   return [...uniqueItems.values()].sort((a, b) => {
+    const dateDifference =
+      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+    if (dateDifference !== 0) return dateDifference;
     if (a.isBreaking !== b.isBreaking) {
       return Number(b.isBreaking) - Number(a.isBreaking);
     }
-
-    const dateDifference =
-      new Date(b.publishedAt).getTime() -
-      new Date(a.publishedAt).getTime();
-
-    if (dateDifference !== 0) return dateDifference;
-
     return b.priority - a.priority;
   });
 }
 
-async function refreshNewsCache() {
-  const results = await Promise.all(
-    NEWS_SOURCES.map((source) => fetchSource(source))
+function loadArchive() {
+  try {
+    if (!fs.existsSync(ARCHIVE_FILE)) return [];
+    const parsed = JSON.parse(fs.readFileSync(ARCHIVE_FILE, "utf8"));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("[NEWS] Haber arşivi okunamadı:", error?.message || error);
+    return [];
+  }
+}
+
+function persistArchive(items) {
+  archiveWriteQueue = archiveWriteQueue
+    .then(async () => {
+      await fs.promises.mkdir(path.dirname(ARCHIVE_FILE), { recursive: true });
+      const temporaryFile = `${ARCHIVE_FILE}.tmp`;
+      await fs.promises.writeFile(
+        temporaryFile,
+        JSON.stringify(items, null, 2),
+        "utf8"
+      );
+      await fs.promises.rename(temporaryFile, ARCHIVE_FILE);
+    })
+    .catch((error) => {
+      console.error("[NEWS] Haber arşivi yazılamadı:", error?.message || error);
+    });
+
+  return archiveWriteQueue;
+}
+
+function mergeWithArchive(currentItems) {
+  const cutoff = Date.now() - ARCHIVE_RETENTION_MS;
+  const archivedItems = loadArchive().filter((item) => {
+    const timestamp = new Date(item.publishedAt).getTime();
+    return Number.isFinite(timestamp) && timestamp >= cutoff;
+  });
+
+  const merged = deduplicateAndSort([...currentItems, ...archivedItems]).slice(
+    0,
+    MAX_ARCHIVE_ITEMS
   );
 
-  const allItems = results.flatMap((result) => result.items);
-  const finalItems = deduplicateAndSort(allItems);
+  void persistArchive(merged);
+  return merged;
+}
+
+async function refreshNewsCache(period = "24h") {
+  const results = await Promise.all(
+    NEWS_SOURCES.map((source) => fetchSource(source, period))
+  );
+  const currentItems = deduplicateAndSort(results.flatMap((result) => result.items));
+  const finalItems = mergeWithArchive(currentItems);
 
   newsCache = {
     createdAt: Date.now(),
     items: finalItems,
-    sourceResults: results.map(
-      ({ ok, source, count, error }) => ({
-        ok,
-        source,
-        count,
-        error: error || null,
-      })
-    ),
+    period,
+    sourceResults: results.map(({ ok, source, count, error }) => ({
+      ok,
+      source,
+      count,
+      error: error || null,
+    })),
   };
 
   return newsCache;
 }
 
-async function getNewsData(forceRefresh = false) {
+async function getNewsData(forceRefresh = false, period = "24h") {
   const cacheIsValid =
     newsCache.items.length > 0 &&
-    Date.now() - newsCache.createdAt < CACHE_DURATION_MS;
+    Date.now() - newsCache.createdAt < CACHE_DURATION_MS &&
+    newsCache.period === period;
 
   if (!forceRefresh && cacheIsValid) {
-    return {
-      ...newsCache,
-      fromCache: true,
-    };
+    return { ...newsCache, fromCache: true };
   }
 
-  const refreshed = await refreshNewsCache();
+  const refreshed = await refreshNewsCache(period);
+  return { ...refreshed, fromCache: false };
+}
 
-  return {
-    ...refreshed,
-    fromCache: false,
-  };
+function normalizePeriod(value) {
+  const period = String(value || "24h").toLowerCase();
+  return Object.prototype.hasOwnProperty.call(PERIODS, period) ? period : "24h";
+}
+
+function filterByPeriod(items, period) {
+  const duration = PERIODS[period];
+  if (duration == null) return items;
+  const cutoff = Date.now() - duration;
+
+  return items.filter((item) => {
+    const timestamp = new Date(item.publishedAt).getTime();
+    return Number.isFinite(timestamp) && timestamp >= cutoff && timestamp <= Date.now() + 300000;
+  });
 }
 
 router.get("/", async (req, res) => {
   try {
-    const requestedCategory = cleanText(req.query.category)
-      .toLocaleLowerCase("tr-TR");
-
-    const breakingOnly =
-      String(req.query.breaking || "").toLowerCase() === "true";
-const period = String(req.query.period || "24h").toLowerCase();
-    const forceRefresh =
-      String(req.query.refresh || "").toLowerCase() === "true";
-
+    const requestedCategory = cleanText(req.query.category).toLocaleLowerCase("tr-TR");
+    const breakingOnly = String(req.query.breaking || "").toLowerCase() === "true";
+    const period = normalizePeriod(req.query.period);
+    const forceRefresh = String(req.query.refresh || "").toLowerCase() === "true";
     const parsedLimit = Number.parseInt(req.query.limit, 10);
     const limit = Number.isFinite(parsedLimit)
-      ? Math.min(Math.max(parsedLimit, 1), 100)
-      : 50;
+      ? Math.min(Math.max(parsedLimit, 1), 2000)
+      : 200;
 
-    const data = await getNewsData(forceRefresh);
+    const data = await getNewsData(forceRefresh, period);
+    let filteredNews = filterByPeriod(data.items, period);
 
-    let filteredNews = data.items;
-if (
-  requestedCategory &&
-  requestedCategory !== "tumu" &&
-  requestedCategory !== "son_dakika"
-) {
-  filteredNews = filteredNews.filter(
-    (item) => item.category === requestedCategory
-  );
-}
-
-if (requestedCategory === "son_dakika" || breakingOnly) {
-  filteredNews = filteredNews.filter(
-    (item) => item.isBreaking
-  );
-}
     if (requestedCategory && requestedCategory !== "tumu") {
-      filteredNews = filteredNews.filter(
-        (item) => item.category === requestedCategory
-      );
+      if (requestedCategory === "son_dakika") {
+        filteredNews = filteredNews.filter((item) => item.isBreaking);
+      } else {
+        filteredNews = filteredNews.filter(
+          (item) => item.category === requestedCategory
+        );
+      }
     }
 
     if (breakingOnly) {
-      filteredNews = filteredNews.filter(
-        (item) => item.isBreaking
-      );
+      filteredNews = filteredNews.filter((item) => item.isBreaking);
     }
 
-    const workingSources = data.sourceResults.filter(
-      (source) => source.ok
-    ).length;
+    const workingSources = data.sourceResults.filter((source) => source.ok).length;
 
     res.json({
       success: true,
@@ -457,39 +498,37 @@ if (requestedCategory === "son_dakika" || breakingOnly) {
       fromCache: data.fromCache,
       total: filteredNews.length,
       returned: Math.min(filteredNews.length, limit),
+      archiveCount: data.items.length,
       workingSources,
       totalSources: NEWS_SOURCES.length,
       filters: {
-  category: requestedCategory || "tumu",
-  breakingOnly,
-  period,
-  limit,
-},
+        category: requestedCategory || "tumu",
+        breakingOnly,
+        period,
+        limit,
+      },
       news: filteredNews.slice(0, limit),
     });
   } catch (error) {
     console.error("[NEWS] Genel hata:", error);
-
     res.status(500).json({
       success: false,
       error: "Haberler şu anda alınamadı.",
       details:
-        process.env.NODE_ENV === "development"
-          ? error?.message
-          : undefined,
+        process.env.NODE_ENV === "development" ? error?.message : undefined,
     });
   }
 });
 
 router.get("/health", async (req, res) => {
   try {
-    const data = await getNewsData(false);
-
+    const data = await getNewsData(false, "24h");
     res.json({
       success: true,
       service: "Trendora Haber Merkezi",
       cachedNewsCount: data.items.length,
       cacheUpdatedAt: new Date(data.createdAt).toISOString(),
+      archiveFile: ARCHIVE_FILE,
       sources: data.sourceResults,
     });
   } catch (error) {
@@ -504,34 +543,26 @@ router.get("/sources", (req, res) => {
   res.json({
     success: true,
     total: NEWS_SOURCES.length,
-    sources: NEWS_SOURCES.map(
-      ({ name, category, url, priority }) => ({
-        name,
-        category,
-        url,
-        priority,
-      })
-    ),
+    sources: NEWS_SOURCES.map(({ name, category, url, googleQuery, priority }) => ({
+      name,
+      category,
+      url: url || googleNewsUrl(googleQuery, "24h"),
+      priority,
+    })),
   });
 });
 
 async function getNewsStatus(options = {}) {
   const forceRefresh = options.forceRefresh === true;
-  const data = await getNewsData(forceRefresh);
-
-  const activeSources = data.sourceResults.filter(
-    (source) => source.ok
-  ).length;
+  const data = await getNewsData(forceRefresh, "24h");
+  const activeSources = data.sourceResults.filter((source) => source.ok).length;
 
   return {
     newsCount: data.items.length,
     totalSources: NEWS_SOURCES.length,
     activeSources,
     failedSources: Math.max(0, NEWS_SOURCES.length - activeSources),
-    updatedAt:
-      data.createdAt > 0
-        ? new Date(data.createdAt).toISOString()
-        : null,
+    updatedAt: data.createdAt > 0 ? new Date(data.createdAt).toISOString() : null,
     fromCache: data.fromCache === true,
   };
 }
