@@ -13,8 +13,8 @@ class HaberlerSayfasi extends StatefulWidget {
 }
 
 class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
-  static const String _backendUrl =
-      'https://trendora-icj9.onrender.com/api/news?limit=200';
+  static const String _backendBaseUrl =
+      'https://trendora-icj9.onrender.com/api/news';
 
   static const Duration _otomatikYenilemeSuresi =
       Duration(seconds: 30);
@@ -457,8 +457,20 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
     }
 
     try {
-      final uri = Uri.parse(
-        zorlaYenile ? '$_backendUrl&refresh=true' : _backendUrl,
+      final seciliFiltre = _zamanFiltreleri.firstWhere(
+        (item) => item.kod == _seciliZaman,
+        orElse: () => _zamanFiltreleri.last,
+      );
+
+      final limit = _haberLimiti(seciliFiltre.kod);
+      final queryParameters = <String, String>{
+        'period': seciliFiltre.kod,
+        'limit': '$limit',
+        if (zorlaYenile) 'refresh': 'true',
+      };
+
+      final uri = Uri.parse(_backendBaseUrl).replace(
+        queryParameters: queryParameters,
       );
 
       final response = await http
@@ -559,6 +571,28 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
     }
   }
 
+  int _haberLimiti(String zamanKodu) {
+    switch (zamanKodu) {
+      case '1h':
+      case '4h':
+      case '12h':
+        return 250;
+      case '24h':
+        return 400;
+      case '7d':
+        return 700;
+      case '30d':
+      case '60d':
+        return 1000;
+      case '180d':
+      case '365d':
+      case 'all':
+        return 2000;
+      default:
+        return 400;
+    }
+  }
+
   int _intDegeri(dynamic value) {
     if (value is int) return value;
     return int.tryParse(value?.toString() ?? '') ?? 0;
@@ -625,10 +659,14 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
   }
 
   void _zamanSec(String kod) {
+    if (_seciliZaman == kod) return;
+
     setState(() {
       _seciliZaman = kod;
       _sayfalamayiSifirla();
     });
+
+    _haberleriGetir(zorlaYenile: true);
   }
 
   @override
