@@ -15,9 +15,9 @@ function startServer() {
   require('./server');
 }
 
-function runCollectorThenStartServer() {
+function startCollectorInBackground() {
   console.log('');
-  console.log('Telegram collector ilk veri çekimi için başlatılıyor...');
+  console.log('Telegram collector arka planda başlatılıyor...');
 
   const collector = spawn(
     process.execPath,
@@ -29,17 +29,6 @@ function runCollectorThenStartServer() {
     }
   );
 
-  let serverStarted = false;
-
-  const continueWithServer = () => {
-    if (serverStarted) {
-      return;
-    }
-
-    serverStarted = true;
-    startServer();
-  };
-
   collector.on('error', error => {
     console.error(
       'Telegram collector başlatılamadı:',
@@ -47,10 +36,8 @@ function runCollectorThenStartServer() {
     );
 
     console.log(
-      'Collector hatasına rağmen mevcut API sunucusu açılacak.'
+      'API sunucusu çalışmaya devam edecek.'
     );
-
-    continueWithServer();
   });
 
   collector.on('close', code => {
@@ -64,27 +51,19 @@ function runCollectorThenStartServer() {
       );
 
       console.log(
-        'Collector hatasına rağmen mevcut API sunucusu açılacak.'
+        'API sunucusu çalışmaya devam edecek.'
       );
     }
-
-    continueWithServer();
   });
-
-  /*
-    Collector herhangi bir sebeple uzun süre beklerse
-    API tamamen kapalı kalmasın. 90 saniye sonra sunucu
-    yine açılır; collector arka planda tamamlanabilir.
-  */
-  setTimeout(() => {
-    if (!serverStarted) {
-      console.log(
-        'Telegram collector bekleme süresini aştı. API sunucusu açılıyor.'
-      );
-
-      continueWithServer();
-    }
-  }, 90000);
 }
 
-runCollectorThenStartServer();
+/*
+  Render portu mümkün olan en kısa sürede görebilsin diye
+  önce mevcut API sunucusu açılır. Telegram collector ise
+  hemen ardından ayrı süreçte arka planda çalışır.
+*/
+startServer();
+
+setTimeout(() => {
+  startCollectorInBackground();
+}, 1000);
