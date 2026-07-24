@@ -81,6 +81,8 @@ const OTHER_FINANCE_ENTITIES = [
   { symbol: 'XAUUSD', name: 'Ons Altın', subtype: 'commodity', aliases: ['ons altın', 'ons altin', 'xauusd'] },
   { symbol: 'GRAM_ALTIN', name: 'Gram Altın', subtype: 'commodity', aliases: ['gram altın', 'gram altin', 'gram'] },
   { symbol: 'XAGUSD', name: 'Ons Gümüş', subtype: 'commodity', aliases: ['ons gümüş', 'ons gumus', 'xagusd', 'gümüş', 'gumus'] },
+  { symbol: 'RBOB', name: 'Benzin Vadeli İşlemleri', subtype: 'commodity', aliases: ['benzin', 'benzin fiyatı', 'akaryakıt', 'akaryakit', 'rbob', 'gasoline'] },
+  { symbol: 'BRENT', name: 'Brent Petrol', subtype: 'commodity', aliases: ['brent', 'brent petrol', 'petrol fiyatı', 'petrol fiyati'] },
   { symbol: 'USDTRY', name: 'Dolar/TL', subtype: 'fx', aliases: ['dolar', 'dolar tl', 'usdtry', 'usd try'] },
   { symbol: 'EURTRY', name: 'Euro/TL', subtype: 'fx', aliases: ['euro', 'avro', 'euro tl', 'eurtry'] },
   { symbol: 'BTC', name: 'Bitcoin', subtype: 'crypto', aliases: ['bitcoin', 'btc'] },

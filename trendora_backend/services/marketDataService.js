@@ -69,6 +69,8 @@ function resolveYahooSymbol(query, classification) {
   if (/BIST\s*30|BIST30|XU030/.test(cleanedQuery)) return 'XU030.IS';
   if (/BIST\s*BANKA|BANKA\s*ENDEKSI|XBANK/.test(cleanedQuery)) return 'XBANK.IS';
 
+  if (/BENZIN|AKARYAKIT|GASOLINE|RBOB/.test(cleanedQuery)) return 'RB=F';
+  if (/BRENT|PETROL/.test(cleanedQuery)) return 'BZ=F';
   if (/ALTIN|GOLD/.test(cleanedQuery)) return 'GC=F';
   if (/GUMUS|SILVER/.test(cleanedQuery)) return 'SI=F';
   if (/BITCOIN|BTC/.test(cleanedQuery)) return 'BTC-USD';

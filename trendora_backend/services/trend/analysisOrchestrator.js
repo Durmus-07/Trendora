@@ -1,6 +1,7 @@
 const { buildFallbackAnalysis } = require('./fallbackAnalyzer');
 const { fetchMarketData } = require('../marketDataService');
 const { classifyQuestion } = require('./questionClassifier');
+const { BIST_ENTITIES } = require('./entityEngine');
 const { buildSourcePlan } = require('./sourceRouter');
 const { collectNewsEvidence } = require('./newsEvidenceCollector');
 const { researchWithWeb } = require('./webResearchService');
@@ -150,6 +151,108 @@ function buildTechnicalSignals(t) {
   if (t.volumeRatio != null) out.push({ type: t.volumeRatio >= 1.15 ? 'positive' : t.volumeRatio < 0.75 ? 'neutral' : 'neutral', title: 'Hacim ilgisi', detail: `20 günlük ortalamaya göre hacim oranı ${t.volumeRatio.toFixed(2)}x.`, weight: Math.round(clamp(t.volumeRatio * 45, 15, 90)) });
   return out;
 }
+
+function detectScanMode(query) {
+  const value = String(query || '').toLocaleLowerCase('tr-TR');
+  const isStockScan = /(hisse|hisseler|borsa|bist).*(sırala|listele|bul|tara|hangileri|hangisi|yükselebilir|yükselecek|yükselişe|düşebilir|düşecek|gerileyebilir|stabil|yatay)/i.test(value)
+    || /(yükselebilecek|yükselişe geçebilecek|düşebilecek|gerileyebilecek|stabil kalabilecek).*(hisse|hisseler)/i.test(value);
+  if (!isStockScan) return null;
+  if (/(düş|gerile|zayıf|satış baskısı)/i.test(value)) return 'falling';
+  if (/(stabil|yatay|dengeli|oynaklığı düşük)/i.test(value)) return 'stable';
+  return 'rising';
+}
+
+function calibratedRiskScore(marketData, classification) {
+  const atr = Math.abs(finiteNumber(marketData?.technical?.atrPercent) || 0);
+  const dailyMove = Math.abs(finiteNumber(marketData?.dailyPrice?.changePercent) || 0);
+  const volumeRatio = finiteNumber(marketData?.technical?.volumeRatio);
+  const score = finiteNumber(marketData?.technical?.score) ?? 50;
+  const isIndex = classification?.entity?.subtype === 'index';
+  let risk = isIndex ? 18 : 24;
+  risk += Math.min(26, atr * (isIndex ? 3.2 : 4.2));
+  risk += Math.min(12, dailyMove * 1.8);
+  if (volumeRatio != null && volumeRatio < 0.45) risk += 6;
+  if (volumeRatio != null && volumeRatio > 2.2) risk += 5;
+  if (score >= 78 || score <= 28) risk += 4;
+  return Math.round(clamp(risk, 15, 82));
+}
+
+function riskLabel(score) {
+  if (score >= 68) return 'yüksek';
+  if (score >= 52) return 'orta-yüksek';
+  if (score >= 35) return 'orta';
+  if (score >= 22) return 'düşük';
+  return 'çok düşük';
+}
+
+function scanScore(data, mode) {
+  const tech = finiteNumber(data?.technical?.score) ?? 50;
+  const rsi = finiteNumber(data?.technical?.rsi14) ?? 50;
+  const atr = Math.abs(finiteNumber(data?.technical?.atrPercent) || 3);
+  const volume = finiteNumber(data?.technical?.volumeRatio) ?? 1;
+  const change = finiteNumber(data?.dailyPrice?.changePercent) ?? 0;
+  if (mode === 'falling') {
+    return Math.round(clamp((100 - tech) * 0.68 + Math.max(0, -change) * 5 + (rsi < 45 ? 10 : 0), 0, 100));
+  }
+  if (mode === 'stable') {
+    return Math.round(clamp(100 - Math.abs(tech - 50) * 1.25 - atr * 7 - Math.abs(change) * 3 - Math.abs(rsi - 50) * 0.7, 0, 100));
+  }
+  return Math.round(clamp(tech * 0.72 + Math.min(12, Math.max(0, volume - 1) * 12) + Math.max(-8, Math.min(8, change * 2)) + (rsi >= 48 && rsi <= 68 ? 8 : 0), 0, 100));
+}
+
+async function runBistScanner(query, classification, sourcePlan, mode) {
+  const universe = BIST_ENTITIES.filter(item => !item.symbol.endsWith('.S1')).slice(0, 42);
+  const results = [];
+  // Tüm istekler paralel başlar; böylece Render isteği seri 12 saniyelik
+  // beklemeler yüzünden uzamaz. Başarısız semboller diğerlerini durdurmaz.
+  const settled = await Promise.allSettled(universe.map(item => fetchMarketData(item.symbol, {
+    domain: 'finance', label: 'Finans', intent: 'scan', period: classification.period,
+    entity: { found: true, domain: 'finance', subtype: 'bist_stock', market: 'BIST', symbol: item.symbol, name: item.name }
+  })));
+  settled.forEach((entry, index) => {
+    if (entry.status !== 'fulfilled' || !entry.value) return;
+    const data = entry.value;
+    results.push({
+      symbol: universe[index].symbol, name: universe[index].name, data,
+      scanScore: scanScore(data, mode),
+      riskScore: calibratedRiskScore(data, { entity: { subtype: 'bist_stock' } })
+    });
+  });
+
+  const ranked = results.sort((a, b) => b.scanScore - a.scanScore).slice(0, 10);
+  const labels = { rising: 'yükseliş eğilimi', falling: 'zayıflama eğilimi', stable: 'dengeli/yatay eğilim' };
+  const headline = labels[mode] || labels.rising;
+  const confidence = Math.round(clamp(58 + Math.min(22, ranked.length * 2), 58, 82));
+  const avgTrend = ranked.length ? Math.round(ranked.reduce((s, x) => s + x.scanScore, 0) / ranked.length) : 0;
+  const signals = ranked.map((item, idx) => {
+    const t = item.data.technical || {};
+    const current = firstValidPrice(item.data.dailyPrice?.current, item.data.dailyPrice?.close);
+    const type = mode === 'falling' ? 'negative' : mode === 'stable' ? 'neutral' : 'positive';
+    return {
+      type,
+      title: `#${idx + 1} ${item.symbol} — ${item.scanScore}/100`,
+      detail: `${item.name}; fiyat ${fmt(current, item.data.currency)}. RSI ${finiteNumber(t.rsi14)?.toFixed(1) || '-'}, EMA20 ${t.ema20 != null && t.ema50 != null ? (t.ema20 >= t.ema50 ? 'EMA50 üzerinde' : 'EMA50 altında') : 'ölçülemedi'}, hacim ${finiteNumber(t.volumeRatio)?.toFixed(2) || '-'}x, risk ${riskLabel(item.riskScore)}.`,
+      weight: item.scanScore
+    };
+  });
+  const topText = ranked.slice(0, 5).map((x, i) => `${i + 1}. ${x.symbol} (${x.scanScore})`).join(', ');
+  const raw = {
+    answerTitle: `BIST piyasa taraması — ${headline}`,
+    directAnswer: ranked.length ? `Canlı teknik taramada öne çıkan ilk hisseler: ${topText}. Bu sıralama fiyat serisi, RSI, EMA, MACD, hacim ve oynaklık ölçümlerine dayanır.` : 'Tarama sırasında yeterli canlı piyasa verisi alınamadı.',
+    summary: `Trendora, BIST evrenindeki ${results.length} hisseden canlı verisi alınabilenleri karşılaştırdı ve ${headline} açısından puanladı. Liste kesin getiri vaadi değildir; tarama sonucu ve önceliklendirmedir.`,
+    confidence,
+    statistics: { trendStrength: avgTrend, dataConfidence: confidence, riskScore: ranked.length ? Math.round(ranked.reduce((s,x)=>s+x.riskScore,0)/ranked.length) : 50, newsImpact: 20, marketInterest: 55 },
+    signals,
+    keyFactors: ['Canlı günlük fiyat serisi', 'RSI ve EMA eğilimi', 'MACD yönü', '20 günlük hacim oranı', 'ATR tabanlı oynaklık', `${results.length} hisse karşılaştırıldı`],
+    missingInformation: ['Tarama bilanço ve KAP verilerini tüm hisselerde aynı anda tam kapsamla doğrulamaz'],
+    nextChecks: ['Listelenen her hisseyi tek tek açarak KAP, bilanço ve haber analiziyle doğrula', 'Zaman ufkunu gün/hafta/ay olarak ayrıca belirt'],
+    sources: ranked.map(x => x.data.source).filter(Boolean),
+    disclaimer: 'Bu liste yatırım tavsiyesi değildir. Teknik tarama, olasılık ve önceliklendirme amacı taşır.'
+  };
+  const normalized = normalizeAnalysis(raw, query, classification, sourcePlan);
+  return { ...normalized, scanResults: ranked.map(x => ({ symbol:x.symbol, name:x.name, score:x.scanScore, riskScore:x.riskScore, riskLabel:riskLabel(x.riskScore), current:firstValidPrice(x.data.dailyPrice?.current,x.data.dailyPrice?.close), currency:x.data.currency, technical:x.data.technical })), engine: { version:'4.4.0', mode:'bist-market-scanner', usedLiveMarketData:true, usedLiveWebResearch:false, usedFallbackNews:false, entityRecognition:false, generatedAt:new Date().toISOString() } };
+}
+
 function removeFalseMissing(items, marketData) {
   if (!marketData) return items;
   const banned = /doğrudan piyasa|geçmiş fiyat|fiyat serisi|piyasa verisi/i;
@@ -161,6 +264,10 @@ async function analyzeQuestion(query) {
   if (cleanedQuery.length < 2) { const e = new Error('Analiz için en az 2 karakterlik bir soru yazmalısın.'); e.statusCode = 400; throw e; }
   const classification = classifyQuestion(cleanedQuery);
   const sourcePlan = buildSourcePlan(classification);
+  const scanMode = detectScanMode(cleanedQuery);
+  if (scanMode && classification.domain === 'finance') {
+    return runBistScanner(cleanedQuery, classification, sourcePlan, scanMode);
+  }
   const evidenceQuery = classification.entity?.found
     ? `${classification.entity.name} ${classification.entity.symbol || ''}`.trim()
     : cleanedQuery;
@@ -205,7 +312,7 @@ async function analyzeQuestion(query) {
     const hasWeb = Boolean(webResult || evidence.length);
     const evidenceBonus = Math.min(10, Math.round((evidenceProfile.qualityScore + evidenceProfile.diversityScore) / 20));
     const confidence = Math.round(clamp(60 + Math.min(16, Math.abs(technicalScore - 50) * .35) + (webResult ? 7 : 0) + evidenceBonus, 55, 90));
-    const riskScore = Math.round(clamp(35 + atrPercent * 5 + changePercent * 2 + (hasWeb ? 0 : 8), 20, 88));
+    const riskScore = calibratedRiskScore(marketData, classification) + (hasWeb ? 0 : 3);
     const marketScenarios = buildMarketScenarios(marketData, classification);
     base.dailyPrice = { ...marketData.dailyPrice, current, close: firstValidPrice(marketData.dailyPrice?.close, current) };
     base.yearlyPrice = { ...marketData.yearlyPrice };
@@ -231,11 +338,11 @@ async function analyzeQuestion(query) {
     const priceText = fmt(current, marketData.currency);
     const direction = technicalScore >= 65 ? 'pozitif' : technicalScore <= 42 ? 'negatif' : 'temkinli-nötr';
     base.answerTitle = `${periodLabel} finans değerlendirmesi`;
-    base.directAnswer = `${marketData.displayName} güncel fiyatı ${priceText}. ${periodLabel} için teknik görünüm ${direction}; veri güveni %${confidence}, risk seviyesi ${riskScore >= 65 ? 'yüksek' : riskScore >= 45 ? 'orta' : 'düşük'}.`;
+    base.directAnswer = `${marketData.displayName} güncel fiyatı ${priceText}. ${periodLabel} için teknik görünüm ${direction}; veri güveni %${confidence}, risk seviyesi ${riskLabel(riskScore)}.`;
     base.summary = `${periodLabel} ufku; canlı fiyat serisi, RSI, EMA, SMA, MACD, ATR, hacim, destek-direnç ve erişilebilen haber sinyalleri birlikte değerlendirilerek hesaplandı. Sonuç kesin fiyat tahmini değil, olasılık bandıdır.`;
   }
 
   const normalized = normalizeAnalysis(base, cleanedQuery, classification, sourcePlan);
-  return { ...normalized, engine: { version:'4.3.0', mode: marketData && webResult ? 'market-plus-web' : marketData ? 'market-data' : webResult ? 'web-research' : 'limited-fallback', usedLiveMarketData:Boolean(marketData), usedLiveWebResearch:Boolean(webResult), usedFallbackNews:evidence.length>0, evidenceProfile, entityRecognition:classification.entity?.found||false, webResearchError:webError ? webError.message : null, sourceCoverage: { planned: Array.isArray(sourcePlan?.sources) ? sourcePlan.sources.map(s => s.name) : [], returned: normalized.sources.map(s => s.publisher), autoDiscovery: sourcePlan?.discovery?.enabled === true }, generatedAt:new Date().toISOString() } };
+  return { ...normalized, engine: { version:'4.4.0', mode: marketData && webResult ? 'market-plus-web' : marketData ? 'market-data' : webResult ? 'web-research' : 'limited-fallback', usedLiveMarketData:Boolean(marketData), usedLiveWebResearch:Boolean(webResult), usedFallbackNews:evidence.length>0, evidenceProfile, entityRecognition:classification.entity?.found||false, webResearchError:webError ? webError.message : null, sourceCoverage: { planned: Array.isArray(sourcePlan?.sources) ? sourcePlan.sources.map(s => s.name) : [], returned: normalized.sources.map(s => s.publisher), autoDiscovery: sourcePlan?.discovery?.enabled === true }, generatedAt:new Date().toISOString() } };
 }
 module.exports = { analyzeQuestion, normalizeAnalysis };

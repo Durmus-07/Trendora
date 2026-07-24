@@ -34,7 +34,7 @@ const DOMAIN_RULES = [
     label: 'Finans',
     keywords: [
       'hisse', 'borsa', 'bist', 'altın', 'gümüş', 'dolar', 'euro',
-      'kripto', 'bitcoin', 'fon', 'tahvil', 'faiz', 'temettü', 'yatırım'
+      'kripto', 'bitcoin', 'fon', 'tahvil', 'faiz', 'temettü', 'yatırım', 'benzin', 'akaryakıt', 'mazot', 'petrol', 'brent'
     ]
   },
   {
