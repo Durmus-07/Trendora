@@ -268,28 +268,37 @@ async function analyzeQuestion(query) {
   const classification = classifyQuestion(cleanedQuery);
   const sourcePlan = buildSourcePlan(classification);
 
-  let marketData = null;
+  const marketTask = classification.domain === 'finance'
+    ? fetchMarketData(cleanedQuery, classification)
+    : Promise.resolve(null);
 
-  if (classification.domain === 'finance') {
-    try {
-      marketData = await fetchMarketData(cleanedQuery, classification);
-    } catch (error) {
-      console.error('Canlı piyasa verisi alınamadı:', error.message);
-    }
+  const webTask = researchWithWeb(
+    cleanedQuery,
+    classification,
+    sourcePlan
+  );
+
+  const [marketResult, webResearchResult] = await Promise.allSettled([
+    marketTask,
+    webTask
+  ]);
+
+  const marketData = marketResult.status === 'fulfilled'
+    ? marketResult.value
+    : null;
+  const webResult = webResearchResult.status === 'fulfilled'
+    ? webResearchResult.value
+    : null;
+  const webError = webResearchResult.status === 'rejected'
+    ? webResearchResult.reason
+    : null;
+
+  if (marketResult.status === 'rejected') {
+    console.error('Canlı piyasa verisi alınamadı:', marketResult.reason?.message || marketResult.reason);
   }
 
-  let webResult = null;
-  let webError = null;
-
-  try {
-    webResult = await researchWithWeb(
-      cleanedQuery,
-      classification,
-      sourcePlan
-    );
-  } catch (error) {
-    webError = error;
-    console.error('Trendora web araştırması başarısız:', error.message);
+  if (webError) {
+    console.error('Trendora web araştırması başarısız:', webError.message || webError);
   }
 
   if (webResult || marketData) {
@@ -335,6 +344,32 @@ async function analyzeQuestion(query) {
         ...(base.technical || {}),
         ...(marketData.technical || {})
       };
+
+      const technicalScore = finiteNumber(marketData.technical?.score);
+      const absoluteChange = Math.abs(
+        finiteNumber(marketData.dailyPrice?.changePercent) || 0
+      );
+      const atrPercent = Math.abs(
+        finiteNumber(marketData.technical?.atrPercent) || 0
+      );
+
+      base.statistics = {
+        ...(base.statistics || {}),
+        trendStrength: finiteNumber(base.statistics?.trendStrength) ?? technicalScore,
+        dataConfidence: finiteNumber(base.statistics?.dataConfidence) ?? 82,
+        riskScore: finiteNumber(base.statistics?.riskScore) ?? Math.round(
+          clamp(35 + absoluteChange * 4 + atrPercent * 3, 0, 100)
+        ),
+        marketInterest: finiteNumber(base.statistics?.marketInterest) ?? Math.round(
+          clamp((finiteNumber(marketData.technical?.volumeRatio) || 1) * 50, 0, 100)
+        )
+      };
+
+      if (finiteNumber(base.confidence) == null || Number(base.confidence) <= 0) {
+        base.confidence = technicalScore != null
+          ? Math.round(clamp(55 + Math.abs(technicalScore - 50) * 0.45, 45, 82))
+          : 55;
+      }
 
       base.sources = [
         marketData.source,

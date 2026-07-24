@@ -28,6 +28,24 @@ function buildSourcePlan(classification) {
       evidenceTypes: ['retail', 'official', 'review'],
       notes: []
     },
+    travel: {
+      required: ['Güncel ulaşım ve konaklama verisi', 'Resmî seyahat bilgileri', 'Mevsim ve yoğunluk göstergeleri'],
+      preferredDomains: ['kulturportali.gov.tr', 'goturkiye.com', 'dhmi.gov.tr', 'tcddtasimacilik.gov.tr'],
+      evidenceTypes: ['official', 'travel-data', 'review'],
+      notes: ['Fiyat ve uygunluk bilgileri tarih belirtilmeden kesin kabul edilmemeli.']
+    },
+    business: {
+      required: ['Sektör büyüklüğü ve talep göstergeleri', 'Resmî şirket ve istihdam verileri', 'Rakip ve maliyet karşılaştırması'],
+      preferredDomains: ['tuik.gov.tr', 'iskur.gov.tr', 'ticaret.gov.tr', 'kosgeb.gov.tr'],
+      evidenceTypes: ['official', 'market-data', 'business-news'],
+      notes: ['İş fikri analizlerinde başlangıç maliyeti, hedef müşteri ve konum eksikleri ayrıca belirtilmeli.']
+    },
+    job: {
+      required: ['Güncel iş ilanı örnekleri', 'Meslek ve ücret göstergeleri', 'Resmî istihdam verileri'],
+      preferredDomains: ['iskur.gov.tr', 'tuik.gov.tr', 'kariyer.net', 'linkedin.com'],
+      evidenceTypes: ['official', 'listing', 'market-data'],
+      notes: ['Tek bir ilan veya ücret örneği genel piyasa sonucu gibi sunulmamalı.']
+    },
     general: {
       required: ['Güncel ve güvenilir açık kaynaklar'],
       preferredDomains: [],

@@ -1,5 +1,16 @@
 const axios = require('axios');
 
+const MARKET_CACHE_TTL_MS = Number(
+  process.env.TRENDORA_MARKET_CACHE_TTL_MS || 5 * 60 * 1000
+);
+const marketCache = new Map();
+const marketRequests = new Map();
+
+function cloneMarketData(value) {
+  return value ? JSON.parse(JSON.stringify(value)) : value;
+}
+
+
 const BIST_ALIASES = {
   ASELS: 'ASELS.IS', ASELSAN: 'ASELS.IS',
   TUPRS: 'TUPRS.IS', TUPRAS: 'TUPRS.IS', TÜPRAŞ: 'TUPRS.IS',
@@ -233,12 +244,24 @@ function signalFromScore(score) {
   return 'neutral';
 }
 
-async function fetchMarketData(query, classification) {
+async function fetchMarketData(query, classification, options = {}) {
   if (classification?.domain !== 'finance') return null;
 
   const symbol = resolveYahooSymbol(query, classification);
   if (!symbol) return null;
 
+  const forceRefresh = options.forceRefresh === true;
+  const cached = marketCache.get(symbol);
+
+  if (!forceRefresh && cached && Date.now() - cached.createdAt < MARKET_CACHE_TTL_MS) {
+    return cloneMarketData(cached.value);
+  }
+
+  if (!forceRefresh && marketRequests.has(symbol)) {
+    return cloneMarketData(await marketRequests.get(symbol));
+  }
+
+  const request = (async () => {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`;
   const response = await axios.get(url, {
     params: {
@@ -321,7 +344,7 @@ async function fetchMarketData(query, classification) {
   const yearlyLow = finite(meta.fiftyTwoWeekLow) ?? (lows.length ? Math.min(...lows) : null);
   const yearlyHigh = finite(meta.fiftyTwoWeekHigh) ?? (highs.length ? Math.max(...highs) : null);
 
-  return {
+  const value = {
     symbol,
     displayName: meta.longName || meta.shortName || classification?.entity?.name || symbol,
     exchange: meta.exchangeName || meta.fullExchangeName || null,
@@ -369,6 +392,22 @@ async function fetchMarketData(query, classification) {
       evidenceType: 'market-data'
     }
   };
+
+  marketCache.set(symbol, {
+    createdAt: Date.now(),
+    value
+  });
+
+  return value;
+  })();
+
+  marketRequests.set(symbol, request);
+
+  try {
+    return cloneMarketData(await request);
+  } finally {
+    marketRequests.delete(symbol);
+  }
 }
 
 module.exports = {
