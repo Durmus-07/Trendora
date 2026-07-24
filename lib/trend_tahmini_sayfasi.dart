@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
+import 'profesyonel_grafik_sayfasi.dart';
+
 class TrendTahminiSayfasi extends StatefulWidget {
   const TrendTahminiSayfasi({super.key});
 
@@ -259,6 +261,10 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
                   (trend.dailyPrice.available || trend.yearlyPrice.available)) ...[
                 const SizedBox(height: 12),
                 _canliFiyatOzetiKarti(trend),
+              ],
+              if (trend.domain == 'finance') ...[
+                const SizedBox(height: 12),
+                _profesyonelGrafikKarti(trend),
               ],
               const SizedBox(height: 12),
               _dogrudanCevapKarti(trend),
@@ -1064,6 +1070,98 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
     if (value >= 75) return 'Yüksek';
     if (value >= 45) return 'Orta';
     return 'Düşük';
+  }
+
+  Widget _profesyonelGrafikKarti(TrendAnalizi trend) {
+    final current = trend.dailyPrice.current ??
+        trend.dailyPrice.close ??
+        trend.dailyPrice.vwap ??
+        trend.dailyPrice.average ??
+        trend.dailyPrice.open ??
+        trend.yearlyPrice.average52w;
+    final currency = trend.dailyPrice.currency ??
+        trend.yearlyPrice.currency ??
+        trend.estimatedRange.currency ??
+        'TRY';
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(20),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ProfesyonelGrafikSayfasi(
+              baslik: trend.answerTitle,
+              sorgu: trend.query,
+              guncelFiyat: current,
+              elliIkiHaftaDusuk: trend.yearlyPrice.low52w,
+              elliIkiHaftaYuksek: trend.yearlyPrice.high52w,
+              paraBirimi: currency,
+              guvenPuani: trend.confidence,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF12354A), Color(0xFF0B1F33)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFF2B7184)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF14B8A6), Color(0xFF2563EB)],
+                ),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Icon(
+                Icons.candlestick_chart_rounded,
+                color: Colors.white,
+                size: 25,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Profesyonel Grafik',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  SizedBox(height: 5),
+                  Text(
+                    'Mum, RSI, MACD, EMA, SMA, Bollinger, hacim ve çizim araçları',
+                    style: TextStyle(
+                      color: Color(0xFF9CB5C8),
+                      fontSize: 11.5,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.open_in_full_rounded,
+              color: Color(0xFF6EE7F9),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _dogrudanCevapKarti(TrendAnalizi trend) {

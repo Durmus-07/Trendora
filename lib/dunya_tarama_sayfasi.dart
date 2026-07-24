@@ -42,7 +42,8 @@ class _DunyaTaramaSayfasiState extends State<DunyaTaramaSayfasi>
   String durumMesaji = 'Dünya taranıyor...';
   int aktifKaynakMesaji = 0;
 
-  static const String backendUrl = 'http://127.0.0.1:3000';
+  static const String backendUrl =
+    'https://trendora-icj9.onrender.com';
 
   static const List<String> kaynakMesajlari = [
     'Haber kaynakları taranıyor',
@@ -97,7 +98,7 @@ class _DunyaTaramaSayfasiState extends State<DunyaTaramaSayfasi>
             Uri.parse('$backendUrl/api/scan-status'),
             headers: const {'Accept': 'application/json'},
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 40));
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw Exception('Sunucu hatası: ${response.statusCode}');
@@ -193,19 +194,17 @@ class _DunyaTaramaSayfasiState extends State<DunyaTaramaSayfasi>
           timer.cancel();
           return;
         }
-final rastgele = math.Random();
-
 analizEdilenHaber =
-    rastgele.nextInt(9000) + mevcutAdim * 10;
+    _animasyonDegeri(hedefHaberSayisi, mevcutAdim, toplamAdim);
 
 bulunanFirsat =
-    rastgele.nextInt(700) + mevcutAdim * 3;
+    _animasyonDegeri(hedefFirsatSayisi, mevcutAdim, toplamAdim);
 
 yeniTrendSayisi =
-    rastgele.nextInt(120) + mevcutAdim;
+    _animasyonDegeri(hedefTrendSayisi, mevcutAdim, toplamAdim);
 
 tarananKaynak =
-    rastgele.nextInt(80) + 5;
+    _animasyonDegeri(hedefKaynakSayisi, mevcutAdim, toplamAdim);
 
         if (mevcutAdim >= toplamAdim) {
           timer.cancel();
