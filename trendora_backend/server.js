@@ -9,11 +9,12 @@ const opportunitiesRoutes = require('./routes/opportunities');
 const newsRoutes = require('./routes/news');
 const trendsRoutes = require('./routes/trends');
 const aiRoutes = require('./routes/ai');
-const { getTrendOverview } = require('./services/trendEngine');
+
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 
 app.use(cors());
+
 app.use((req, res, next) => {
   console.log(`[ISTEK] ${req.method} ${req.originalUrl}`);
 
@@ -25,6 +26,7 @@ app.use((req, res, next) => {
 
   next();
 });
+
 app.use(express.json());
 
 const opportunitiesFilePath = path.join(
@@ -120,37 +122,33 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Trendora sunucusu çalışıyor.',
     endpoints: {
-      opportunities:
-        '/api/opportunities',
-      a101:
-        '/api/opportunities/a101',
-      bim:
-        '/api/opportunities/bim',
-      trendyol:
-        '/api/opportunities/trendyol',
-      trends:
-        '/api/trends',
-      trendAnalysis:
-        '/api/trends/analyze',
-      ai:
-        '/api/ai'
+      opportunities: '/api/opportunities',
+      a101: '/api/opportunities/a101',
+      bim: '/api/opportunities/bim',
+      trendyol: '/api/opportunities/trendyol',
+      trends: '/api/trends',
+      trendAnalysis: '/api/trends/analyze',
+      trendHealth: '/api/trends/health',
+      ai: '/api/ai'
     }
   });
 });
 
 /*
   Eski Flutter kodu /api/trendyol adresini kullanıyorsa
-  çalışmaya devam etsin diye bu adresi koruyoruz.
+  çalışmaya devam etsin diye bu adres korunur.
 */
 app.get('/api/trendyol', (req, res) => {
   try {
-    const database = readOpportunitiesDatabase();
+    const database =
+      readOpportunitiesDatabase();
 
     const items = database.items
       .map(prepareOpportunity)
       .filter(item => {
         return (
-          normalize(item.source) === 'trendyol' &&
+          normalize(item.source) ===
+            'trendyol' &&
           item.status === 'active'
         );
       });
@@ -167,37 +165,42 @@ app.get('/api/trendyol', (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Trendyol fırsatları okunamadı.',
+      message:
+        'Trendyol fırsatları okunamadı.',
       error: error.message
     });
   }
 });
 
-/*
-  A101, BİM, Trendyol ve diğer bütün fırsatlar
-  routes/opportunities.js dosyasından yönetilir.
-*/
 app.use(
   '/api/opportunities',
   opportunitiesRoutes
 );
+
 app.use(
   '/api/news',
   newsRoutes
 );
+
 app.use(
   '/api/trends',
   trendsRoutes
 );
+
 app.use(
   '/api/ai',
   aiRoutes
 );
+
 function getOpportunityStatus() {
-  const database = readOpportunitiesDatabase();
+  const database =
+    readOpportunitiesDatabase();
+
   const activeItems = database.items
     .map(prepareOpportunity)
-    .filter(item => item.status === 'active');
+    .filter(
+      item => item.status === 'active'
+    );
 
   const sourceKeys = new Set(
     activeItems
@@ -220,27 +223,11 @@ function getOpportunityStatus() {
   };
 }
 
-function withTimeout(promise, timeoutMs, fallbackValue) {
-  let timeoutId;
-
-  const timeoutPromise = new Promise(resolve => {
-    timeoutId = setTimeout(
-      () => resolve(fallbackValue),
-      timeoutMs
-    );
-  });
-
-  return Promise.race([promise, timeoutPromise])
-    .finally(() => clearTimeout(timeoutId));
-}
-
 app.get('/api/scan-status', async (req, res) => {
   const startedAt = Date.now();
-  const forceRefresh = ['1', 'true', 'yes'].includes(
-    String(req.query.refresh || '').trim().toLowerCase()
-  );
 
-  const opportunityStatus = getOpportunityStatus();
+  const opportunityStatus =
+    getOpportunityStatus();
 
   const newsFallback = {
     newsCount: 0,
@@ -248,104 +235,160 @@ app.get('/api/scan-status', async (req, res) => {
     activeSources: 0,
     failedSources: 0,
     updatedAt: null,
-    timedOut: true
+    error: 'Haber durumu okunamadı.'
   };
 
   const trendFallback = {
     trends: [],
+    trendCount: 0,
     updatedAt: null,
-    timedOut: true
+    ready: false,
+    error: 'Trend durumu okunamadı.'
   };
 
-  const [newsResult, trendResult] = await Promise.allSettled([
-    withTimeout(
-      newsRoutes.getNewsStatus({ forceRefresh }),
-      15000,
-      newsFallback
-    ),
-    withTimeout(
-      getTrendOverview({ forceRefresh }),
-      20000,
-      trendFallback
-    )
+  const [
+    newsResult,
+    trendResult
+  ] = await Promise.allSettled([
+    newsRoutes.getNewsStatus(),
+    trendsRoutes.getTrendStatus()
   ]);
 
   const newsStatus =
     newsResult.status === 'fulfilled'
       ? newsResult.value
-      : { ...newsFallback, error: newsResult.reason?.message };
+      : {
+          ...newsFallback,
+          error:
+            newsResult.reason?.message ||
+            newsFallback.error
+        };
 
   const trendStatus =
     trendResult.status === 'fulfilled'
       ? trendResult.value
-      : { ...trendFallback, error: trendResult.reason?.message };
+      : {
+          ...trendFallback,
+          error:
+            trendResult.reason?.message ||
+            trendFallback.error
+        };
 
-  const trendCount = Array.isArray(trendStatus.trends)
-    ? trendStatus.trends.length
-    : 0;
+  const trendCount =
+    Number.isFinite(
+      Number(trendStatus.trendCount)
+    )
+      ? Number(trendStatus.trendCount)
+      : Array.isArray(trendStatus.trends)
+        ? trendStatus.trends.length
+        : 0;
 
-  const trendEngineCompleted = !trendStatus.timedOut && !trendStatus.error;
+  const trendEngineCompleted =
+    trendStatus.ready === true &&
+    !trendStatus.error;
 
   const scannedSources =
     Number(newsStatus.totalSources || 0) +
-    Number(opportunityStatus.totalSources || 0) +
+    Number(
+      opportunityStatus.totalSources || 0
+    ) +
     1;
 
   const activeSources =
     Number(newsStatus.activeSources || 0) +
-    Number(opportunityStatus.activeSources || 0) +
+    Number(
+      opportunityStatus.activeSources || 0
+    ) +
     (trendEngineCompleted ? 1 : 0);
 
   const partial =
-    Boolean(newsStatus.timedOut || newsStatus.error) ||
-    Number(newsStatus.failedSources || 0) > 0 ||
-    Boolean(trendStatus.timedOut || trendStatus.error);
+    Boolean(newsStatus.error) ||
+    Number(
+      newsStatus.failedSources || 0
+    ) > 0 ||
+    !trendEngineCompleted;
 
   res.set('Cache-Control', 'no-store');
+
   res.json({
     success: true,
-    status: partial ? 'partial' : 'completed',
-    message: partial
-      ? 'Dünya taraması tamamlandı; bazı kaynaklar süre sınırında kaldı.'
-      : 'Dünya taraması tamamlandı.',
+    status:
+      partial
+        ? 'partial'
+        : 'completed',
+    message:
+      partial
+        ? 'Dünya taraması tamamlandı; bazı kaynaklar henüz hazır değil.'
+        : 'Dünya taraması tamamlandı.',
     scannedSources,
     activeSources,
-    failedSources: Math.max(0, scannedSources - activeSources),
-    newsCount: Number(newsStatus.newsCount || 0),
-    opportunityCount: opportunityStatus.opportunityCount,
+    failedSources: Math.max(
+      0,
+      scannedSources - activeSources
+    ),
+    newsCount:
+      Number(newsStatus.newsCount || 0),
+    opportunityCount:
+      opportunityStatus.opportunityCount,
     trendCount,
     modules: {
       news: {
         status:
-          newsStatus.timedOut ||
           newsStatus.error ||
-          Number(newsStatus.failedSources || 0) > 0
+          Number(
+            newsStatus.failedSources || 0
+          ) > 0
             ? 'partial'
             : 'completed',
-        count: Number(newsStatus.newsCount || 0),
-        activeSources: Number(newsStatus.activeSources || 0),
-        totalSources: Number(newsStatus.totalSources || 0),
-        updatedAt: newsStatus.updatedAt || null
+        count:
+          Number(newsStatus.newsCount || 0),
+        activeSources:
+          Number(
+            newsStatus.activeSources || 0
+          ),
+        totalSources:
+          Number(
+            newsStatus.totalSources || 0
+          ),
+        updatedAt:
+          newsStatus.updatedAt || null
       },
       opportunities: {
         status: 'completed',
-        count: opportunityStatus.opportunityCount,
-        activeSources: opportunityStatus.activeSources,
-        totalSources: opportunityStatus.totalSources,
-        updatedAt: opportunityStatus.updatedAt || null
+        count:
+          opportunityStatus.opportunityCount,
+        activeSources:
+          opportunityStatus.activeSources,
+        totalSources:
+          opportunityStatus.totalSources,
+        updatedAt:
+          opportunityStatus.updatedAt || null
       },
       trends: {
-        status: trendEngineCompleted ? 'completed' : 'partial',
+        status:
+          trendEngineCompleted
+            ? 'completed'
+            : 'partial',
         count: trendCount,
-        activeSources: trendEngineCompleted ? 1 : 0,
+        activeSources:
+          trendEngineCompleted ? 1 : 0,
         totalSources: 1,
-        updatedAt: trendStatus.updatedAt || null
+        updatedAt:
+          trendStatus.updatedAt || null,
+        collectorRunning:
+          trendStatus.collectorRunning === true,
+        collectorPhase:
+          trendStatus.collectorPhase ||
+          'unknown'
       }
     },
-    durationMs: Date.now() - startedAt,
-    updatedAt: new Date().toISOString()
+    durationMs:
+      Date.now() - startedAt,
+    updatedAt:
+      new Date().toISOString()
   });
 });
+
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -354,25 +397,35 @@ app.use((req, res) => {
   });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log('');
-  console.log(
-    `Trendora sunucusu çalışıyor: http://127.0.0.1:${PORT}`
-  );
+app.listen(
+  PORT,
+  '0.0.0.0',
+  () => {
+    console.log('');
 
-  console.log(
-    `Tüm fırsatlar: http://127.0.0.1:${PORT}/api/opportunities`
-  );
+    console.log(
+      `Trendora sunucusu çalışıyor: ` +
+      `http://127.0.0.1:${PORT}`
+    );
 
-  console.log(
-    `A101: http://127.0.0.1:${PORT}/api/opportunities/a101`
-  );
+    console.log(
+      `Tüm fırsatlar: ` +
+      `http://127.0.0.1:${PORT}/api/opportunities`
+    );
 
-  console.log(
-    `BİM: http://127.0.0.1:${PORT}/api/opportunities/bim`
-  );
+    console.log(
+      `A101: ` +
+      `http://127.0.0.1:${PORT}/api/opportunities/a101`
+    );
 
-  console.log(
-    `Trendyol: http://127.0.0.1:${PORT}/api/opportunities/trendyol`
-  );
-});
+    console.log(
+      `BİM: ` +
+      `http://127.0.0.1:${PORT}/api/opportunities/bim`
+    );
+
+    console.log(
+      `Trendyol: ` +
+      `http://127.0.0.1:${PORT}/api/opportunities/trendyol`
+    );
+  }
+);
