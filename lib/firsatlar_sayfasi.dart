@@ -630,8 +630,10 @@ class CanliFirsatlarListeSayfasi extends StatefulWidget {
 class _CanliFirsatlarListeSayfasiState
     extends State<CanliFirsatlarListeSayfasi> {
   Timer? _yenilemeZamanlayicisi;
+  final TextEditingController _aramaKontrolcusu = TextEditingController();
 
   List<FirsatModeli> _firsatlar = [];
+  String _aramaMetni = '';
 
   bool _yukleniyor = true;
   bool _yenileniyor = false;
@@ -656,6 +658,7 @@ class _CanliFirsatlarListeSayfasiState
   @override
   void dispose() {
     _yenilemeZamanlayicisi?.cancel();
+    _aramaKontrolcusu.dispose();
     super.dispose();
   }
 
@@ -735,6 +738,7 @@ class _CanliFirsatlarListeSayfasiState
       final List<FirsatModeli> gelenFirsatlar = hamListe
           .whereType<Map<String, dynamic>>()
           .where(_kayitBuSayfayaAitMi)
+          .where((json) => !_telegramYonlendirmesiMi(json))
           .map(FirsatModeli.fromJson)
           .toList();
 
@@ -766,6 +770,36 @@ class _CanliFirsatlarListeSayfasiState
         _yenileniyor = false;
       });
     }
+  }
+
+  bool _telegramYonlendirmesiMi(
+    Map<String, dynamic> json,
+  ) {
+    final dynamic hamAdres =
+        json['officialUrl'] ??
+        json['official_url'] ??
+        json['url'] ??
+        json['link'];
+
+    final String adres = hamAdres?.toString().trim() ?? '';
+
+    if (adres.isEmpty) return false;
+
+    final String kucukAdres = adres.toLowerCase();
+    final Uri? uri = Uri.tryParse(kucukAdres);
+
+    if (kucukAdres.startsWith('tg://')) return true;
+
+    if (uri == null) {
+      return kucukAdres.startsWith('t.me/') ||
+          kucukAdres.startsWith('telegram.me/');
+    }
+
+    final String host = uri.host.toLowerCase();
+    return host == 't.me' ||
+        host.endsWith('.t.me') ||
+        host == 'telegram.me' ||
+        host.endsWith('.telegram.me');
   }
 
   bool _kayitBuSayfayaAitMi(
@@ -878,8 +912,37 @@ class _CanliFirsatlarListeSayfasiState
     return [];
   }
 
+  List<FirsatModeli> get _filtrelenmisFirsatlar {
+    final String arama = _normalize(_aramaMetni);
+
+    if (arama.isEmpty) {
+      return _firsatlar;
+    }
+
+    final List<String> kelimeler = arama
+        .split(RegExp(r'\s+'))
+        .where((kelime) => kelime.isNotEmpty)
+        .toList();
+
+    return _firsatlar.where((firsat) {
+      final String aranacakMetin = _normalize([
+        firsat.baslik,
+        firsat.aciklama,
+        firsat.kategori,
+        firsat.kaynakAdi,
+        firsat.rozet,
+        firsat.stokUyarisi,
+      ].join(' '));
+
+      return kelimeler.every(aranacakMetin.contains);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final List<FirsatModeli> gosterilecekFirsatlar =
+        _filtrelenmisFirsatlar;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
@@ -934,6 +997,56 @@ class _CanliFirsatlarListeSayfasiState
             ),
             const SizedBox(height: 16),
 
+            TextField(
+              controller: _aramaKontrolcusu,
+              textInputAction: TextInputAction.search,
+              onChanged: (deger) {
+                setState(() {
+                  _aramaMetni = deger;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Ürün, kategori veya kupon ara...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _aramaMetni.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Aramayı temizle',
+                        onPressed: () {
+                          _aramaKontrolcusu.clear();
+                          setState(() {
+                            _aramaMetni = '';
+                          });
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(
+                    color: Color(0xFFE2E5EC),
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide(
+                    color: widget.renk,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
             if (_yukleniyor)
               const YukleniyorKarti()
             else if (_hataMesaji != null)
@@ -945,8 +1058,36 @@ class _CanliFirsatlarListeSayfasiState
               )
             else if (_firsatlar.isEmpty)
               const BosKarti()
+            else if (gosterilecekFirsatlar.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFFE2E5EC),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.search_off_outlined,
+                      size: 42,
+                      color: widget.renk,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '“$_aramaMetni” ile eşleşen fırsat bulunamadı.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              )
             else
-              ..._firsatlar.map(
+              ...gosterilecekFirsatlar.map(
                 (firsat) => FirsatKarti(
                   firsat: firsat,
                   vurguRengi: widget.renk,
@@ -1216,6 +1357,23 @@ class _FirsatKartiState extends State<FirsatKarti> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Fırsat bağlantısı geçerli değil.'),
+        ),
+      );
+      return;
+    }
+
+    final String host = uri.host.toLowerCase();
+    final bool telegramAdresi = host == 't.me' ||
+        host.endsWith('.t.me') ||
+        host == 'telegram.me' ||
+        host.endsWith('.telegram.me');
+
+    if (telegramAdresi) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Telegram kanal bağlantıları güvenlik nedeniyle açılmıyor.',
+          ),
         ),
       );
       return;
@@ -1613,9 +1771,20 @@ class _FirsatKartiState extends State<FirsatKarti> {
 
   bool _gecerliWebAdresi(String adres) {
     final Uri? uri = Uri.tryParse(adres.trim());
-    return uri != null &&
-        (uri.scheme == 'http' || uri.scheme == 'https') &&
-        uri.host.isNotEmpty;
+
+    if (uri == null ||
+        !(uri.scheme == 'http' || uri.scheme == 'https') ||
+        uri.host.isEmpty) {
+      return false;
+    }
+
+    final String host = uri.host.toLowerCase();
+    final bool telegramAdresi = host == 't.me' ||
+        host.endsWith('.t.me') ||
+        host == 'telegram.me' ||
+        host.endsWith('.telegram.me');
+
+    return !telegramAdresi;
   }
 
   bool _magazaLinkiEslesiyor(String anahtar) {
