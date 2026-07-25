@@ -70,6 +70,11 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
     Duration(hours: 24),
   ),
   HaberZamanFiltresi(
+    '48 Saat',
+    '48h',
+    Duration(hours: 48),
+  ),
+  HaberZamanFiltresi(
     '1 Hafta',
     '7d',
     Duration(days: 7),
@@ -116,47 +121,53 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
   int _toplamKaynakSayisi = 0;
 
   List<TrendoraHaber> get _gorunenHaberler {
-    Iterable<TrendoraHaber> sonuc;
+    Iterable<TrendoraHaber> sonuc = _tumHaberler;
+
+    // Seçilen zaman aralığını önce kesin biçimde uygula.
+    // Böylece 1 Saat yalnızca son 1 saati, 24 Saat yalnızca son
+    // 24 saati ve diğer seçenekler de kendi sürelerini gösterir.
+    final filtre = _zamanFiltreleri.firstWhere(
+      (item) => item.kod == _seciliZaman,
+      orElse: () => _zamanFiltreleri.last,
+    );
+
+    if (filtre.sure != null) {
+      final simdi = DateTime.now();
+
+      sonuc = sonuc.where((haber) {
+        final tarih = haber.publishedAt;
+        final yas = simdi.difference(tarih);
+
+        // Geçersiz/eski tarihleri ve gelecekte görünen kayıtları dışarıda bırak.
+        return tarih.year >= 2000 &&
+            !yas.isNegative &&
+            yas <= filtre.sure!;
+      });
+    }
 
     switch (_seciliKategori) {
       case 'son_dakika':
-        sonuc = _tumHaberler.where(_sonDakikaMi);
+        sonuc = sonuc.where(_sonDakikaMi);
         break;
 
       case 'gundem':
-        sonuc = _tumHaberler.where(_gundemHaberiMi);
+        sonuc = sonuc.where(_gundemHaberiMi);
         break;
 
       case 'spor':
-        sonuc = _tumHaberler.where(
+        sonuc = sonuc.where(
           (haber) => _haberKategorisi(haber) == 'spor',
         );
         break;
 
       case 'ekonomi':
-        sonuc = _tumHaberler.where(
+        sonuc = sonuc.where(
           (haber) => _haberKategorisi(haber) == 'ekonomi',
         );
         break;
 
       case 'genel':
       default:
-        sonuc = _tumHaberler;
-
-        final filtre = _zamanFiltreleri.firstWhere(
-          (item) => item.kod == _seciliZaman,
-          orElse: () => _zamanFiltreleri.last,
-        );
-
-        if (filtre.sure != null) {
-          final simdi = DateTime.now();
-
-          sonuc = sonuc.where((haber) {
-            final yas = simdi.difference(haber.publishedAt);
-
-            return !yas.isNegative && yas <= filtre.sure!;
-          });
-        }
         break;
     }
 
@@ -481,7 +492,7 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
               'Content-Type': 'application/json',
             },
           )
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 35));
 
       if (response.statusCode != 200) {
         throw Exception(
@@ -514,7 +525,11 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
               Map<String, dynamic>.from(item),
             ),
           )
-          .where((haber) => haber.title.trim().isNotEmpty)
+          .where(
+            (haber) =>
+                haber.title.trim().isNotEmpty &&
+                haber.publishedAt.year >= 2000,
+          )
           .toList(growable: false);
 
       if (!mounted) return;
@@ -574,22 +589,22 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
   int _haberLimiti(String zamanKodu) {
     switch (zamanKodu) {
       case '1h':
+        return 1000;
       case '4h':
+        return 2000;
       case '12h':
-        return 250;
+        return 3500;
       case '24h':
-        return 400;
+      case '48h':
       case '7d':
-        return 700;
       case '30d':
       case '60d':
-        return 1000;
       case '180d':
       case '365d':
       case 'all':
-        return 2000;
+        return 5000;
       default:
-        return 400;
+        return 5000;
     }
   }
 
@@ -1367,8 +1382,7 @@ class TrendoraHaber {
   });
 
   factory TrendoraHaber.fromJson(Map<String, dynamic> json) {
-    final publishedAtText =
-        json['publishedAt']?.toString() ?? '';
+    final publishedAt = _parsePublishedAt(json);
 
     return TrendoraHaber(
       id: json['id']?.toString() ?? '',
@@ -1379,14 +1393,49 @@ class TrendoraHaber {
       source: json['source']?.toString() ?? '',
       feedSource: json['feedSource']?.toString() ?? '',
       category: json['category']?.toString() ?? 'gundem',
-      publishedAt:
-          DateTime.tryParse(publishedAtText)?.toLocal() ??
-              DateTime.now(),
+      publishedAt: publishedAt,
       isBreaking: json['isBreaking'] == true,
       trendScore: _parseInt(json['trendScore']),
       confidenceScore:
           _parseInt(json['confidenceScore']),
     );
+  }
+
+  static DateTime _parsePublishedAt(Map<String, dynamic> json) {
+    final adaylar = [
+      json['publishedAt'],
+      json['published_at'],
+      json['pubDate'],
+      json['isoDate'],
+      json['date'],
+      json['createdAt'],
+    ];
+
+    for (final aday in adaylar) {
+      final metin = aday?.toString().trim() ?? '';
+
+      if (metin.isEmpty) continue;
+
+      final tarih = DateTime.tryParse(metin);
+
+      if (tarih != null) {
+        return tarih.toLocal();
+      }
+
+      final sayi = int.tryParse(metin);
+
+      if (sayi != null) {
+        final milis = sayi > 9999999999 ? sayi : sayi * 1000;
+        return DateTime.fromMillisecondsSinceEpoch(
+          milis,
+          isUtc: true,
+        ).toLocal();
+      }
+    }
+
+    // Tarihi olmayan haberleri "şimdi" kabul etmiyoruz.
+    // Aksi halde eski haberler 1 Saat filtresine yanlışlıkla girer.
+    return DateTime.fromMillisecondsSinceEpoch(0).toLocal();
   }
 
   static int _parseInt(dynamic value) {
