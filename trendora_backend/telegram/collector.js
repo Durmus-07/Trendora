@@ -22,6 +22,11 @@ const PAGE_FETCH_TIMEOUT_MS = 12000;
 const PAGE_FETCH_CONCURRENCY = 4;
 const MAX_PAGE_BYTES = 1_500_000;
 
+const TELEGRAM_MEDIA_TIMEOUT_MS = 15000;
+const CHANNEL_TIMEOUT_MS = 120000;
+const COLLECTOR_TIMEOUT_MS = 12 * 60 * 1000;
+const MAX_TELEGRAM_IMAGE_BYTES = 8_000_000;
+
 const PUBLIC_IMAGE_DIR = path.join(
   __dirname,
   '..',
@@ -33,6 +38,28 @@ const PUBLIC_BASE_URL = String(
   process.env.PUBLIC_BASE_URL ||
   'https://trendora-icj9.onrender.com'
 ).replace(/\/+$/g, '');
+
+function withTimeout(promise, timeoutMs, label) {
+  let timer;
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const error = new Error(
+        `${label} ${Math.round(timeoutMs / 1000)} saniyede tamamlanamadı.`
+      );
+
+      error.code = 'TRENDORA_TIMEOUT';
+      reject(error);
+    }, timeoutMs);
+  });
+
+  return Promise.race([
+    promise,
+    timeoutPromise
+  ]).finally(() => {
+    clearTimeout(timer);
+  });
+}
 
 function requiredEnv(name) {
   const value = String(process.env[name] || '').trim();
@@ -766,14 +793,28 @@ async function downloadTelegramImage(client, base) {
 
     for (const target of targets) {
       try {
-        const downloaded = await client.downloadMedia(target, { workers: 1 });
+        const downloaded = await withTimeout(
+          client.downloadMedia(
+            target,
+            {
+              workers: 1
+            }
+          ),
+          TELEGRAM_MEDIA_TIMEOUT_MS,
+          `Telegram görsel indirme (${base.channel.name} / ${base.message.id})`
+        );
+
         if (!downloaded) continue;
 
         const candidate = Buffer.isBuffer(downloaded)
           ? downloaded
           : Buffer.from(downloaded);
 
-        if (candidate.length > 0 && bufferLooksLikeImage(candidate)) {
+        if (
+          candidate.length > 0 &&
+          candidate.length <= MAX_TELEGRAM_IMAGE_BYTES &&
+          bufferLooksLikeImage(candidate)
+        ) {
           fileBuffer = candidate;
           break;
         }
@@ -1353,16 +1394,24 @@ async function mapWithConcurrency(
 }
 
 async function collectChannel(client, channel) {
-  const entity = await resolveChannelEntity(
-    client,
-    channel
+  const entity = await withTimeout(
+    resolveChannelEntity(
+      client,
+      channel
+    ),
+    30000,
+    `${channel.name} kanal bağlantısı`
   );
 
-  const messages = await client.getMessages(
-    entity,
-    {
-      limit: MESSAGE_LIMIT_PER_CHANNEL
-    }
+  const messages = await withTimeout(
+    client.getMessages(
+      entity,
+      {
+        limit: MESSAGE_LIMIT_PER_CHANNEL
+      }
+    ),
+    45000,
+    `${channel.name} mesaj okuma`
   );
 
   const baseItems = [];
@@ -1541,10 +1590,17 @@ async function runCollector() {
     'Trendora Telegram Collector başlatılıyor...'
   );
 
-  await client.connect();
+  await withTimeout(
+    client.connect(),
+    45000,
+    'Telegram bağlantısı'
+  );
 
-  const authorized =
-    await client.checkAuthorization();
+  const authorized = await withTimeout(
+    client.checkAuthorization(),
+    15000,
+    'Telegram yetki kontrolü'
+  );
 
   if (!authorized) {
     throw new Error(
@@ -1560,9 +1616,13 @@ async function runCollector() {
         `Okunuyor: ${channel.name}`
       );
 
-      const items = await collectChannel(
-        client,
-        channel
+      const items = await withTimeout(
+        collectChannel(
+          client,
+          channel
+        ),
+        CHANNEL_TIMEOUT_MS,
+        `${channel.name} kanal taraması`
       );
 
       collectedItems.push(...items);

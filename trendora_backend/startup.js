@@ -9,6 +9,8 @@ const collectorPath = path.join(
   'collector.js'
 );
 
+let collectorProcess = null;
+
 function startServer() {
   console.log('');
   console.log('Trendora API sunucusu başlatılıyor...');
@@ -17,10 +19,20 @@ function startServer() {
 }
 
 function startCollectorInBackground() {
+  if (
+    collectorProcess &&
+    collectorProcess.exitCode === null
+  ) {
+    console.log(
+      'Telegram collector zaten çalışıyor; ikinci kez başlatılmadı.'
+    );
+    return;
+  }
+
   console.log('');
   console.log('Telegram collector arka planda başlatılıyor...');
 
-  const collector = spawn(
+  collectorProcess = spawn(
     process.execPath,
     [collectorPath],
     {
@@ -30,40 +42,48 @@ function startCollectorInBackground() {
     }
   );
 
-  collector.on('error', error => {
+  collectorProcess.on('error', error => {
     console.error(
       'Telegram collector başlatılamadı:',
       error.message
     );
+
+    collectorProcess = null;
   });
 
-  collector.on('close', code => {
+  collectorProcess.on('close', code => {
     if (code === 0) {
       console.log(
         'Telegram collector veri çekimini tamamladı.'
       );
     } else {
       console.error(
-        `Telegram collector ${code} hata koduyla kapandı.`
+        `Telegram collector ${code} hata koduyla kapandı; API çalışmaya devam ediyor.`
       );
     }
+
+    collectorProcess = null;
   });
 }
 
+function stopCollector() {
+  if (
+    collectorProcess &&
+    collectorProcess.exitCode === null
+  ) {
+    collectorProcess.kill('SIGTERM');
+  }
+}
+
 function startTrendora() {
-  /*
-    Render'ın portu hemen görebilmesi için
-    API sunucusu önce başlatılır.
-  */
   startServer();
 
-  /*
-    Telegram collector sunucuyu bekletmeden
-    arka planda çalıştırılır.
-  */
   setTimeout(() => {
     startCollectorInBackground();
   }, 2000);
 }
+
+process.on('SIGTERM', stopCollector);
+process.on('SIGINT', stopCollector);
 
 startTrendora();
