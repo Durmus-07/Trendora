@@ -123,9 +123,6 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
   List<TrendoraHaber> get _gorunenHaberler {
     Iterable<TrendoraHaber> sonuc = _tumHaberler;
 
-    // Seçilen zaman aralığını önce kesin biçimde uygula.
-    // Böylece 1 Saat yalnızca son 1 saati, 24 Saat yalnızca son
-    // 24 saati ve diğer seçenekler de kendi sürelerini gösterir.
     final filtre = _zamanFiltreleri.firstWhere(
       (item) => item.kod == _seciliZaman,
       orElse: () => _zamanFiltreleri.last,
@@ -135,11 +132,9 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
       final simdi = DateTime.now();
 
       sonuc = sonuc.where((haber) {
-        final tarih = haber.publishedAt;
-        final yas = simdi.difference(tarih);
+        final yas = simdi.difference(haber.publishedAt);
 
-        // Geçersiz/eski tarihleri ve gelecekte görünen kayıtları dışarıda bırak.
-        return tarih.year >= 2000 &&
+        return haber.publishedAt.year >= 2000 &&
             !yas.isNegative &&
             yas <= filtre.sure!;
       });
@@ -149,23 +144,19 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
       case 'son_dakika':
         sonuc = sonuc.where(_sonDakikaMi);
         break;
-
       case 'gundem':
         sonuc = sonuc.where(_gundemHaberiMi);
         break;
-
       case 'spor':
         sonuc = sonuc.where(
           (haber) => _haberKategorisi(haber) == 'spor',
         );
         break;
-
       case 'ekonomi':
         sonuc = sonuc.where(
           (haber) => _haberKategorisi(haber) == 'ekonomi',
         );
         break;
-
       case 'genel':
       default:
         break;
@@ -208,7 +199,7 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
       metin.contains('sıcak gelişme');
 
   return sonDakikaIfadesiVar &&
-      haberYasi.inHours <= 12;
+      haberYasi.inMinutes <= 180;
 }
 bool _gundemHaberiMi(TrendoraHaber haber) {
   if (_sonDakikaMi(haber)) {
@@ -593,16 +584,17 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
       case '4h':
         return 2000;
       case '12h':
-        return 3500;
+        return 3000;
       case '24h':
       case '48h':
+        return 5000;
       case '7d':
       case '30d':
       case '60d':
       case '180d':
       case '365d':
       case 'all':
-        return 5000;
+        return 8000;
       default:
         return 5000;
     }
@@ -667,10 +659,16 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
   }
 
   void _kategoriSec(String kategori) {
+    final sonDakikaSecildi = kategori == 'son_dakika';
+
     setState(() {
       _seciliKategori = kategori;
       _sayfalamayiSifirla();
     });
+
+    if (sonDakikaSecildi) {
+      _haberleriGetir(zorlaYenile: true);
+    }
   }
 
   void _zamanSec(String kod) {
@@ -938,15 +936,19 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
 
   Widget _zamanFiltresiCubugu() {
     return SizedBox(
-      height: 54,
-      child: ListView.separated(
+      height: 92,
+      child: GridView.builder(
         padding: const EdgeInsets.fromLTRB(14, 5, 14, 7),
         scrollDirection: Axis.horizontal,
         itemCount: _zamanFiltreleri.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 7,
+          childAspectRatio: 0.42,
+        ),
         itemBuilder: (context, index) {
-          final filtre = _zamanFiltreleri[index];
-          return _zamanChip(filtre);
+          return _zamanChip(_zamanFiltreleri[index]);
         },
       ),
     );
@@ -1149,6 +1151,10 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
   
 
   Widget _gorselYerTutucu(TrendoraHaber haber) {
+    final kaynak = haber.source.trim().isNotEmpty
+        ? haber.source.trim()
+        : haber.feedSource.trim();
+
     return Container(
       width: double.infinity,
       height: 138,
@@ -1156,17 +1162,38 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
         gradient: LinearGradient(
           colors: [
             Color(0xFF172B4D),
-            Color(0xFF294A74),
+            Color(0xFF1677C8),
           ],
         ),
       ),
       alignment: Alignment.center,
-      child: Icon(
-        haber.isBreaking
-            ? Icons.flash_on_rounded
-            : Icons.newspaper_rounded,
-        size: 48,
-        color: Colors.white.withOpacity(0.88),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            haber.isBreaking
+                ? Icons.flash_on_rounded
+                : Icons.newspaper_rounded,
+            size: 42,
+            color: Colors.white,
+          ),
+          if (kaynak.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Text(
+                kaynak,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1402,7 +1429,7 @@ class TrendoraHaber {
   }
 
   static DateTime _parsePublishedAt(Map<String, dynamic> json) {
-    final adaylar = [
+    final values = [
       json['publishedAt'],
       json['published_at'],
       json['pubDate'],
@@ -1411,30 +1438,23 @@ class TrendoraHaber {
       json['createdAt'],
     ];
 
-    for (final aday in adaylar) {
-      final metin = aday?.toString().trim() ?? '';
+    for (final value in values) {
+      final raw = value?.toString().trim() ?? '';
+      if (raw.isEmpty) continue;
 
-      if (metin.isEmpty) continue;
+      final parsed = DateTime.tryParse(raw);
+      if (parsed != null) return parsed.toLocal();
 
-      final tarih = DateTime.tryParse(metin);
-
-      if (tarih != null) {
-        return tarih.toLocal();
-      }
-
-      final sayi = int.tryParse(metin);
-
-      if (sayi != null) {
-        final milis = sayi > 9999999999 ? sayi : sayi * 1000;
+      final epoch = int.tryParse(raw);
+      if (epoch != null) {
+        final milliseconds = epoch > 9999999999 ? epoch : epoch * 1000;
         return DateTime.fromMillisecondsSinceEpoch(
-          milis,
+          milliseconds,
           isUtc: true,
         ).toLocal();
       }
     }
 
-    // Tarihi olmayan haberleri "şimdi" kabul etmiyoruz.
-    // Aksi halde eski haberler 1 Saat filtresine yanlışlıkla girer.
     return DateTime.fromMillisecondsSinceEpoch(0).toLocal();
   }
 
