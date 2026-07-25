@@ -14,6 +14,17 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 
 app.use(cors());
+app.use((req, res, next) => {
+  console.log(`[ISTEK] ${req.method} ${req.originalUrl}`);
+
+  res.on('finish', () => {
+    console.log(
+      `[CEVAP] ${req.method} ${req.originalUrl} -> ${res.statusCode}`
+    );
+  });
+
+  next();
+});
 app.use(express.json());
 
 const opportunitiesFilePath = path.join(
