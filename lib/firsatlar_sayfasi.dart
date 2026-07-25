@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
-import 'trendyol_sayfasi.dart';
 
 const String firsatlarApiAdresi = 'https://trendora-icj9.onrender.com';
 
@@ -17,6 +16,8 @@ class FirsatlarSayfasi extends StatefulWidget {
 }
 
 class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
+  static const bool _oneCikanlarAktif = false;
+
   Timer? _yenilemeZamanlayicisi;
 
   List<FirsatModeli> _oneCikanFirsatlar = [];
@@ -31,14 +32,16 @@ class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
   void initState() {
     super.initState();
 
-    _oneCikanFirsatlariGetir();
+    if (_oneCikanlarAktif) {
+      _oneCikanFirsatlariGetir();
 
-    _yenilemeZamanlayicisi = Timer.periodic(
-      const Duration(seconds: 60),
-      (_) {
-        _oneCikanFirsatlariGetir(arkaPlanda: true);
-      },
-    );
+      _yenilemeZamanlayicisi = Timer.periodic(
+        const Duration(seconds: 60),
+        (_) {
+          _oneCikanFirsatlariGetir(arkaPlanda: true);
+        },
+      );
+    }
   }
 
   @override
@@ -211,86 +214,22 @@ class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
             const SizedBox(height: 20),
 
             const BolumBasligi(
-              ikon: Icons.shopping_bag_outlined,
-              baslik: 'E-Ticaret Fırsatları',
+              ikon: Icons.local_offer_outlined,
+              baslik: 'Online Fırsatlar',
               aciklama:
-                  'Popüler ürünler, kampanyalar ve fiyat düşüşleri',
+                  'İnternetteki güncel kampanya, indirim ve uygun fiyat fırsatları',
             ),
             const SizedBox(height: 12),
 
             _kategoriKarti(
-              baslik: 'Trendyol',
+              baslik: 'Online Fırsatlar',
               aciklama:
-                  'En çok satan ürünler ve öne çıkan indirimler',
-              renk: Colors.orange,
-              ikon: Icons.shopping_bag,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const TrendyolSayfasi(),
-                  ),
-                );
-              },
-            ),
-
-            _kategoriKarti(
-              baslik: 'Amazon Türkiye',
-              aciklama:
-                  'Flaş fırsatlar ve popüler ürün kampanyaları',
-              renk: Colors.blueGrey,
-              ikon: Icons.inventory_2_outlined,
-              onTap: () {
-                _kategoriSayfasiniAc(
-                  baslik: 'Amazon Fırsatları',
-                  kategori: 'ecommerce',
-                  kaynak: 'amazon',
-                  renk: Colors.blueGrey,
-                );
-              },
-            ),
-
-            _kategoriKarti(
-              baslik: 'Hepsiburada',
-              aciklama:
-                  'Günün kampanyaları ve fiyatı düşen ürünler',
-              renk: Colors.blue,
-              ikon: Icons.shopping_cart_outlined,
-              onTap: () {
-                _kategoriSayfasiniAc(
-                  baslik: 'Hepsiburada Fırsatları',
-                  kategori: 'ecommerce',
-                  kaynak: 'hepsiburada',
-                  renk: Colors.blue,
-                );
-              },
-            ),
-
-            _kategoriKarti(
-              baslik: 'n11',
-              aciklama:
-                  'Kuponlu ürünler ve dönemsel kampanyalar',
-              renk: Colors.green,
-              ikon: Icons.local_offer_outlined,
-              onTap: () {
-                _kategoriSayfasiniAc(
-                  baslik: 'n11 Fırsatları',
-                  kategori: 'ecommerce',
-                  kaynak: 'n11',
-                  renk: Colors.green,
-                );
-              },
-            ),
-
-            _kategoriKarti(
-              baslik: 'Telegram Fırsatları',
-              aciklama:
-                  'Takip edilen fırsat kanallarından gelen güncel paylaşımlar',
+                  'Takip edilen fırsat kaynaklarından gelen güncel paylaşımlar',
               renk: Colors.lightBlue,
               ikon: Icons.send_outlined,
               onTap: () {
                 _kategoriSayfasiniAc(
-                  baslik: 'Telegram Fırsatları',
+                  baslik: 'Online Fırsatlar',
                   kategori: 'all',
                   kaynak: 'telegram',
                   renk: Colors.lightBlue,
@@ -440,17 +379,17 @@ class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
               },
             ),
 
-            const SizedBox(height: 20),
-
-            const BolumBasligi(
-              ikon: Icons.local_fire_department_outlined,
-              baslik: 'Şu An Öne Çıkanlar',
-              aciklama:
-                  'Canlı kaynaklardan alınan son fırsatlar',
-            ),
-            const SizedBox(height: 12),
-
-            _oneCikanlarBolumu(),
+            if (_oneCikanlarAktif) ...[
+              const SizedBox(height: 20),
+              const BolumBasligi(
+                ikon: Icons.local_fire_department_outlined,
+                baslik: 'Şu An Öne Çıkanlar',
+                aciklama:
+                    'Canlı kaynaklardan alınan son fırsatlar',
+              ),
+              const SizedBox(height: 12),
+              _oneCikanlarBolumu(),
+            ],
           ],
         ),
       ),
