@@ -71,19 +71,65 @@ function stopCollector() {
     collectorProcess &&
     collectorProcess.exitCode === null
   ) {
+    console.log(
+      'Telegram collector güvenli şekilde durduruluyor...'
+    );
+
     collectorProcess.kill('SIGTERM');
   }
 }
 
 function startTrendora() {
+  // API her zaman önce ve hemen açılır.
   startServer();
+
+  /*
+    Collector yalnızca Render ortam değişkenlerinde:
+
+    ENABLE_TELEGRAM_COLLECTOR=true
+
+    yazıyorsa başlatılır.
+
+    Şimdilik bu değişkeni eklemeyeceğiz.
+    Böylece API üzerindeki yoğun yükü kaldırıp
+    sorunun collectordan kaynaklandığını doğrulayacağız.
+  */
+  const collectorAktif =
+    process.env.ENABLE_TELEGRAM_COLLECTOR === 'true';
+
+  if (!collectorAktif) {
+    console.log('');
+    console.log(
+      'Telegram collector şu anda devre dışı. API bağımsız olarak çalışıyor.'
+    );
+    return;
+  }
 
   setTimeout(() => {
     startCollectorInBackground();
-  }, 2000);
+  }, 5000);
 }
 
-process.on('SIGTERM', stopCollector);
-process.on('SIGINT', stopCollector);
+process.on('SIGTERM', () => {
+  stopCollector();
+});
+
+process.on('SIGINT', () => {
+  stopCollector();
+});
+
+process.on('uncaughtException', error => {
+  console.error(
+    'Beklenmeyen uygulama hatası:',
+    error
+  );
+});
+
+process.on('unhandledRejection', reason => {
+  console.error(
+    'Yakalanmamış Promise hatası:',
+    reason
+  );
+});
 
 startTrendora();
