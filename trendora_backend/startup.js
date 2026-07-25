@@ -1,135 +1,156 @@
-require('dotenv').config();
-
 const path = require('path');
 const { spawn } = require('child_process');
 
-const collectorPath = path.join(
-  __dirname,
-  'telegram',
-  'collector.js'
-);
+console.log('');
+console.log('========================================');
+console.log('Trendora başlangıç sistemi çalışıyor');
+console.log('========================================');
+console.log('');
 
-let collectorProcess = null;
+/*
+  API ana süreçte hemen başlar.
+  Böylece collector dış kaynakları tararken HTTP istekleri beklemez.
+*/
+require('./server');
 
-function startServer() {
-  console.log('');
-  console.log('Trendora API sunucusu başlatılıyor...');
+const children = new Map();
+let shuttingDown = false;
 
-  require('./server');
+function envEnabled(name, defaultValue = false) {
+  const raw = process.env[name];
+
+  if (raw == null || String(raw).trim() === '') {
+    return defaultValue;
+  }
+
+  return ['1', 'true', 'yes', 'on'].includes(
+    String(raw).trim().toLowerCase()
+  );
 }
 
-function startCollectorInBackground() {
-  if (
-    collectorProcess &&
-    collectorProcess.exitCode === null
-  ) {
-    console.log(
-      'Telegram collector zaten çalışıyor; ikinci kez başlatılmadı.'
-    );
+function startChild({
+  name,
+  filePath,
+  enabled,
+  restartDelayMs = 15000
+}) {
+  if (!enabled) {
+    console.log(`[STARTUP] ${name} devre dışı.`);
     return;
   }
 
-  console.log('');
-  console.log('Telegram collector arka planda başlatılıyor...');
+  const absolutePath = path.join(__dirname, filePath);
 
-  collectorProcess = spawn(
-    process.execPath,
-    [collectorPath],
-    {
-      cwd: __dirname,
-      env: process.env,
-      stdio: 'inherit'
-    }
+  function launch() {
+    if (shuttingDown) return;
+
+    console.log(
+      `[STARTUP] ${name} başlatılıyor: ${absolutePath}`
+    );
+
+    const child = spawn(
+      process.execPath,
+      [absolutePath],
+      {
+        cwd: __dirname,
+        env: process.env,
+        stdio: 'inherit'
+      }
+    );
+
+    children.set(name, child);
+
+    child.on('error', (error) => {
+      console.error(
+        `[STARTUP] ${name} başlatılamadı:`,
+        error?.message || error
+      );
+    });
+
+    child.on('exit', (code, signal) => {
+      children.delete(name);
+
+      console.log(
+        `[STARTUP] ${name} kapandı. ` +
+        `Kod: ${code}, sinyal: ${signal || '-'}`
+      );
+
+      if (!shuttingDown) {
+        console.log(
+          `[STARTUP] ${name} ${restartDelayMs / 1000} ` +
+          'saniye sonra yeniden başlatılacak.'
+        );
+
+        setTimeout(launch, restartDelayMs);
+      }
+    });
+  }
+
+  launch();
+}
+
+/*
+  Haber collector varsayılan olarak açıktır.
+  Render Environment içine ENABLE_NEWS_COLLECTOR=false yazılırsa kapanır.
+*/
+startChild({
+  name: 'Haber Collector',
+  filePath: 'services/newsCollector.js',
+  enabled: envEnabled(
+    'ENABLE_NEWS_COLLECTOR',
+    true
+  )
+});
+
+/*
+  Telegram collector başlangıçta kapalı tutulur.
+  API kararlılığı doğrulandıktan sonra Render Environment içine:
+  ENABLE_TELEGRAM_COLLECTOR=true
+  eklenerek açılır.
+*/
+startChild({
+  name: 'Telegram Collector',
+  filePath: 'telegram/collector.js',
+  enabled: envEnabled(
+    'ENABLE_TELEGRAM_COLLECTOR',
+    false
+  )
+});
+
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  console.log(
+    `[STARTUP] ${signal} alındı. Alt süreçler kapatılıyor...`
   );
 
-  collectorProcess.on('error', error => {
-    console.error(
-      'Telegram collector başlatılamadı:',
-      error.message
-    );
+  for (const [name, child] of children.entries()) {
+    console.log(`[STARTUP] ${name} kapatılıyor.`);
 
-    collectorProcess = null;
-  });
-
-  collectorProcess.on('close', code => {
-    if (code === 0) {
-      console.log(
-        'Telegram collector veri çekimini tamamladı.'
-      );
-    } else {
-      console.error(
-        `Telegram collector ${code} hata koduyla kapandı; API çalışmaya devam ediyor.`
-      );
+    if (!child.killed) {
+      child.kill('SIGTERM');
     }
-
-    collectorProcess = null;
-  });
-}
-
-function stopCollector() {
-  if (
-    collectorProcess &&
-    collectorProcess.exitCode === null
-  ) {
-    console.log(
-      'Telegram collector güvenli şekilde durduruluyor...'
-    );
-
-    collectorProcess.kill('SIGTERM');
-  }
-}
-
-function startTrendora() {
-  // API her zaman önce ve hemen açılır.
-  startServer();
-
-  /*
-    Collector yalnızca Render ortam değişkenlerinde:
-
-    ENABLE_TELEGRAM_COLLECTOR=true
-
-    yazıyorsa başlatılır.
-
-    Şimdilik bu değişkeni eklemeyeceğiz.
-    Böylece API üzerindeki yoğun yükü kaldırıp
-    sorunun collectordan kaynaklandığını doğrulayacağız.
-  */
-  const collectorAktif =
-    process.env.ENABLE_TELEGRAM_COLLECTOR === 'true';
-
-  if (!collectorAktif) {
-    console.log('');
-    console.log(
-      'Telegram collector şu anda devre dışı. API bağımsız olarak çalışıyor.'
-    );
-    return;
   }
 
   setTimeout(() => {
-    startCollectorInBackground();
-  }, 5000);
+    process.exit(0);
+  }, 5000).unref();
 }
 
-process.on('SIGTERM', () => {
-  stopCollector();
-});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
-process.on('SIGINT', () => {
-  stopCollector();
-});
-
-process.on('uncaughtException', error => {
+process.on('unhandledRejection', (error) => {
   console.error(
-    'Beklenmeyen uygulama hatası:',
-    error
+    '[STARTUP] Yakalanmamış Promise hatası:',
+    error?.stack || error
   );
 });
 
-process.on('unhandledRejection', reason => {
+process.on('uncaughtException', (error) => {
   console.error(
-    'Yakalanmamış Promise hatası:',
-    reason
+    '[STARTUP] Yakalanmamış hata:',
+    error?.stack || error
   );
 });
-
-startTrendora();
