@@ -161,7 +161,9 @@ const NEWS_SOURCES = [
 ];
 
 const CACHE_DURATION_MS = 3 * 60 * 1000;
-const SOURCE_CONCURRENCY = Number(process.env.NEWS_SOURCE_CONCURRENCY || 3);
+const SOURCE_CONCURRENCY = Math.max(1, Number(process.env.NEWS_SOURCE_CONCURRENCY || 8));
+const SOURCE_TIMEOUT_MS = Math.max(5000, Number(process.env.NEWS_SOURCE_TIMEOUT_MS || 10000));
+const SCAN_TIMEOUT_MS = Math.max(60000, Number(process.env.NEWS_SCAN_TIMEOUT_MS || 180000));
 const MAX_ITEMS_PER_SOURCE = 100;
 const MAX_ARCHIVE_ITEMS = 50000;
 const ARCHIVE_RETENTION_MS = 370 * 24 * 60 * 60 * 1000;
@@ -355,18 +357,65 @@ function normalizeItem(item, source) {
   return { ...normalized, trendScore: calculateTrendScore(normalized) };
 }
 
+function withTimeout(promise, timeoutMs, label) {
+  let timeoutHandle;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      const error = new Error(`${label} ${timeoutMs} ms içinde yanıt vermedi`);
+      error.code = 'NEWS_SOURCE_TIMEOUT';
+      reject(error);
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    clearTimeout(timeoutHandle);
+  });
+}
+
 async function fetchSource(source, period = '24h') {
   const startedAt = Date.now();
+  const url = sourceUrl(source, period);
+
   try {
-    const feed = await parser.parseURL(sourceUrl(source, period));
+    // rss-parser'ın kendi timeout'u bazı ağ/IPv6 durumlarında yeterli olmayabiliyor.
+    // Promise.race ile her kaynağa kesin bir üst süre koyuyoruz.
+    const parsePromise = parser.parseURL(url);
+    // Yarıştan sonra geç sonuçlanırsa unhandled rejection üretmesini engelle.
+    parsePromise.catch(() => {});
+
+    const feed = await withTimeout(
+      parsePromise,
+      SOURCE_TIMEOUT_MS,
+      source.name
+    );
+
     const items = (feed.items || [])
       .slice(0, MAX_ITEMS_PER_SOURCE)
       .map((item) => normalizeItem(item, source))
       .filter((item) => item.title && item.url && new Date(item.publishedAt).getFullYear() >= 2000);
-    return { ok: true, source: source.name, count: items.length, durationMs: Date.now() - startedAt, items };
+
+    console.log(
+      `[NEWS] ${source.name}: ${items.length} haber, ${Date.now() - startedAt} ms`
+    );
+
+    return {
+      ok: true,
+      source: source.name,
+      count: items.length,
+      durationMs: Date.now() - startedAt,
+      items
+    };
   } catch (error) {
-    console.error(`[NEWS] ${source.name} okunamadı:`, error?.message || error);
-    return { ok: false, source: source.name, count: 0, durationMs: Date.now() - startedAt, error: error?.message || 'Kaynak okunamadı', items: [] };
+    const message = error?.message || 'Kaynak okunamadı';
+    console.error(`[NEWS] ${source.name} okunamadı: ${message}`);
+    return {
+      ok: false,
+      source: source.name,
+      count: 0,
+      durationMs: Date.now() - startedAt,
+      error: message,
+      items: []
+    };
   }
 }
 
@@ -528,19 +577,73 @@ function dedupeRawItems(items) {
 
 async function refreshNewsCache(period = 'all') {
   if (refreshPromise) return refreshPromise;
+
   refreshPromise = (async () => {
-    const results = await mapWithConcurrency(NEWS_SOURCES, SOURCE_CONCURRENCY, (source) => fetchSource(source, period));
+    const completedResults = [];
+    let finished = false;
+
+    const scanPromise = mapWithConcurrency(
+      NEWS_SOURCES,
+      SOURCE_CONCURRENCY,
+      async (source) => {
+        const result = await fetchSource(source, period);
+        completedResults.push(result);
+        return result;
+      }
+    ).then((results) => {
+      finished = true;
+      return results;
+    });
+
+    scanPromise.catch(() => {});
+
+    let results;
+    try {
+      results = await withTimeout(
+        scanPromise,
+        SCAN_TIMEOUT_MS,
+        'Haber taraması'
+      );
+    } catch (error) {
+      console.error(
+        `[NEWS COLLECTOR] Genel tarama süresi aşıldı. ` +
+        `${completedResults.length}/${NEWS_SOURCES.length} kaynak tamamlandı. ` +
+        `Tamamlanan kaynaklarla devam ediliyor.`
+      );
+      results = [...completedResults];
+    }
+
+    // Güvenlik: Herhangi bir nedenle hiç sonuç oluşmadıysa önceki cache'i koru.
+    if (!results.length && newsCache.items.length > 0) {
+      console.warn('[NEWS COLLECTOR] Yeni sonuç alınamadı, önceki haber cache’i korunuyor.');
+      return newsCache;
+    }
+
     const currentRaw = dedupeRawItems(results.flatMap((result) => result.items));
     const archivedRaw = dedupeRawItems(mergeWithArchive(currentRaw));
     const grouped = buildStoryGroups(archivedRaw);
+
     newsCache = {
       createdAt: Date.now(),
       items: grouped,
       period,
-      sourceResults: results.map(({ ok, source, count, durationMs, error }) => ({ ok, source, count, durationMs, error: error || null })),
+      sourceResults: results.map(({ ok, source, count, durationMs, error }) => ({
+        ok,
+        source,
+        count,
+        durationMs,
+        error: error || null
+      })),
+      partial: !finished,
+      completedSourceCount: results.length,
+      totalSourceCount: NEWS_SOURCES.length
     };
+
     return newsCache;
-  })().finally(() => { refreshPromise = null; });
+  })().finally(() => {
+    refreshPromise = null;
+  });
+
   return refreshPromise;
 }
 
@@ -680,7 +783,9 @@ async function collectAndSaveNews() {
         NEWS_SOURCES.length - activeSources
       ),
       items: data.items,
-      sourceResults: data.sourceResults
+      sourceResults: data.sourceResults,
+      partial: Boolean(data.partial),
+      completedSourceCount: data.completedSourceCount || data.sourceResults.length
     };
 
     await writeJsonAtomic(NEWS_DATABASE_FILE, snapshot);
