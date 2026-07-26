@@ -434,25 +434,62 @@ async function mapWithConcurrency(items, limit, mapper) {
 }
 
 function buildStoryGroups(items) {
-  const sorted = [...items].sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  const sorted = [...items]
+    .sort(
+      (a, b) =>
+        new Date(b.publishedAt) -
+        new Date(a.publishedAt)
+    );
+
   const groups = [];
+  const recentGroupsByCategory = new Map();
 
   for (const item of sorted) {
-    const itemTime = new Date(item.publishedAt).getTime();
+    const itemTime =
+      new Date(item.publishedAt).getTime();
+
+    const bucketKey =
+      `${item.category}|${item.region || 'tr'}`;
+
+    const candidates =
+      recentGroupsByCategory.get(bucketKey) || [];
+
     let group = null;
 
-    for (const candidate of groups) {
-      const candidateTime = new Date(candidate.primary.publishedAt).getTime();
-      if (Math.abs(itemTime - candidateTime) > 30 * 60 * 60 * 1000) continue;
+    /*
+      Bütün geçmiş grupları taramak yerine yalnızca
+      aynı kategori/bölgedeki en yeni 40 gruba bakar.
+      Böylece 10.000+ haberde sistem kilitlenmez.
+    */
+    for (
+      let index = candidates.length - 1;
+      index >= 0;
+      index--
+    ) {
+      const candidate = candidates[index];
 
-      // Farklı kategorilerdeki benzer başlıkların tek haber grubunda birleşmesi,
-      // teknoloji/ekonomi/dünya sekmelerinin karışmasına neden oluyordu.
-      // Yalnızca aynı kategori ve aynı bölge içindeki haberleri grupla.
-      if (item.category !== candidate.primary.category) continue;
-      if ((item.region || 'tr') !== (candidate.primary.region || 'tr')) continue;
+      const candidateTime =
+        new Date(
+          candidate.primary.publishedAt
+        ).getTime();
 
-      const sameTitle = normalizeText(item.title) === normalizeText(candidate.primary.title);
-      const similarTitle = similarity(item.title, candidate.primary.title) >= 0.56;
+      if (
+        Math.abs(itemTime - candidateTime) >
+        30 * 60 * 60 * 1000
+      ) {
+        continue;
+      }
+
+      const sameTitle =
+        normalizeText(item.title) ===
+        normalizeText(candidate.primary.title);
+
+      const similarTitle =
+        similarity(
+          item.title,
+          candidate.primary.title
+        ) >= 0.56;
+
       if (sameTitle || similarTitle) {
         group = candidate;
         break;
@@ -460,69 +497,199 @@ function buildStoryGroups(items) {
     }
 
     if (!group) {
-      groups.push({ primary: item, items: [item], keys: new Set() });
-      group = groups[groups.length - 1];
+      group = {
+        primary: item,
+        items: [],
+        keys: new Set()
+      };
+
+      groups.push(group);
+      candidates.push(group);
+
+      /*
+        Bellek ve işlem yükünü kontrollü tut.
+      */
+      if (candidates.length > 40) {
+        candidates.shift();
+      }
+
+      recentGroupsByCategory.set(
+        bucketKey,
+        candidates
+      );
     }
 
-    const normalizedUrl = cleanText(item.url).replace(/[?#].*$/, '');
-    const storyKey = `${normalizeText(item.title)}|${normalizeText(item.source)}|${normalizedUrl}`;
-    if (group.keys.has(storyKey)) continue;
+    const normalizedUrl =
+      cleanText(item.url)
+        .replace(/[?#].*$/, '');
+
+    const storyKey =
+      `${normalizeText(item.title)}|` +
+      `${normalizeText(item.source)}|` +
+      normalizedUrl;
+
+    if (group.keys.has(storyKey)) {
+      continue;
+    }
+
     group.keys.add(storyKey);
+    group.items.push(item);
 
-    if (!group.items.includes(item)) group.items.push(item);
+    const better =
+      item.priority > group.primary.priority ||
+      (
+        item.priority ===
+          group.primary.priority &&
+        item.confidenceScore >
+          group.primary.confidenceScore
+      ) ||
+      (
+        item.priority ===
+          group.primary.priority &&
+        item.confidenceScore ===
+          group.primary.confidenceScore &&
+        itemTime >
+          new Date(
+            group.primary.publishedAt
+          ).getTime()
+      );
 
-    const better = item.priority > group.primary.priority ||
-      (item.priority === group.primary.priority && item.confidenceScore > group.primary.confidenceScore) ||
-      (item.priority === group.primary.priority && item.confidenceScore === group.primary.confidenceScore && itemTime > new Date(group.primary.publishedAt).getTime());
-    if (better) group.primary = item;
+    if (better) {
+      group.primary = item;
+    }
   }
 
-  return groups.map((group) => {
-    const uniqueStories = [];
-    const seenStoryKeys = new Set();
-    for (const story of group.items) {
-      const normalizedUrl = cleanText(story.url).replace(/[?#].*$/, '');
-      const key = normalizedUrl || `${normalizeText(story.title)}|${normalizeText(story.source)}`;
-      if (!key || seenStoryKeys.has(key)) continue;
-      seenStoryKeys.add(key);
-      uniqueStories.push(story);
-    }
+  return groups
+    .map((group) => {
+      const uniqueStories = [];
+      const seenStoryKeys = new Set();
 
-    const uniqueSources = [...new Set(uniqueStories.map((x) => x.source).filter(Boolean))];
-    const latest = Math.max(...uniqueStories.map((x) => new Date(x.publishedAt).getTime()));
-    const confirmationBonus = Math.min(18, Math.max(0, uniqueSources.length - 1) * 4);
-    const primary = group.primary;
-    const groupBreaking = uniqueStories.some((x) => x.isBreaking) &&
-      uniqueStories.some((x) => hasHighImpactSignal(`${x.title} ${x.description}`));
-    const importanceScore = Math.max(0, Math.min(100,
-      Math.round(primary.trendScore * 0.50 + primary.confidenceScore * 0.30 + confirmationBonus + (groupBreaking ? 8 : 0))
-    ));
+      for (const story of group.items) {
+        const normalizedUrl =
+          cleanText(story.url)
+            .replace(/[?#].*$/, '');
 
-    return {
-      ...primary,
-      publishedAt: new Date(latest).toISOString(),
-      isBreaking: groupBreaking,
-      sourceCount: uniqueSources.length,
-      confirmingSources: uniqueSources.slice(0, 12),
-      relatedStories: uniqueStories.slice(0, 12).map((x) => ({
-        title: x.title,
-        source: x.source,
-        url: x.url,
-        publishedAt: x.publishedAt,
-      })),
-      importanceScore,
-      trendScore: Math.min(100, primary.trendScore + confirmationBonus),
-      isTrending: uniqueSources.length >= 3 || importanceScore >= 82,
-    };
-  }).sort((a, b) => {
-    const breakingDiff = Number(b.isBreaking) - Number(a.isBreaking);
-    if (breakingDiff !== 0) return breakingDiff;
-    const importanceDiff = b.importanceScore - a.importanceScore;
-    if (importanceDiff !== 0) return importanceDiff;
-    return new Date(b.publishedAt) - new Date(a.publishedAt);
-  });
+        const key =
+          normalizedUrl ||
+          `${normalizeText(story.title)}|` +
+          `${normalizeText(story.source)}`;
+
+        if (
+          !key ||
+          seenStoryKeys.has(key)
+        ) {
+          continue;
+        }
+
+        seenStoryKeys.add(key);
+        uniqueStories.push(story);
+      }
+
+      const uniqueSources = [
+        ...new Set(
+          uniqueStories
+            .map((item) => item.source)
+            .filter(Boolean)
+        )
+      ];
+
+      const latest = Math.max(
+        ...uniqueStories.map(
+          (item) =>
+            new Date(
+              item.publishedAt
+            ).getTime()
+        )
+      );
+
+      const confirmationBonus =
+        Math.min(
+          18,
+          Math.max(
+            0,
+            uniqueSources.length - 1
+          ) * 4
+        );
+
+      const primary = group.primary;
+
+      const groupBreaking =
+        uniqueStories.some(
+          (item) => item.isBreaking
+        ) &&
+        uniqueStories.some(
+          (item) =>
+            hasHighImpactSignal(
+              `${item.title} ${item.description}`
+            )
+        );
+
+      const importanceScore =
+        Math.max(
+          0,
+          Math.min(
+            100,
+            Math.round(
+              primary.trendScore * 0.50 +
+              primary.confidenceScore * 0.30 +
+              confirmationBonus +
+              (groupBreaking ? 8 : 0)
+            )
+          )
+        );
+
+      return {
+        ...primary,
+        publishedAt:
+          new Date(latest).toISOString(),
+        isBreaking: groupBreaking,
+        sourceCount: uniqueSources.length,
+        confirmingSources:
+          uniqueSources.slice(0, 12),
+        relatedStories:
+          uniqueStories
+            .slice(0, 12)
+            .map((item) => ({
+              title: item.title,
+              source: item.source,
+              url: item.url,
+              publishedAt:
+                item.publishedAt
+            })),
+        importanceScore,
+        trendScore: Math.min(
+          100,
+          primary.trendScore +
+          confirmationBonus
+        ),
+        isTrending:
+          uniqueSources.length >= 3 ||
+          importanceScore >= 82
+      };
+    })
+    .sort((a, b) => {
+      const breakingDiff =
+        Number(b.isBreaking) -
+        Number(a.isBreaking);
+
+      if (breakingDiff !== 0) {
+        return breakingDiff;
+      }
+
+      const importanceDiff =
+        b.importanceScore -
+        a.importanceScore;
+
+      if (importanceDiff !== 0) {
+        return importanceDiff;
+      }
+
+      return (
+        new Date(b.publishedAt) -
+        new Date(a.publishedAt)
+      );
+    });
 }
-
 function loadArchive() {
   try {
     if (!fs.existsSync(ARCHIVE_FILE)) return [];
@@ -621,7 +788,20 @@ async function refreshNewsCache(period = 'all') {
 
     const currentRaw = dedupeRawItems(results.flatMap((result) => result.items));
     const archivedRaw = dedupeRawItems(mergeWithArchive(currentRaw));
-    const grouped = buildStoryGroups(archivedRaw);
+
+    // Arşivin tamamı dosyada korunur. Her taramada yalnızca en güncel
+    // 12.000 haber gruplanarak Render üzerindeki CPU yükü sınırlandırılır.
+    const groupingItems = archivedRaw.slice(0, 12000);
+
+    console.log(
+      `[NEWS COLLECTOR] Gruplama başladı: ${groupingItems.length} haber`
+    );
+
+    const grouped = buildStoryGroups(groupingItems);
+
+    console.log(
+      `[NEWS COLLECTOR] Gruplama tamamlandı: ${grouped.length} haber grubu`
+    );
 
     newsCache = {
       createdAt: Date.now(),
