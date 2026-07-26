@@ -6,7 +6,12 @@ const fs = require('fs');
 const path = require('path');
 
 const opportunitiesRoutes = require('./routes/opportunities');
-const newsRoutes = require('./routes/news');
+const newsModule = require('./routes/news');
+
+const newsRoutes =
+  typeof newsModule === 'function'
+    ? newsModule
+    : newsModule.router;
 const trendsRoutes = require('./routes/trends');
 const aiRoutes = require('./routes/ai');
 
@@ -250,7 +255,7 @@ app.get('/api/scan-status', async (req, res) => {
     newsResult,
     trendResult
   ] = await Promise.allSettled([
-    newsRoutes.getNewsStatus(),
+    newsModule.getNewsStatus(),
     trendsRoutes.getTrendStatus()
   ]);
 
