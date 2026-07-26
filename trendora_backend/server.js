@@ -13,7 +13,6 @@ const newsRoutes =
     ? newsModule
     : newsModule.router;
 const trendsRoutes = require('./routes/trends');
-const aiRoutes = require('./routes/ai');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -192,10 +191,6 @@ app.use(
   trendsRoutes
 );
 
-app.use(
-  '/api/ai',
-  aiRoutes
-);
 
 function getOpportunityStatus() {
   const database =
