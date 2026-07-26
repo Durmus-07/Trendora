@@ -1,0 +1,10 @@
+{
+  "running": false,
+  "phase": "completed",
+  "startedAt": "2026-07-26T09:01:02.034Z",
+  "completedAt": "2026-07-26T09:01:03.139Z",
+  "durationMs": 1105,
+  "trendCount": 4,
+  "error": null,
+  "processId": 19576,
+  "writtenAt": "2026-07-26T09:01:03.139Z"

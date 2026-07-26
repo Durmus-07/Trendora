@@ -6,6 +6,12 @@ const {
   bimUrunleriniGetir
 } = require('../services/bimCollector');
 
+const {
+  bankaKampanyalariniYenile,
+  otomobilKampanyalariniYenile,
+  tumKampanyalariYenile
+} = require('../services/campaignSync');
+
 const router = express.Router();
 
 const dataFilePath = path.join(
@@ -549,6 +555,45 @@ router.get('/bim/refresh', async (req, res) => {
       success: false,
       message:
         'BİM ürünleri alınamadı.',
+      error: error.message
+    });
+  }
+});
+
+router.get('/bank/refresh', async (req, res) => {
+  try {
+    const result = await bankaKampanyalariniYenile();
+    res.status(result.success ? 200 : 502).json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Banka kampanyaları yenilenemedi.',
+      error: error.message
+    });
+  }
+});
+
+router.get('/automotive/refresh', async (req, res) => {
+  try {
+    const result = await otomobilKampanyalariniYenile();
+    res.status(result.success ? 200 : 502).json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Otomobil kampanyaları yenilenemedi.',
+      error: error.message
+    });
+  }
+});
+
+router.get('/campaigns/refresh', async (req, res) => {
+  try {
+    const result = await tumKampanyalariYenile();
+    res.status(result.success ? 200 : 502).json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Banka ve otomobil kampanyaları yenilenemedi.',
       error: error.message
     });
   }
