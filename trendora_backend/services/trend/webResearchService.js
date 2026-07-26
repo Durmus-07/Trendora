@@ -212,30 +212,168 @@ Kaynak sayısı mümkünse 4-10 arasında olsun.
 `;
 }
 
-async function requestResearch(client, query, classification, sourcePlan, retry = false) {
+const OPENAI_COOLDOWN_MS = Math.max(
+  60 * 60 * 1000,
+  Number(
+    process.env.TRENDORA_OPENAI_COOLDOWN_MS ||
+    24 * 60 * 60 * 1000
+  )
+);
+
+let openAiDisabledUntil = 0;
+let quotaWarningLogged = false;
+
+function isQuotaError(error) {
+  const status = Number(
+    error?.status ||
+    error?.statusCode ||
+    error?.response?.status ||
+    0
+  );
+
+  const code = String(
+    error?.code ||
+    error?.error?.code ||
+    error?.response?.data?.error?.code ||
+    ''
+  ).toLowerCase();
+
+  const message = String(
+    error?.message ||
+    error?.error?.message ||
+    error?.response?.data?.error?.message ||
+    ''
+  ).toLowerCase();
+
+  return (
+    status === 429 ||
+    code === 'insufficient_quota' ||
+    message.includes('exceeded your current quota') ||
+    message.includes('insufficient_quota') ||
+    message.includes('quota exceeded')
+  );
+}
+
+function activateOpenAiCooldown(error) {
+  openAiDisabledUntil = Date.now() + OPENAI_COOLDOWN_MS;
+
+  if (!quotaWarningLogged) {
+    quotaWarningLogged = true;
+
+    console.warn(
+      '[TRENDORA WEB] OpenAI kotası kullanılamıyor. ' +
+      `Web araştırması ${Math.round(OPENAI_COOLDOWN_MS / 3600000)} saat ` +
+      'askıya alındı; diğer trend analizleri çalışmaya devam edecek.'
+    );
+  }
+
+  return {
+    disabledUntil: new Date(openAiDisabledUntil).toISOString(),
+    error: error?.message || String(error)
+  };
+}
+
+function isOpenAiCooldownActive() {
+  if (openAiDisabledUntil <= Date.now()) {
+    if (openAiDisabledUntil > 0) {
+      openAiDisabledUntil = 0;
+      quotaWarningLogged = false;
+    }
+
+    return false;
+  }
+
+  return true;
+}
+
+async function requestResearch(
+  client,
+  query,
+  classification,
+  sourcePlan,
+  retry = false
+) {
   const instructions = buildInstructions(classification, sourcePlan) +
-    (retry
-      ? '\nÖNEMLİ: Önceki yanıt geçerli JSON değildi. Bu kez yalnızca tek bir geçerli JSON nesnesi döndür.'
-      : '');
+    (
+      retry
+        ? '\nÖNEMLİ: Önceki yanıt geçerli JSON değildi. Bu kez yalnızca tek bir geçerli JSON nesnesi döndür.'
+        : ''
+    );
 
   return client.responses.create({
-    model: process.env.TRENDORA_ANALYSIS_MODEL || 'gpt-4.1-mini',
+    model:
+      process.env.TRENDORA_ANALYSIS_MODEL ||
+      'gpt-4.1-mini',
+
     instructions,
     input: query,
+
     tools: [
       {
         type: 'web_search_preview',
-        search_context_size: process.env.TRENDORA_WEB_SEARCH_CONTEXT || 'high'
+        search_context_size:
+          process.env.TRENDORA_WEB_SEARCH_CONTEXT ||
+          'high'
       }
     ]
   });
 }
 
-async function researchWithWeb(query, classification, sourcePlan) {
-  const client = getClient();
-  if (!client) return null;
+async function requestResearchSafely(
+  client,
+  query,
+  classification,
+  sourcePlan,
+  retry = false
+) {
+  try {
+    const response = await requestResearch(
+      client,
+      query,
+      classification,
+      sourcePlan,
+      retry
+    );
 
-  let response = await requestResearch(
+    /*
+      Başarılı bir OpenAI cevabı geldiyse önceki geçici
+      kota/erişim engeli artık geçerli değildir.
+    */
+    openAiDisabledUntil = 0;
+    quotaWarningLogged = false;
+
+    return response;
+  } catch (error) {
+    if (isQuotaError(error)) {
+      activateOpenAiCooldown(error);
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+async function researchWithWeb(
+  query,
+  classification,
+  sourcePlan
+) {
+  const client = getClient();
+
+  if (!client) {
+    return null;
+  }
+
+  /*
+    Kota dolmuşsa OpenAI'ye yeniden istek gönderilmez.
+    null dönülür ve mevcut yerel/algoritmik trend sistemi
+    normal biçimde devam eder.
+  */
+  if (isOpenAiCooldownActive()) {
+    return null;
+  }
+
+  let response = await requestResearchSafely(
     client,
     query,
     classification,
@@ -243,12 +381,22 @@ async function researchWithWeb(query, classification, sourcePlan) {
     false
   );
 
+  /*
+    429 nedeniyle null geldiyse ikinci istek yapılmaz.
+  */
+  if (!response) {
+    return null;
+  }
+
   let parsed = safeJsonParse(response.output_text);
 
   if (!parsed) {
-    console.warn('Trendora web araştırması ilk yanıtta geçerli JSON üretmedi; ikinci deneme yapılıyor.');
+    console.warn(
+      'Trendora web araştırması ilk yanıtta geçerli JSON üretmedi; ' +
+      'ikinci deneme yapılıyor.'
+    );
 
-    response = await requestResearch(
+    response = await requestResearchSafely(
       client,
       query,
       classification,
@@ -256,11 +404,25 @@ async function researchWithWeb(query, classification, sourcePlan) {
       true
     );
 
+    /*
+      İkinci deneme sırasında 429 oluştuysa sistem
+      hata fırlatmadan algoritmik analize devam eder.
+    */
+    if (!response) {
+      return null;
+    }
+
     parsed = safeJsonParse(response.output_text);
   }
 
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Web araştırma sonucu iki denemede de geçerli JSON olarak çözülemedi.');
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed)
+  ) {
+    throw new Error(
+      'Web araştırma sonucu iki denemede de geçerli JSON olarak çözülemedi.'
+    );
   }
 
   return parsed;
