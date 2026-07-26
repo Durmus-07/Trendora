@@ -6,10 +6,14 @@ const fs = require('fs');
 const path = require('path');
 
 const opportunitiesRoutes = require('./routes/opportunities');
-const newsModule = require('./routes/news');
-const newsRoutes = newsModule.router || newsModule;
-const trendsRoutes = require('./routes/trends');
+const newsModule = require('./routes/newsApi');
 
+const newsRoutes =
+  typeof newsModule === 'function'
+    ? newsModule
+    : newsModule.router;
+const trendsRoutes = require('./routes/trends');
+const weatherRoutes = require('./routes/weather');
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 
@@ -172,6 +176,30 @@ app.get('/api/trendyol', (req, res) => {
   }
 });
 
+/*
+  Route kontrol kayıtlarıdır.
+  Mevcut çalışma düzenini değiştirmez.
+*/
+console.log(
+  '[ROUTE KONTROL] opportunities:',
+  typeof opportunitiesRoutes
+);
+
+console.log(
+  '[ROUTE KONTROL] news:',
+  typeof newsRoutes
+);
+
+console.log(
+  '[ROUTE KONTROL] trends:',
+  typeof trendsRoutes
+);
+
+console.log(
+  '[ROUTE KONTROL] weather:',
+  typeof weatherRoutes
+);
+
 app.use(
   '/api/opportunities',
   opportunitiesRoutes
@@ -187,6 +215,10 @@ app.use(
   trendsRoutes
 );
 
+app.use(
+  '/api/weather',
+  weatherRoutes
+);
 
 function getOpportunityStatus() {
   const database =
