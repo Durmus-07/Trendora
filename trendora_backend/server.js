@@ -9,9 +9,6 @@ const opportunitiesRoutes = require('./routes/opportunities');
 const newsModule = require('./routes/news');
 
 const newsRoutes =
-  newsModule.router || newsModule;
-
-const newsRoutes =
   typeof newsModule === 'function'
     ? newsModule
     : newsModule.router;
