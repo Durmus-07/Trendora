@@ -840,9 +840,7 @@ async function startCollector() {
     void collectAndSaveNews();
   }, NEWS_REFRESH_INTERVAL_MS);
 
-  if (typeof intervalHandle.unref === 'function') {
-    intervalHandle.unref();
-  }
+
 }
 
 async function stopCollector(signal) {
