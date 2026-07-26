@@ -17,169 +17,88 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
       'https://trendora-icj9.onrender.com/api/news';
 
   static const Duration _otomatikYenilemeSuresi =
-      Duration(seconds: 30);
+      Duration(minutes: 2);
 
   final List<TrendoraHaber> _tumHaberler = [];
 
   final List<HaberKategori> _kategoriler = const [
-  HaberKategori(
-    'Genel',
-    'genel',
-    Icons.dynamic_feed_rounded,
-  ),
-  HaberKategori(
-    'Son Dakika',
-    'son_dakika',
-    Icons.flash_on_rounded,
-  ),
-  HaberKategori(
-    'Gündem',
-    'gundem',
-    Icons.local_fire_department_rounded,
-  ),
-  HaberKategori(
-    'Spor',
-    'spor',
-    Icons.sports_soccer_rounded,
-  ),
-  HaberKategori(
-    'Ekonomi',
-    'ekonomi',
-    Icons.account_balance_rounded,
-  ),
-];
-  final List<HaberZamanFiltresi> _zamanFiltreleri = const [
-  HaberZamanFiltresi(
-    '1 Saat',
-    '1h',
-    Duration(hours: 1),
-  ),
-  HaberZamanFiltresi(
-    '4 Saat',
-    '4h',
-    Duration(hours: 4),
-  ),
-  HaberZamanFiltresi(
-    '12 Saat',
-    '12h',
-    Duration(hours: 12),
-  ),
-  HaberZamanFiltresi(
-    '24 Saat',
-    '24h',
-    Duration(hours: 24),
-  ),
-  HaberZamanFiltresi(
-    '1 Hafta',
-    '7d',
-    Duration(days: 7),
-  ),
-  HaberZamanFiltresi(
-    '1 Ay',
-    '30d',
-    Duration(days: 30),
-  ),
-  HaberZamanFiltresi(
-    '2 Ay',
-    '60d',
-    Duration(days: 60),
-  ),
-  HaberZamanFiltresi(
-    '6 Ay',
-    '180d',
-    Duration(days: 180),
-  ),
-  HaberZamanFiltresi(
-    '12 Ay',
-    '365d',
-    Duration(days: 365),
-  ),
-  HaberZamanFiltresi(
-    'Tümü',
-    'all',
-    null,
-  ),
-];
+    HaberKategori(
+      'Son Dakika',
+      'son_dakika',
+      Icons.flash_on_rounded,
+    ),
+    HaberKategori(
+      'Genel',
+      'genel',
+      Icons.dynamic_feed_rounded,
+    ),
+    HaberKategori(
+      'Gündem',
+      'gundem',
+      Icons.local_fire_department_rounded,
+    ),
+    HaberKategori(
+      'Dünya',
+      'dunya',
+      Icons.public_rounded,
+    ),
+    HaberKategori(
+      'Ekonomi',
+      'ekonomi',
+      Icons.account_balance_rounded,
+    ),
+    HaberKategori(
+      'Teknoloji',
+      'teknoloji',
+      Icons.memory_rounded,
+    ),
+    HaberKategori(
+      'Spor',
+      'spor',
+      Icons.sports_soccer_rounded,
+    ),
+  ];
+
   Timer? _yenilemeZamanlayicisi;
   final ScrollController _kaydirmaDenetleyicisi = ScrollController();
 
   static const int _sayfaBoyutu = 20;
-  int _gosterilenHaberSayisi = _sayfaBoyutu;
 
   String _seciliKategori = 'genel';
-  String _seciliZaman = '24h';
+  int _mevcutSayfa = 1;
+  int _toplamSayfa = 1;
+  bool _dahaFazlaHaberVar = true;
   bool _ilkYukleme = true;
   bool _yenileniyor = false;
+
+  final Set<String> _bildirimKategorileri = {
+    'son_dakika',
+  };
   String? _hataMesaji;
   DateTime? _sonGuncelleme;
   int _calisanKaynakSayisi = 0;
   int _toplamKaynakSayisi = 0;
 
   List<TrendoraHaber> get _gorunenHaberler {
-    Iterable<TrendoraHaber> sonuc;
+    Iterable<TrendoraHaber> filtrelenmis = _tumHaberler;
 
-    switch (_seciliKategori) {
-      case 'son_dakika':
-        sonuc = _tumHaberler.where(_sonDakikaMi);
-        break;
-
-      case 'gundem':
-        sonuc = _tumHaberler.where(_gundemHaberiMi);
-        break;
-
-      case 'spor':
-        sonuc = _tumHaberler.where(
-          (haber) => _haberKategorisi(haber) == 'spor',
-        );
-        break;
-
-      case 'ekonomi':
-        sonuc = _tumHaberler.where(
-          (haber) => _haberKategorisi(haber) == 'ekonomi',
-        );
-        break;
-
-      case 'genel':
-      default:
-        sonuc = _tumHaberler;
-
-        final filtre = _zamanFiltreleri.firstWhere(
-          (item) => item.kod == _seciliZaman,
-          orElse: () => _zamanFiltreleri.last,
-        );
-
-        if (filtre.sure != null) {
-          final simdi = DateTime.now();
-
-          sonuc = sonuc.where((haber) {
-            final yas = simdi.difference(haber.publishedAt);
-
-            return !yas.isNegative && yas <= filtre.sure!;
-          });
-        }
-        break;
+    if (_seciliKategori == 'son_dakika') {
+      filtrelenmis = filtrelenmis.where(_sonDakikaMi);
+    } else if (_seciliKategori == 'gundem') {
+      filtrelenmis = filtrelenmis.where(_gundemHaberiMi);
+    } else if (_seciliKategori != 'genel') {
+      filtrelenmis = filtrelenmis.where(
+        (haber) => _haberKategorisi(haber) == _seciliKategori,
+      );
     }
 
-    final liste = sonuc.toList(growable: false)
+    final liste = filtrelenmis.toList()
       ..sort(
         (a, b) => b.publishedAt.compareTo(a.publishedAt),
       );
 
     return liste;
   }
-
-  List<TrendoraHaber> get _sayfalanmisHaberler {
-    final tumSonuclar = _gorunenHaberler;
-    final adet = _gosterilenHaberSayisi.clamp(
-      0,
-      tumSonuclar.length,
-    );
-
-    return tumSonuclar.take(adet).toList(growable: false);
-  }
-
-  bool get _dahaFazlaHaberVar =>
-      _sayfalanmisHaberler.length < _gorunenHaberler.length;
 
   bool _sonDakikaMi(TrendoraHaber haber) {
   final metin = _haberMetni(haber);
@@ -250,11 +169,13 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
         .toLowerCase()
         .replaceAll(' ', '_');
 
-   const desteklenenKategoriler = {
-  'ekonomi',
-  'spor',
-  'gundem',
-};
+    const desteklenenKategoriler = {
+      'ekonomi',
+      'teknoloji',
+      'spor',
+      'gundem',
+      'dunya',
+    };
 
     if (desteklenenKategoriler.contains(backendKategorisi)) {
       return backendKategorisi;
@@ -404,49 +325,58 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
   void initState() {
     super.initState();
 
-    _kaydirmaDenetleyicisi.addListener(_kaydirmaDinleyicisi);
-    _haberleriGetir();
+    _haberleriGetir(sayfa: 1);
 
     _yenilemeZamanlayicisi = Timer.periodic(
       _otomatikYenilemeSuresi,
-      (_) => _haberleriGetir(arkaPlanda: true),
+      (_) => _haberleriGetir(arkaPlanda: true, sayfa: _mevcutSayfa),
     );
   }
 
   @override
   void dispose() {
     _yenilemeZamanlayicisi?.cancel();
-    _kaydirmaDenetleyicisi
-      ..removeListener(_kaydirmaDinleyicisi)
-      ..dispose();
+    _kaydirmaDenetleyicisi.dispose();
     super.dispose();
   }
 
-  void _kaydirmaDinleyicisi() {
-    if (!_kaydirmaDenetleyicisi.hasClients || !_dahaFazlaHaberVar) {
-      return;
-    }
-
-    final konum = _kaydirmaDenetleyicisi.position;
-
-    if (konum.pixels >= konum.maxScrollExtent - 260) {
-      setState(() {
-        _gosterilenHaberSayisi += _sayfaBoyutu;
-      });
-    }
-  }
-
   void _sayfalamayiSifirla() {
-    _gosterilenHaberSayisi = _sayfaBoyutu;
+    _mevcutSayfa = 1;
+    _toplamSayfa = 1;
+    _dahaFazlaHaberVar = true;
 
     if (_kaydirmaDenetleyicisi.hasClients) {
       _kaydirmaDenetleyicisi.jumpTo(0);
     }
   }
 
+  Future<void> _sayfayaGit(int sayfa) async {
+    if (_yenileniyor || sayfa < 1 || sayfa == _mevcutSayfa) {
+      return;
+    }
+
+    if (_toplamSayfa > 0 && sayfa > _toplamSayfa) {
+      return;
+    }
+
+    await _haberleriGetir(
+      sayfa: sayfa,
+      arkaPlanda: false,
+    );
+
+    if (_kaydirmaDenetleyicisi.hasClients) {
+      _kaydirmaDenetleyicisi.animateTo(
+        0,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
   Future<void> _haberleriGetir({
     bool arkaPlanda = false,
     bool zorlaYenile = false,
+    int sayfa = 1,
   }) async {
     if (_yenileniyor) return;
 
@@ -463,14 +393,16 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
     }
 
     try {
-      // Backend'den her zaman dolu ana haber havuzunu al.
-      // Zaman ve kategori filtreleri uygulama içinde uygulanır.
-      // Böylece backend'in 1h/24h gibi dönem kodlarını desteklememesi
-      // durumunda haber sayısı 0'a düşmez.
-      const queryParameters = <String, String>{
+      final backendKategori = _seciliKategori == 'genel'
+          ? 'tumu'
+          : _seciliKategori;
+
+      final queryParameters = <String, String>{
         'period': 'all',
-        'category': 'tumu',
-        'limit': '5000',
+        'category': backendKategori,
+        'page': '$sayfa',
+        'limit': '$_sayfaBoyutu',
+        if (zorlaYenile && sayfa == 1) 'refresh': 'true',
       };
 
       final uri = Uri.parse(_backendBaseUrl).replace(
@@ -505,7 +437,7 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
         );
       }
 
-      final rawNews = decoded['news'];
+      final rawNews = decoded['news'] ?? decoded['data'];
 
       if (rawNews is! List) {
         throw const FormatException('Haber listesi bulunamadı.');
@@ -524,35 +456,44 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
       if (!mounted) return;
 
       setState(() {
-        if (yeniHaberler.isNotEmpty) {
-          final benzersiz = <String, TrendoraHaber>{};
+        final benzersiz = <String, TrendoraHaber>{};
 
-          for (final haber in yeniHaberler) {
-            final anahtar = haber.id.trim().isNotEmpty
-                ? haber.id.trim()
-                : haber.url.trim().isNotEmpty
-                    ? haber.url.trim()
-                    : '${haber.title}|${haber.publishedAt.toIso8601String()}';
-
-            benzersiz[anahtar] = haber;
-          }
-
-          final siraliHaberler = benzersiz.values.toList()
-            ..sort(
-              (a, b) => b.publishedAt.compareTo(a.publishedAt),
-            );
-
-          _tumHaberler
-            ..clear()
-            ..addAll(siraliHaberler);
-
-          _sonGuncelleme = DateTime.now();
-          _hataMesaji = null;
+        for (final haber in yeniHaberler) {
+          benzersiz[_haberAnahtari(haber)] = haber;
         }
+
+        final siraliHaberler = benzersiz.values.toList()
+          ..sort(
+            (a, b) => b.publishedAt.compareTo(a.publishedAt),
+          );
+
+        _tumHaberler
+          ..clear()
+          ..addAll(siraliHaberler);
+
+        _mevcutSayfa = sayfa;
+        _dahaFazlaHaberVar = decoded['hasMore'] == true;
+
+        final backendToplamSayfa = _intDegeri(
+          decoded['totalPages'] ?? decoded['pages'],
+        );
+        final toplamHaber = _intDegeri(
+          decoded['total'] ?? decoded['totalNews'] ?? decoded['count'],
+        );
+
+        if (backendToplamSayfa > 0) {
+          _toplamSayfa = backendToplamSayfa;
+        } else if (toplamHaber > 0) {
+          _toplamSayfa = (toplamHaber / _sayfaBoyutu).ceil();
+        } else {
+          _toplamSayfa = _dahaFazlaHaberVar ? sayfa + 1 : sayfa;
+        }
+
+        _sonGuncelleme = DateTime.now();
+        _hataMesaji = null;
 
         _calisanKaynakSayisi =
             _intDegeri(decoded['workingSources']);
-
         _toplamKaynakSayisi =
             _intDegeri(decoded['totalSources']);
 
@@ -561,20 +502,24 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
       });
     } on TimeoutException {
       _hatayiGoster(
-        'Haber servisine ulaşılamadı. Backend açık mı ve telefon için '
-        'adb reverse bağlantısı aktif mi kontrol et.',
+        'Haber servisine ulaşılamadı. İnternet bağlantısını kontrol et.',
       );
     } on FormatException {
       _hatayiGoster(
         'Haber servisinden geçersiz veri geldi.',
       );
-    } catch (error) {
+    } catch (_) {
       _hatayiGoster(
         'Haberler alınamadı. Backend ve internet bağlantısını kontrol et.',
       );
     }
   }
 
+  String _haberAnahtari(TrendoraHaber haber) {
+    if (haber.id.trim().isNotEmpty) return haber.id.trim();
+    if (haber.url.trim().isNotEmpty) return haber.url.trim();
+    return '${haber.title}|${haber.publishedAt.toIso8601String()}';
+  }
 
   int _intDegeri(dynamic value) {
     if (value is int) return value;
@@ -635,29 +580,20 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
   }
 
   void _kategoriSec(String kategori) {
-    final sonDakikaSecildi = kategori == 'son_dakika';
+    if (_seciliKategori == kategori) return;
 
     setState(() {
       _seciliKategori = kategori;
+      _tumHaberler.clear();
       _sayfalamayiSifirla();
+      _ilkYukleme = true;
+      _hataMesaji = null;
     });
 
-    // Son Dakika açıldığında mevcut tasarımı değiştirmeden backend'den
-    // en güncel akışı zorla yeniler.
-    if (sonDakikaSecildi) {
-      _haberleriGetir(zorlaYenile: true);
-    }
-  }
-
-  void _zamanSec(String kod) {
-    if (_seciliZaman == kod) return;
-
-    setState(() {
-      _seciliZaman = kod;
-      _sayfalamayiSifirla();
-    });
-
-    _haberleriGetir(zorlaYenile: true);
+    _haberleriGetir(
+      sayfa: 1,
+      zorlaYenile: kategori == 'son_dakika',
+    );
   }
 
   @override
@@ -693,10 +629,33 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
         ),
         actions: [
           IconButton(
+            tooltip: 'Bildirim tercihleri',
+            onPressed: _bildirimTercihleriniAc,
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.notifications_none_rounded),
+                if (_bildirimKategorileri.isNotEmpty)
+                  Positioned(
+                    right: -1,
+                    top: -1,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFFC857),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
             tooltip: 'Haberleri yenile',
             onPressed: _yenileniyor
                 ? null
-                : () => _haberleriGetir(zorlaYenile: true),
+                : () => _haberleriGetir(zorlaYenile: true, sayfa: _mevcutSayfa),
             icon: _yenileniyor
                 ? const SizedBox(
                     width: 20,
@@ -726,7 +685,7 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
 
     if (_hataMesaji != null && _tumHaberler.isEmpty) {
       return RefreshIndicator(
-        onRefresh: () => _haberleriGetir(zorlaYenile: true),
+        onRefresh: () => _haberleriGetir(zorlaYenile: true, sayfa: _mevcutSayfa),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
@@ -739,16 +698,15 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
       );
     }
 
-    final haberler = _sayfalanmisHaberler;
+    final haberler = _gorunenHaberler;
 
     return Column(
       children: [
         _durumPaneli(theme),
         _kategoriCubugu(),
-        if (_seciliKategori == 'genel') _zamanFiltresiCubugu(),
         Expanded(
           child: RefreshIndicator(
-            onRefresh: () => _haberleriGetir(zorlaYenile: true),
+            onRefresh: () => _haberleriGetir(zorlaYenile: true, sayfa: _mevcutSayfa),
             child: haberler.isEmpty
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -764,18 +722,10 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
                     controller: _kaydirmaDenetleyicisi,
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(14, 10, 14, 28),
-                    itemCount:
-                        haberler.length + (_dahaFazlaHaberVar ? 1 : 0),
+                    itemCount: haberler.length + 1,
                     itemBuilder: (context, index) {
-                      if (index >= haberler.length) {
-                        return const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 18),
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.2,
-                            ),
-                          ),
-                        );
+                      if (index == haberler.length) {
+                        return _sayfalamaAlani();
                       }
 
                       return _haberKarti(
@@ -787,6 +737,260 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _sayfalamaAlani() {
+    final baslangic = (_mevcutSayfa - 2).clamp(1, _toplamSayfa);
+    final bitis = (baslangic + 4).clamp(1, _toplamSayfa);
+    final gercekBaslangic = (bitis - 4).clamp(1, _toplamSayfa);
+
+    final sayfalar = <int>[
+      for (int sayfa = gercekBaslangic; sayfa <= bitis; sayfa++)
+        sayfa,
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 10),
+      child: Column(
+        children: [
+          Text(
+            'Sayfa $_mevcutSayfa / $_toplamSayfa',
+            style: const TextStyle(
+              color: Color(0xFF667085),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 7,
+            runSpacing: 8,
+            children: [
+              _sayfaButonu(
+                icon: Icons.chevron_left_rounded,
+                tooltip: 'Önceki sayfa',
+                etkin: _mevcutSayfa > 1 && !_yenileniyor,
+                onPressed: () => _sayfayaGit(_mevcutSayfa - 1),
+              ),
+              for (final sayfa in sayfalar)
+                _numaraliSayfaButonu(sayfa),
+              _sayfaButonu(
+                icon: Icons.chevron_right_rounded,
+                tooltip: 'Sonraki sayfa',
+                etkin: _mevcutSayfa < _toplamSayfa && !_yenileniyor,
+                onPressed: () => _sayfayaGit(_mevcutSayfa + 1),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _numaraliSayfaButonu(int sayfa) {
+    final secili = sayfa == _mevcutSayfa;
+
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: FilledButton(
+        onPressed: secili || _yenileniyor
+            ? null
+            : () => _sayfayaGit(sayfa),
+        style: FilledButton.styleFrom(
+          padding: EdgeInsets.zero,
+          backgroundColor: secili
+              ? const Color(0xFF172B4D)
+              : Colors.white,
+          foregroundColor: secili
+              ? Colors.white
+              : const Color(0xFF26354D),
+          disabledBackgroundColor: secili
+              ? const Color(0xFF172B4D)
+              : const Color(0xFFF1F4F8),
+          disabledForegroundColor: secili
+              ? Colors.white
+              : const Color(0xFF98A2B3),
+          side: BorderSide(
+            color: secili
+                ? const Color(0xFF172B4D)
+                : const Color(0xFFDDE3EC),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(11),
+          ),
+          elevation: 0,
+        ),
+        child: Text(
+          '$sayfa',
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+
+  Widget _sayfaButonu({
+    required IconData icon,
+    required String tooltip,
+    required bool etkin,
+    required VoidCallback onPressed,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: OutlinedButton(
+          onPressed: etkin ? onPressed : null,
+          style: OutlinedButton.styleFrom(
+            padding: EdgeInsets.zero,
+            side: const BorderSide(color: Color(0xFFDDE3EC)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(11),
+            ),
+          ),
+          child: Icon(icon),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _bildirimTercihleriniAc() async {
+    final geciciSecimler = Set<String>.from(_bildirimKategorileri);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, modalSetState) {
+            return SafeArea(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD0D5DD),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.notifications_active_rounded,
+                          color: Color(0xFF172B4D),
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Bildirim Tercihleri',
+                            style: TextStyle(
+                              color: Color(0xFF111827),
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Bildirim almak istediğin haber alanlarını seç.',
+                        style: TextStyle(
+                          color: Color(0xFF667085),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: _kategoriler.map((kategori) {
+                          final secili =
+                              geciciSecimler.contains(kategori.value);
+
+                          return CheckboxListTile(
+                            value: secili,
+                            contentPadding: EdgeInsets.zero,
+                            activeColor: const Color(0xFF172B4D),
+                            secondary: Icon(
+                              kategori.icon,
+                              color: const Color(0xFF42526B),
+                            ),
+                            title: Text(
+                              kategori.label,
+                              style: const TextStyle(
+                                color: Color(0xFF26354D),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            onChanged: (value) {
+                              modalSetState(() {
+                                if (value == true) {
+                                  geciciSecimler.add(kategori.value);
+                                } else {
+                                  geciciSecimler.remove(kategori.value);
+                                }
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _bildirimKategorileri
+                              ..clear()
+                              ..addAll(geciciSecimler);
+                          });
+                          Navigator.of(sheetContext).pop();
+                        },
+                        icon: const Icon(Icons.check_rounded),
+                        label: const Text('Tercihleri Kaydet'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFF172B4D),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Bu ekran kategori tercihlerini hazırlar. Gerçek push bildirimleri Firebase bağlantısı eklendiğinde gönderilecektir.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF98A2B3),
+                        fontSize: 11,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -840,7 +1044,7 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
                 const SizedBox(height: 3),
                 Text(
                   '$_calisanKaynakSayisi / $_toplamKaynakSayisi kaynak aktif '
-                  '• 30 sn otomatik yenileme',
+                  '• 2 dk otomatik yenileme',
                   style: const TextStyle(
                     color: Color(0xFFB9C3D5),
                     fontSize: 12,
@@ -872,6 +1076,7 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
         ),
         scrollDirection: Axis.horizontal,
         itemCount: _kategoriler.length,
+  
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final kategori = _kategoriler[index];
@@ -909,52 +1114,6 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
           );
         },
       ),
-    );
-  }
-
-  Widget _zamanFiltresiCubugu() {
-    return SizedBox(
-      height: 54,
-      child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(14, 5, 14, 7),
-        scrollDirection: Axis.horizontal,
-        itemCount: _zamanFiltreleri.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final filtre = _zamanFiltreleri[index];
-          return _zamanChip(filtre);
-        },
-      ),
-    );
-  }
-
-  Widget _zamanChip(HaberZamanFiltresi filtre) {
-    final secili = filtre.kod == _seciliZaman;
-
-    return ChoiceChip(
-      selected: secili,
-      onSelected: (_) => _zamanSec(filtre.kod),
-      label: Text(filtre.ad),
-      labelStyle: TextStyle(
-        color: secili
-            ? Colors.white
-            : const Color(0xFF42526B),
-        fontSize: 12,
-        fontWeight: secili
-            ? FontWeight.w800
-            : FontWeight.w600,
-      ),
-      selectedColor: const Color(0xFF24476B),
-      backgroundColor: Colors.white,
-      side: BorderSide(
-        color: secili
-            ? const Color(0xFF24476B)
-            : const Color(0xFFDDE3EC),
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-      visualDensity: VisualDensity.compact,
     );
   }
 
@@ -1255,7 +1414,7 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
             ),
             const SizedBox(height: 7),
             const Text(
-              'Akış 30 saniyede bir otomatik yenileniyor.',
+              'Akış 2 dakikada bir otomatik yenileniyor.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Color(0xFF7B8798),
@@ -1304,7 +1463,7 @@ bool _gundemHaberiMi(TrendoraHaber haber) {
             FilledButton.icon(
               onPressed: _yenileniyor
                   ? null
-                  : () => _haberleriGetir(zorlaYenile: true),
+                  : () => _haberleriGetir(zorlaYenile: true, sayfa: _mevcutSayfa),
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('Tekrar dene'),
             ),
@@ -1324,17 +1483,6 @@ class HaberKategori {
     this.label,
     this.value,
     this.icon,
-  );
-}
-class HaberZamanFiltresi {
-  final String ad;
-  final String kod;
-  final Duration? sure;
-
-  const HaberZamanFiltresi(
-    this.ad,
-    this.kod,
-    this.sure,
   );
 }
 class TrendoraHaber {

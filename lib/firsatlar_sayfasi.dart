@@ -28,6 +28,16 @@ class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
   String? _hataMesaji;
   DateTime? _sonGuncelleme;
 
+  final Map<String, bool> _bildirimTercihleri = {
+    'Online Fırsatlar': true,
+    'BİM': true,
+    'A101': true,
+    'CarrefourSA': true,
+    'Migros': true,
+    'Banka Kampanyaları': true,
+    'Otomobil Kampanyaları': true,
+  };
+
   @override
   void initState() {
     super.initState();
@@ -177,6 +187,105 @@ class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
     );
   }
 
+  Future<void> _bildirimTercihleriniAc() async {
+    final Map<String, bool> geciciTercihler =
+        Map<String, bool>.from(_bildirimTercihleri);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext bottomSheetContext) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter modalSetState) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  4,
+                  20,
+                  20 + MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.notifications_active_outlined),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Fırsat Bildirimleri',
+                            style: TextStyle(
+                              fontSize: 21,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Bildirim almak istediğin fırsat türlerini seç.',
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: geciciTercihler.entries.map((entry) {
+                          return CheckboxListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: entry.value,
+                            title: Text(entry.key),
+                            controlAffinity: ListTileControlAffinity.trailing,
+                            onChanged: (bool? value) {
+                              modalSetState(() {
+                                geciciTercihler[entry.key] = value ?? false;
+                              });
+                            },
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _bildirimTercihleri
+                              ..clear()
+                              ..addAll(geciciTercihler);
+                          });
+
+                          Navigator.pop(bottomSheetContext);
+
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Bildirim tercihleri kaydedildi.',
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.check),
+                        label: const Text('Tercihleri Kaydet'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -185,6 +294,11 @@ class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
         title: const Text('Fırsat Merkezi'),
         centerTitle: true,
         actions: [
+          IconButton(
+            tooltip: 'Bildirim tercihleri',
+            onPressed: _bildirimTercihleriniAc,
+            icon: const Icon(Icons.notifications_none),
+          ),
           IconButton(
             tooltip: 'Yenile',
             onPressed: _yenileniyor
@@ -287,14 +401,14 @@ class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
               children: [
                 Expanded(
                   child: _marketKarti(
-                    isim: 'ŞOK',
-                    renk: Colors.amber.shade800,
+                    isim: 'CarrefourSA',
+                    renk: Colors.red,
                     onTap: () {
                       _kategoriSayfasiniAc(
-                        baslik: 'ŞOK Fırsatları',
+                        baslik: 'CarrefourSA Fırsatları',
                         kategori: 'market',
-                        kaynak: 'sok',
-                        renk: Colors.amber.shade800,
+                        kaynak: 'carrefoursa',
+                        renk: Colors.red,
                       );
                     },
                   ),
@@ -349,36 +463,6 @@ class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
               },
             ),
 
-            _kategoriKarti(
-              baslik: 'Kupon Merkezi',
-              aciklama:
-                  'Aktif indirim kodları ve kullanılabilir kuponlar',
-              renk: Colors.purple,
-              ikon: Icons.confirmation_number_outlined,
-              onTap: () {
-                _kategoriSayfasiniAc(
-                  baslik: 'Kupon Merkezi',
-                  kategori: 'coupon',
-                  renk: Colors.purple,
-                );
-              },
-            ),
-
-            _kategoriKarti(
-              baslik: 'Trendora AI',
-              aciklama:
-                  'Bütçene göre seçilmiş fırsat önerileri',
-              renk: Colors.red,
-              ikon: Icons.auto_awesome,
-              onTap: () {
-                _kategoriSayfasiniAc(
-                  baslik: 'Trendora AI Önerileri',
-                  kategori: 'ai',
-                  renk: Colors.red,
-                );
-              },
-            ),
-
             if (_oneCikanlarAktif) ...[
               const SizedBox(height: 20),
               const BolumBasligi(
@@ -405,13 +489,10 @@ class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
       ),
       child: Row(
         children: [
-          const CircleAvatar(
-            radius: 25,
-            backgroundColor: Colors.white12,
-            child: Icon(
-              Icons.radar,
-              color: Colors.white,
-            ),
+          const SizedBox(
+            width: 58,
+            height: 58,
+            child: _CanliRadar(),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -803,69 +884,122 @@ class _CanliFirsatlarListeSayfasiState
   }
 
   bool _kayitBuSayfayaAitMi(
-    Map<String, dynamic> json,
-  ) {
-    final String? istenenKaynak =
-        widget.kaynak?.trim().toLowerCase();
+  Map<String, dynamic> json,
+) {
+  final String? istenenKaynak =
+      widget.kaynak?.trim().toLowerCase();
 
-    if (istenenKaynak == null || istenenKaynak.isEmpty) {
+  if (istenenKaynak == null || istenenKaynak.isEmpty) {
+    return true;
+  }
+
+  final String source = _normalize(
+    json['source'],
+  );
+
+  final String store = _normalize(
+    json['store'],
+  );
+
+  final String seller = _normalize(
+    json['seller'],
+  );
+
+  final String sourceName = _normalize(
+    json['sourceName'] ??
+        json['source_name'],
+  );
+
+  final String aranacakMetin = [
+    json['source'],
+    json['sourceName'],
+    json['source_name'],
+    json['store'],
+    json['seller'],
+    json['title'],
+    json['description'],
+    json['url'],
+    json['officialUrl'],
+    json['official_url'],
+    json['link'],
+    json['telegramMessageUrl'],
+  ].map(_normalize).join(' ');
+
+  if (istenenKaynak == 'telegram') {
+    return source == 'telegram';
+  }
+
+  /*
+    Market kayıtları yalnızca source alanından
+    kontrol edilmez.
+
+    Telegram üzerinden gelen doğrulanmış market
+    fırsatlarında source "telegram", store ise
+    "Migros", "BİM" vb. olabilir.
+  */
+  if ({
+    'a101',
+    'bim',
+    'sok',
+    'migros',
+    'carrefoursa',
+  }.contains(istenenKaynak)) {
+    if (source == istenenKaynak ||
+        store == istenenKaynak ||
+        seller == istenenKaynak ||
+        sourceName == istenenKaynak) {
       return true;
     }
 
-    final String source = _normalize(
-      json['source'],
-    );
-
-    if (istenenKaynak == 'telegram') {
-      return source == 'telegram';
-    }
-
-    if ({
-      'a101',
-      'bim',
-      'sok',
-      'migros',
-    }.contains(istenenKaynak)) {
-      return source == istenenKaynak;
-    }
-
-    final String aranacakMetin = [
-      json['source'],
-      json['sourceName'],
-      json['source_name'],
-      json['store'],
-      json['seller'],
-      json['title'],
-      json['description'],
-      json['url'],
-      json['officialUrl'],
-      json['telegramMessageUrl'],
-    ].map(_normalize).join(' ');
-
     switch (istenenKaynak) {
-      case 'trendyol':
-        return aranacakMetin.contains('trendyol') ||
-            aranacakMetin.contains('ty.gl');
+      case 'a101':
+        return aranacakMetin.contains('a101') ||
+            aranacakMetin.contains('a 101');
 
-      case 'hepsiburada':
-        return aranacakMetin.contains('hepsiburada') ||
-            aranacakMetin.contains('hb.biz') ||
-            aranacakMetin.contains('app.hb.biz');
+      case 'bim':
+        return aranacakMetin.contains('bim');
 
-      case 'amazon':
-        return aranacakMetin.contains('amazon') ||
-            aranacakMetin.contains('amzn') ||
-            aranacakMetin.contains('amazon.com.tr');
+      case 'sok':
+        return aranacakMetin.contains('sok') ||
+            aranacakMetin.contains('şok');
 
-      case 'n11':
-        return aranacakMetin.contains('n11') ||
-            aranacakMetin.contains('sl.n11');
+      case 'migros':
+        return aranacakMetin.contains('migros') ||
+            aranacakMetin.contains('migrosone') ||
+            aranacakMetin.contains('sanalmarket');
 
-      default:
-        return source == istenenKaynak ||
-            aranacakMetin.contains(istenenKaynak);
+      case 'carrefoursa':
+        return aranacakMetin.contains('carrefoursa') ||
+            aranacakMetin.contains('carrefour');
     }
   }
+
+  switch (istenenKaynak) {
+    case 'trendyol':
+      return aranacakMetin.contains('trendyol') ||
+          aranacakMetin.contains('ty.gl');
+
+    case 'hepsiburada':
+      return aranacakMetin.contains('hepsiburada') ||
+          aranacakMetin.contains('hb.biz') ||
+          aranacakMetin.contains('app.hb.biz');
+
+    case 'amazon':
+      return aranacakMetin.contains('amazon') ||
+          aranacakMetin.contains('amzn') ||
+          aranacakMetin.contains('amazon.com.tr');
+
+    case 'n11':
+      return aranacakMetin.contains('n11') ||
+          aranacakMetin.contains('sl.n11');
+
+    default:
+      return source == istenenKaynak ||
+          store == istenenKaynak ||
+          seller == istenenKaynak ||
+          aranacakMetin.contains(istenenKaynak);
+  }
+}
 
   String _normalize(dynamic value) {
     return (value ?? '')
@@ -1006,7 +1140,7 @@ class _CanliFirsatlarListeSayfasiState
                 });
               },
               decoration: InputDecoration(
-                hintText: 'Ürün, kategori veya kupon ara...',
+                hintText: 'Ürün veya kategori ara...',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _aramaMetni.isEmpty
                     ? null
@@ -1308,10 +1442,6 @@ class FirsatModeli {
         return 'E-TİCARET';
       case 'automotive':
         return 'OTOMOBİL';
-      case 'coupon':
-        return 'KUPON';
-      case 'ai':
-        return 'AI ÖNERİSİ';
       default:
         return 'FIRSAT';
     }
@@ -1399,20 +1529,28 @@ class _FirsatKartiState extends State<FirsatKarti> {
     final bool linkHazir = _gecerliWebAdresi(firsat.officialUrl);
     final bool fiyatVar = firsat.fiyat.trim().isNotEmpty;
     final bool magazaEslesiyor = _magazaLinkiEslesiyor(magaza.anahtar);
+    final bool otomobilFirsati = _otomobilFirsatiMi();
+    final bool otomobilGorseliVar =
+        otomobilFirsati && firsat.imageUrl.trim().isNotEmpty;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: magaza.renk.withOpacity(0.16),
+          color: magaza.renk.withOpacity(0.18),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.055),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: magaza.renk.withOpacity(0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.035),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -1420,195 +1558,490 @@ class _FirsatKartiState extends State<FirsatKarti> {
         color: Colors.transparent,
         child: InkWell(
           onTap: linkHazir ? () => _firsatiAc(context) : null,
-          borderRadius: BorderRadius.circular(22),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(17, 16, 17, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          borderRadius: BorderRadius.circular(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (otomobilGorseliVar)
+                _otomobilGorseli(magaza)
+              else
+                _premiumKapak(magaza),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _ustFirsatRozeti(),
-                    const Spacer(),
-                    _magazaRozeti(magaza),
-                  ],
-                ),
-                const SizedBox(height: 15),
-                Text(
-                  firsat.baslik.isEmpty ? 'Güncel Fırsat' : firsat.baslik,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    height: 1.22,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.25,
-                  ),
-                ),
-                if (firsat.aciklama.isNotEmpty &&
-                    firsat.aciklama.trim() != firsat.baslik.trim()) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    firsat.aciklama,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.grey.shade700,
-                      fontSize: 14,
-                      height: 1.35,
+                    Row(
+                      children: [
+                        _ustFirsatRozeti(),
+                        const Spacer(),
+                        _magazaRozeti(magaza),
+                      ],
                     ),
-                  ),
-                ],
-                if (fiyatVar || firsat.eskiFiyat.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      if (fiyatVar)
-                        Expanded(
-                          child: Text(
-                            '💰 ${firsat.fiyat}',
-                            style: const TextStyle(
-                              color: Color(0xFF128447),
-                              fontSize: 27,
-                              height: 1,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.6,
-                            ),
-                          ),
-                        ),
-                      if (firsat.indirimOrani > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 11,
-                            vertical: 7,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFE8E8),
-                            borderRadius: BorderRadius.circular(13),
-                          ),
-                          child: Text(
-                            '-%${firsat.indirimOrani}',
-                            style: const TextStyle(
-                              color: Color(0xFFD92525),
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  if (firsat.eskiFiyat.isNotEmpty) ...[
-                    const SizedBox(height: 7),
+                    const SizedBox(height: 14),
                     Text(
-                      firsat.eskiFiyat,
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 15,
-                        decoration: TextDecoration.lineThrough,
-                        decorationThickness: 2,
+                      firsat.baslik.isEmpty ? 'Güncel Fırsat' : firsat.baslik,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        height: 1.22,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.35,
+                        color: Color(0xFF172033),
                       ),
                     ),
-                  ],
-                ],
-                const SizedBox(height: 15),
-                Divider(
-                  height: 1,
-                  color: Colors.grey.shade200,
-                ),
-                const SizedBox(height: 13),
-                _bilgiSatiri(
-                  Icons.storefront_outlined,
-                  magaza.ad,
-                  magaza.renk,
-                ),
-                const SizedBox(height: 8),
-                _bilgiSatiri(
-                  Icons.schedule_outlined,
-                  _zamanMetni(),
-                  Colors.blueGrey,
-                ),
-                if (linkHazir || fiyatVar || magazaEslesiyor) ...[
-                  const SizedBox(height: 8),
-                  _dogrulamaBilgisi(
-                    linkHazir: linkHazir,
-                    fiyatVar: fiyatVar,
-                    magazaEslesiyor: magazaEslesiyor,
-                  ),
-                ],
-                if (firsat.stokUyarisi.isNotEmpty) ...[
-                  const SizedBox(height: 9),
-                  _bilgiSatiri(
-                    Icons.info_outline,
-                    firsat.stokUyarisi,
-                    Colors.orange.shade800,
-                  ),
-                ],
-                const SizedBox(height: 15),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _kaydedildi = !_kaydedildi;
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              duration: const Duration(seconds: 1),
-                              content: Text(
-                                _kaydedildi
-                                    ? 'Fırsat bu oturum için kaydedildi.'
-                                    : 'Fırsat kayıtlardan çıkarıldı.',
+                    if (firsat.aciklama.isNotEmpty &&
+                        firsat.aciklama.trim() != firsat.baslik.trim()) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        firsat.aciklama,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 14,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                    if (fiyatVar || firsat.eskiFiyat.isNotEmpty) ...[
+                      const SizedBox(height: 17),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              magaza.renk.withOpacity(0.10),
+                              magaza.renk.withOpacity(0.035),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(17),
+                          border: Border.all(
+                            color: magaza.renk.withOpacity(0.12),
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            if (fiyatVar)
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'GÜNCEL FİYAT',
+                                      style: TextStyle(
+                                        color: magaza.renk,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.0,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      firsat.fiyat,
+                                      style: const TextStyle(
+                                        color: Color(0xFF128447),
+                                        fontSize: 27,
+                                        height: 1,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: -0.7,
+                                      ),
+                                    ),
+                                    if (firsat.eskiFiyat.isNotEmpty) ...[
+                                      const SizedBox(height: 7),
+                                      Text(
+                                        firsat.eskiFiyat,
+                                        style: TextStyle(
+                                          color: Colors.grey.shade500,
+                                          fontSize: 14,
+                                          decoration:
+                                              TextDecoration.lineThrough,
+                                          decorationThickness: 2,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            if (firsat.indirimOrani > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 13,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFD92525),
+                                  borderRadius: BorderRadius.circular(15),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFD92525)
+                                          .withOpacity(0.20),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Text(
+                                  '-%${firsat.indirimOrani}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Divider(
+                      height: 1,
+                      color: Colors.grey.shade200,
+                    ),
+                    const SizedBox(height: 14),
+                    _bilgiSatiri(
+                      Icons.storefront_outlined,
+                      magaza.ad,
+                      magaza.renk,
+                    ),
+                    const SizedBox(height: 9),
+                    _bilgiSatiri(
+                      Icons.schedule_outlined,
+                      _zamanMetni(),
+                      Colors.blueGrey,
+                    ),
+                    if (linkHazir || fiyatVar || magazaEslesiyor) ...[
+                      const SizedBox(height: 9),
+                      _dogrulamaBilgisi(
+                        linkHazir: linkHazir,
+                        fiyatVar: fiyatVar,
+                        magazaEslesiyor: magazaEslesiyor,
+                      ),
+                    ],
+                    if (firsat.stokUyarisi.isNotEmpty) ...[
+                      const SizedBox(height: 9),
+                      _bilgiSatiri(
+                        Icons.info_outline,
+                        firsat.stokUyarisi,
+                        Colors.orange.shade800,
+                      ),
+                    ],
+                    const SizedBox(height: 17),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _kaydedildi = !_kaydedildi;
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  duration: const Duration(seconds: 1),
+                                  content: Text(
+                                    _kaydedildi
+                                        ? 'Fırsat bu oturum için kaydedildi.'
+                                        : 'Fırsat kayıtlardan çıkarıldı.',
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: Icon(
+                              _kaydedildi
+                                  ? Icons.bookmark
+                                  : Icons.bookmark_border,
+                            ),
+                            label: Text(
+                              _kaydedildi ? 'Kaydedildi' : 'Kaydet',
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(49),
+                              foregroundColor: const Color(0xFF202A44),
+                              side: BorderSide(
+                                color: Colors.grey.shade300,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
                               ),
                             ),
-                          );
-                        },
-                        icon: Icon(
-                          _kaydedildi
-                              ? Icons.bookmark
-                              : Icons.bookmark_border,
-                        ),
-                        label: Text(
-                          _kaydedildi ? 'Kaydedildi' : 'Kaydet',
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                          foregroundColor: const Color(0xFF202A44),
-                          side: BorderSide(
-                            color: Colors.grey.shade300,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      flex: 2,
-                      child: FilledButton.icon(
-                        onPressed:
-                            linkHazir ? () => _firsatiAc(context) : null,
-                        icon: const Icon(Icons.shopping_cart_checkout),
-                        label: const Text('Fırsata Git'),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                          backgroundColor: magaza.renk,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: FilledButton.icon(
+                            onPressed:
+                                linkHazir ? () => _firsatiAc(context) : null,
+                            icon: const Icon(Icons.arrow_outward_rounded),
+                            label: const Text('Fırsata Git'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(49),
+                              backgroundColor: magaza.renk,
+                              disabledBackgroundColor: Colors.grey.shade300,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              elevation: 0,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _premiumKapak(_MagazaBilgisi magaza) {
+    return Container(
+      width: double.infinity,
+      height: 128,
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(23),
+        ),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF151D31),
+            magaza.renk.withOpacity(0.88),
+          ],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -24,
+            top: -28,
+            child: Container(
+              width: 118,
+              height: 118,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.08),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 35,
+            bottom: -42,
+            child: Container(
+              width: 92,
+              height: 92,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.06),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 17,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.18),
+                    ),
+                  ),
+                  child: Icon(
+                    _kapakIkonu(magaza.anahtar),
+                    color: Colors.white,
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        magaza.ad.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Trendora tarafından yakalanan güncel fırsat',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12.5,
+                          height: 1.3,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.auto_awesome,
+                        color: Colors.white,
+                        size: 14,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'DOĞRULANDI',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.7,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _otomobilGorseli(_MagazaBilgisi magaza) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(23),
+      ),
+      child: Stack(
+        children: [
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Image.network(
+              firsat.imageUrl.trim(),
+              width: double.infinity,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+
+                return Container(
+                  color: Colors.grey.shade100,
+                  alignment: Alignment.center,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: magaza.renk,
+                  ),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) {
+                return _premiumKapak(magaza);
+              },
+            ),
+          ),
+          Positioned(
+            left: 14,
+            top: 14,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 7,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.58),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.directions_car_filled_outlined,
+                    color: Colors.white,
+                    size: 15,
+                  ),
+                  SizedBox(width: 5),
+                  Text(
+                    'OTOMOBİL KAMPANYASI',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _kapakIkonu(String anahtar) {
+    switch (anahtar) {
+      case 'trendyol':
+      case 'hepsiburada':
+      case 'amazon':
+      case 'n11':
+      case 'telegram':
+        return Icons.shopping_bag_outlined;
+      case 'a101':
+      case 'bim':
+      case 'migros':
+      case 'sok':
+        return Icons.storefront_outlined;
+      case 'bank':
+      case 'banka':
+        return Icons.account_balance_outlined;
+      default:
+        return Icons.local_offer_outlined;
+    }
+  }
+
+  bool _otomobilFirsatiMi() {
+    final String metin = [
+      firsat.kategori,
+      firsat.kaynakAdi,
+      firsat.baslik,
+      firsat.aciklama,
+    ].join(' ').toLowerCase();
+
+    return firsat.kategori.toLowerCase() == 'automotive' ||
+        metin.contains('otomobil') ||
+        metin.contains('sıfır araç') ||
+        metin.contains('sifir arac') ||
+        metin.contains('araç kampanya') ||
+        metin.contains('arac kampanya');
   }
 
   Widget _ustFirsatRozeti() {
@@ -1649,13 +2082,16 @@ class _FirsatKartiState extends State<FirsatKarti> {
             color: const Color(0xFFE84A1A),
           ),
           const SizedBox(width: 5),
-          Text(
-            metin,
-            style: const TextStyle(
-              color: Color(0xFFE84A1A),
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.35,
+          Flexible(
+            child: Text(
+              metin,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFFE84A1A),
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.35,
+              ),
             ),
           ),
         ],
@@ -1664,37 +2100,42 @@ class _FirsatKartiState extends State<FirsatKarti> {
   }
 
   Widget _magazaRozeti(_MagazaBilgisi magaza) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 9,
-        vertical: 7,
-      ),
-      decoration: BoxDecoration(
-        color: magaza.renk.withOpacity(0.11),
-        borderRadius: BorderRadius.circular(13),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 9,
-            height: 9,
-            decoration: BoxDecoration(
-              color: magaza.renk,
-              shape: BoxShape.circle,
+    return Flexible(
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 9,
+          vertical: 7,
+        ),
+        decoration: BoxDecoration(
+          color: magaza.renk.withOpacity(0.11),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: magaza.renk,
+                shape: BoxShape.circle,
+              ),
             ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            magaza.ad.toUpperCase(),
-            style: TextStyle(
-              color: magaza.renk,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.25,
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                magaza.ad.toUpperCase(),
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: magaza.renk,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.25,
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1842,6 +2283,7 @@ class _FirsatKartiState extends State<FirsatKarti> {
       firsat.baslik,
       firsat.aciklama,
       firsat.officialUrl,
+      firsat.kategori,
     ].join(' ').toLowerCase();
 
     if (metin.contains('trendyol') || metin.contains('ty.gl')) {
@@ -1916,6 +2358,22 @@ class _FirsatKartiState extends State<FirsatKarti> {
       );
     }
 
+    if (metin.contains('bank') || metin.contains('banka')) {
+      return const _MagazaBilgisi(
+        anahtar: 'bank',
+        ad: 'Banka Kampanyası',
+        renk: Color(0xFF16865A),
+      );
+    }
+
+    if (_otomobilFirsatiMi()) {
+      return const _MagazaBilgisi(
+        anahtar: 'automotive',
+        ad: 'Otomobil Kampanyası',
+        renk: Color(0xFF4054B2),
+      );
+    }
+
     return _MagazaBilgisi(
       anahtar: 'diger',
       ad: firsat.kaynakAdi.isEmpty ? 'Trendora' : firsat.kaynakAdi,
@@ -1923,6 +2381,7 @@ class _FirsatKartiState extends State<FirsatKarti> {
     );
   }
 }
+
 
 class _MagazaBilgisi {
   final String anahtar;
@@ -2079,5 +2538,187 @@ class HataKarti extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _CanliRadar extends StatefulWidget {
+  const _CanliRadar();
+
+  @override
+  State<_CanliRadar> createState() => _CanliRadarState();
+}
+
+class _CanliRadarState extends State<_CanliRadar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _radarController;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _radarController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _radarController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _radarController,
+      builder: (context, child) {
+        return CustomPaint(
+          painter: _RadarPainter(
+            ilerleme: _radarController.value,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _RadarPainter extends CustomPainter {
+  final double ilerleme;
+
+  const _RadarPainter({
+    required this.ilerleme,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Offset merkez = Offset(
+      size.width / 2,
+      size.height / 2,
+    );
+
+    final double yaricap = size.width / 2;
+
+    final Paint arkaPlanBoyasi = Paint()
+      ..color = Colors.white.withOpacity(0.08)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(
+      merkez,
+      yaricap,
+      arkaPlanBoyasi,
+    );
+
+    final Paint cizgiBoyasi = Paint()
+      ..color = Colors.white.withOpacity(0.22)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    canvas.drawCircle(
+      merkez,
+      yaricap * 0.70,
+      cizgiBoyasi,
+    );
+
+    canvas.drawCircle(
+      merkez,
+      yaricap * 0.38,
+      cizgiBoyasi,
+    );
+
+    canvas.drawLine(
+      Offset(merkez.dx - yaricap, merkez.dy),
+      Offset(merkez.dx + yaricap, merkez.dy),
+      cizgiBoyasi,
+    );
+
+    canvas.drawLine(
+      Offset(merkez.dx, merkez.dy - yaricap),
+      Offset(merkez.dx, merkez.dy + yaricap),
+      cizgiBoyasi,
+    );
+
+    canvas.save();
+    canvas.translate(merkez.dx, merkez.dy);
+    canvas.rotate(ilerleme * 6.283185307);
+
+    final Paint taramaBoyasi = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          Colors.lightGreenAccent.withOpacity(0.65),
+          Colors.lightGreenAccent.withOpacity(0.05),
+        ],
+      ).createShader(
+        Rect.fromCircle(
+          center: Offset.zero,
+          radius: yaricap,
+        ),
+      );
+
+    final Path taramaAlani = Path()
+      ..moveTo(0, 0)
+      ..arcTo(
+        Rect.fromCircle(
+          center: Offset.zero,
+          radius: yaricap,
+        ),
+        -0.45,
+        0.9,
+        false,
+      )
+      ..close();
+
+    canvas.drawPath(
+      taramaAlani,
+      taramaBoyasi,
+    );
+
+    final Paint radarCizgisi = Paint()
+      ..color = Colors.lightGreenAccent
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(
+      Offset.zero,
+      Offset(yaricap, 0),
+      radarCizgisi,
+    );
+
+    canvas.restore();
+
+    final Paint merkezBoyasi = Paint()
+      ..color = Colors.lightGreenAccent;
+
+    canvas.drawCircle(
+      merkez,
+      3,
+      merkezBoyasi,
+    );
+
+    final Paint noktaBoyasi = Paint()
+      ..color = Colors.white;
+
+    canvas.drawCircle(
+      Offset(
+        merkez.dx + yaricap * 0.34,
+        merkez.dy - yaricap * 0.24,
+      ),
+      2.5,
+      noktaBoyasi,
+    );
+
+    canvas.drawCircle(
+      Offset(
+        merkez.dx - yaricap * 0.42,
+        merkez.dy + yaricap * 0.18,
+      ),
+      2,
+      noktaBoyasi,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RadarPainter oldDelegate) {
+    return oldDelegate.ilerleme != ilerleme;
   }
 }

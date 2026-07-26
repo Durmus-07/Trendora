@@ -1,5 +1,7 @@
 const path = require('path');
-const { spawn } = require('child_process');
+const {
+  spawn
+} = require('child_process');
 
 console.log('');
 console.log('========================================');
@@ -14,6 +16,8 @@ console.log('');
 require('./server');
 
 const children = new Map();
+const restartTimers = new Map();
+
 let shuttingDown = false;
 
 function envEnabled(
@@ -35,7 +39,9 @@ function envEnabled(
     'yes',
     'on'
   ].includes(
-    String(raw).trim().toLowerCase()
+    String(raw)
+      .trim()
+      .toLowerCase()
   );
 }
 
@@ -43,12 +49,14 @@ function startChild({
   name,
   filePath,
   enabled,
-  restartDelayMs = 15000
+  errorRestartDelayMs = 15000,
+  successfulRestartDelayMs = 15000
 }) {
   if (!enabled) {
     console.log(
       `[STARTUP] ${name} devre dışı.`
     );
+
     return;
   }
 
@@ -57,16 +65,53 @@ function startChild({
     filePath
   );
 
-  function launch() {
-    if (shuttingDown) return;
+  function scheduleRestart(delayMs) {
+    if (shuttingDown) {
+      return;
+    }
+
+    const existingTimer =
+      restartTimers.get(name);
+
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
 
     console.log(
-      `[STARTUP] ${name} başlatılıyor: ${absolutePath}`
+      `[STARTUP] ${name} ` +
+      `${Math.round(delayMs / 1000)} saniye ` +
+      'sonra yeniden başlatılacak.'
+    );
+
+    const timer = setTimeout(
+      () => {
+        restartTimers.delete(name);
+        launch();
+      },
+      delayMs
+    );
+
+    restartTimers.set(
+      name,
+      timer
+    );
+  }
+
+  function launch() {
+    if (shuttingDown) {
+      return;
+    }
+
+    console.log(
+      `[STARTUP] ${name} başlatılıyor: ` +
+      absolutePath
     );
 
     const child = spawn(
       process.execPath,
-      [absolutePath],
+      [
+        absolutePath
+      ],
       {
         cwd: __dirname,
         env: process.env,
@@ -74,14 +119,20 @@ function startChild({
       }
     );
 
-    children.set(name, child);
+    children.set(
+      name,
+      child
+    );
 
-    child.on('error', error => {
-      console.error(
-        `[STARTUP] ${name} başlatılamadı:`,
-        error?.message || error
-      );
-    });
+    child.on(
+      'error',
+      error => {
+        console.error(
+          `[STARTUP] ${name} başlatılamadı:`,
+          error?.message || error
+        );
+      }
+    );
 
     child.on(
       'exit',
@@ -94,18 +145,29 @@ function startChild({
           `sinyal: ${signal || '-'}`
         );
 
-        if (!shuttingDown) {
-          console.log(
-            `[STARTUP] ${name} ` +
-            `${restartDelayMs / 1000} saniye ` +
-            'sonra yeniden başlatılacak.'
-          );
-
-          setTimeout(
-            launch,
-            restartDelayMs
-          );
+        if (shuttingDown) {
+          return;
         }
+
+        /*
+          Kod 0:
+          Collector görevini başarıyla tamamladı.
+
+          Kod 0 dışındaki değer:
+          Collector hata nedeniyle kapandı.
+        */
+        const completedSuccessfully =
+          code === 0 &&
+          !signal;
+
+        const restartDelay =
+          completedSuccessfully
+            ? successfulRestartDelayMs
+            : errorRestartDelayMs;
+
+        scheduleRestart(
+          restartDelay
+        );
       }
     );
   }
@@ -113,6 +175,14 @@ function startChild({
   launch();
 }
 
+/*
+  Haber Collector kendi çalışma döngüsüne sahiptir.
+
+  Beklenmedik şekilde kapanırsa:
+  - Başarılı kapanmada 10 dakika sonra
+  - Hatalı kapanmada 15 saniye sonra
+  yeniden başlatılır.
+*/
 startChild({
   name: 'Haber Collector',
   filePath:
@@ -120,9 +190,24 @@ startChild({
   enabled: envEnabled(
     'ENABLE_NEWS_COLLECTOR',
     true
-  )
+  ),
+  errorRestartDelayMs:
+    15 * 1000,
+  successfulRestartDelayMs:
+    10 * 60 * 1000
 });
 
+/*
+  Trend Collector tek taramayı tamamlayıp
+  kod 0 ile kapanıyor.
+
+  Önceden her başarılı tamamlanmadan sonra
+  15 saniyede bir tekrar başlatılıyordu.
+
+  Artık:
+  - Başarılı çalışma: 15 dakika sonra
+  - Gerçek hata: 15 saniye sonra
+*/
 startChild({
   name: 'Trend Collector',
   filePath:
@@ -130,12 +215,16 @@ startChild({
   enabled: envEnabled(
     'ENABLE_TREND_COLLECTOR',
     true
-  )
+  ),
+  errorRestartDelayMs:
+    15 * 1000,
+  successfulRestartDelayMs:
+    15 * 60 * 1000
 });
 
 /*
   API kararlılığı doğrulanana kadar
-  Telegram collector kapalı tutulur.
+  Telegram Collector kapalı tutulur.
 */
 startChild({
   name: 'Telegram Collector',
@@ -144,11 +233,18 @@ startChild({
   enabled: envEnabled(
     'ENABLE_TELEGRAM_COLLECTOR',
     false
-  )
+  ),
+  errorRestartDelayMs:
+    15 * 1000,
+  successfulRestartDelayMs:
+    15 * 60 * 1000
 });
 
 function shutdown(signal) {
-  if (shuttingDown) return;
+  if (shuttingDown) {
+    return;
+  }
+
   shuttingDown = true;
 
   console.log(
@@ -157,8 +253,19 @@ function shutdown(signal) {
   );
 
   for (
-    const [name, child]
-    of children.entries()
+    const timer
+    of restartTimers.values()
+  ) {
+    clearTimeout(timer);
+  }
+
+  restartTimers.clear();
+
+  for (
+    const [
+      name,
+      child
+    ] of children.entries()
   ) {
     console.log(
       `[STARTUP] ${name} kapatılıyor.`

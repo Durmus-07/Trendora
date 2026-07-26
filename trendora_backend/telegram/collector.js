@@ -15,8 +15,9 @@ const DATABASE_FILE = path.join(
   'opportunities.json'
 );
 
-const MESSAGE_LIMIT_PER_CHANNEL = 30;
+const MESSAGE_LIMIT_PER_CHANNEL = 15;
 const MAX_STORED_TELEGRAM_ITEMS = 1000;
+const MAX_TELEGRAM_ITEM_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const PAGE_FETCH_TIMEOUT_MS = 12000;
 const PAGE_FETCH_CONCURRENCY = 4;
@@ -692,7 +693,14 @@ function looksLikeProductTitle(title) {
     'amazon bakiyenizi',
     'urunlere git',
     'kampanya geldi',
-    'firsat kodu'
+    'firsat kodu',
+    'telegram hesabina yonlendirme',
+    'telegram hesabina git',
+    'telegram kanalina yonlendirme',
+    'telegram kanalina git',
+    'kanalimiza katil',
+    'grubumuza katil',
+    'bize katil'
   ];
 
   if (blockedStarts.some(prefix =>
@@ -702,6 +710,48 @@ function looksLikeProductTitle(title) {
   }
 
   return true;
+}
+
+function isTelegramRedirectOrPromotion(text, urls = []) {
+  const value = normalizeForSearch(text);
+
+  const redirectPhrases = [
+    'telegram hesabina yonlendirme',
+    'telegram hesabina git',
+    'telegram kanalina yonlendirme',
+    'telegram kanalina git',
+    'telegram grubuna yonlendirme',
+    'telegram grubuna git',
+    'kanalimiza katil',
+    'kanalimiza uye ol',
+    'grubumuza katil',
+    'grubumuza uye ol',
+    'bize katil',
+    'takip etmek icin tikla',
+    'telegramdan takip et',
+    'telegram uzerinden takip et'
+  ];
+
+  if (redirectPhrases.some(phrase =>
+    value.includes(phrase)
+  )) {
+    return true;
+  }
+
+  const normalizedUrls = urls.map(url =>
+    normalizeForSearch(url)
+  );
+
+  const hasOnlyTelegramLinks =
+    normalizedUrls.length > 0 &&
+    normalizedUrls.every(url =>
+      url.includes('t.me/') ||
+      url.includes('telegram.me/')
+    );
+
+  const hasPrice = extractPrices(text).length > 0;
+
+  return hasOnlyTelegramLinks && !hasPrice;
 }
 
 
@@ -1163,6 +1213,11 @@ function createBaseOpportunity(channel, message) {
   }
 
   const urls = extractUrls(text);
+
+  if (isTelegramRedirectOrPromotion(text, urls)) {
+    return null;
+  }
+
   const prices = extractPrices(text);
 
   const advertisedPrice = prices.length > 0
@@ -1529,13 +1584,37 @@ function mergeItems(existingItems, newTelegramItems) {
     [...byProduct.values()]
       .filter(item => {
         /*
-          Eski collector'ın kaydettiği kupon/duyuru kayıtlarını da
-          yeni çalıştırmada temizler.
+          Eski collector'ın kaydettiği kupon/duyuru ve Telegram
+          yönlendirme kayıtlarını yeni çalıştırmada da temizler.
+          Ayrıca Online Fırsatlar bölümünün güncel kalması için
+          7 günden eski Telegram kayıtları tutulmaz.
         */
+        const publishedAt = new Date(
+          item.publishedAt ||
+          item.collectedAt ||
+          0
+        ).getTime();
+
+        const isFresh =
+          Number.isFinite(publishedAt) &&
+          publishedAt > 0 &&
+          Date.now() - publishedAt <= MAX_TELEGRAM_ITEM_AGE_MS;
+
         return (
+          isFresh &&
           looksLikeProductTitle(item.title) &&
           !isCouponOnlyMessage(
             `${item.title || ''} ${item.description || ''}`
+          ) &&
+          !isTelegramRedirectOrPromotion(
+            `${item.title || ''} ${item.description || ''}`,
+            Array.isArray(item.rawLinks)
+              ? item.rawLinks
+              : [
+                  item.url,
+                  item.officialUrl,
+                  item.telegramMessageUrl
+                ].filter(Boolean)
           )
         );
       })

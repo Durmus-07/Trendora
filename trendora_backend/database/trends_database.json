@@ -1,8 +1,8 @@
 {
   "success": true,
   "ready": true,
-  "createdAt": 1785056463133,
-  "updatedAt": "2026-07-26T09:01:03.133Z",
+  "createdAt": 1785070201671,
+  "updatedAt": "2026-07-26T12:50:01.671Z",
   "methodology": {
     "version": "2.1.0",
     "title": "Trendora Karar Destek Motoru",
@@ -63,7 +63,7 @@
       },
       "answerTitle": "Otomobil değerlendirmesi",
       "directAnswer": "Şu anda yalnızca açık haber sinyallerine ulaşılabildiği için kesin fiyat veya güçlü karar sonucu üretmek güvenilir olmaz.",
-      "summary": "Türkiye’de ikinci el otomobil fiyatlarında genel eğilim nedir? hakkında 1 benzersiz güncel içerik incelendi. Bu yedek analiz yalnızca haber yoğunluğu ve başlık eğiliminden oluşur; piyasa ilanı, fiyat geçmişi veya alan verisi bulunmadığında sonuç sınırlıdır.",
+      "summary": "Türkiye’de ikinci el otomobil fiyatlarında genel eğilim nedir? hakkında 0 benzersiz güncel içerik incelendi. Bu yedek analiz yalnızca haber yoğunluğu ve başlık eğiliminden oluşur; piyasa ilanı, fiyat geçmişi veya alan verisi bulunmadığında sonuç sınırlıdır.",
       "dailyPrice": {
         "available": false,
         "currency": null,
@@ -113,28 +113,28 @@
       "scenarios": [
         {
           "name": "Olumlu görünüm",
-          "probability": 16,
+          "probability": 38,
           "description": "Olumlu başlık ve ilgi sinyallerinin güçlenmesi."
         },
         {
           "name": "Dengeli görünüm",
-          "probability": 36,
+          "probability": 32,
           "description": "Mevcut sinyallerin yön belirlemek için yetersiz kalması."
         },
         {
           "name": "Olumsuz görünüm",
-          "probability": 48,
+          "probability": 30,
           "description": "Risk ve zayıflama sinyallerinin öne çıkması."
         }
       ],
-      "confidence": 24,
+      "confidence": 22,
       "confidenceLabel": "Düşük",
       "signals": [
         {
           "type": "neutral",
           "title": "Haber hacmi",
-          "detail": "1 benzersiz içerik bulundu.",
-          "weight": 4
+          "detail": "0 benzersiz içerik bulundu.",
+          "weight": 0
         },
         {
           "type": "positive",
@@ -145,8 +145,8 @@
         {
           "type": "negative",
           "title": "Olumsuz başlık sinyali",
-          "detail": "1 risk ifadesi tespit edildi.",
-          "weight": 10
+          "detail": "0 risk ifadesi tespit edildi.",
+          "weight": 0
         }
       ],
       "keyFactors": [
@@ -163,58 +163,36 @@
         "Karar vermeden önce gerçek fiyat, ilan veya resmi veri örneklerini kontrol et.",
         "Model, yıl, paket, konum, tarih ve bütçe gibi ayrıntıları soruya ekle."
       ],
-      "sources": [
-        {
-          "title": "Otomotivde haziran durağan geçti, yılın ilk yarısında reel fiyatlar düşüşte",
-          "publisher": "Ekonomim",
-          "url": "https://news.google.com/rss/articles/CBMizAFBVV95cUxNQmlTUzloTVZBN2hVTlR1X01MNzdURmRYYm5scWNkNmJSaWdXbjNWWkxXOF9Od3ZvUlltUnE2WlljOTlOU3NkMUh3Zk5pTHBKU1gtOHRNalA0NVF5eUlqV0d6MHM5dlh0SEtxSnA0UXdEUDF4M0MzVE05Z0hyWWFWWTMxWUJSM2o4V3VqN2hfN1dsbFRnSmdOSzZha1NMX3dNYzR0RmZhcHhac2I0VFo4alZFNE81NFhjX2RXN2RJTEtGcTRLMmpKVDJ0MmTSAdIBQVVfeXFMT1pnMFZJZzh0TExJNGQzV0thb3JOZlZQU0ZWMXBhMmJLRzlGMmNHT3Ria2xvVnpFSkpZdERibHNvX19zT3haR2pQbTg1ZjRiemZyVDEzQmpyYUNzazFoZjZPal9XdG5STmVsNHB1OWhXdU9uQVJ4MWxJNDJ4blloVmZrV3FPTENDVXJoWmJRZkV4OTJJWnZ1b1ExRHJuYkNjczMzb2paVVA2bTBQVWVUeWpqaW5fSUl6dGxReVpKRjd2c2hPRG1jSEgyMVpOeEVkQ0Nn?oc=5",
-          "publishedAt": "2026-07-10T07:00:00.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        }
-      ],
+      "sources": [],
       "disclaimer": "Bu değerlendirme sınırlı açık haber sinyallerinden üretilmiştir; kesin sonuç, yatırım, alım veya satım tavsiyesi değildir.",
       "engine": {
         "version": "5.0.0",
         "mode": "limited-fallback",
         "usedLiveMarketData": false,
         "usedLiveWebResearch": false,
-        "usedFallbackNews": true,
+        "usedFallbackNews": false,
         "evidenceProfile": {
-          "itemCount": 1,
-          "publisherCount": 1,
-          "domainCount": 1,
+          "itemCount": 0,
+          "publisherCount": 0,
+          "domainCount": 0,
           "officialCount": 0,
-          "sentimentScore": 0,
-          "qualityScore": 62,
-          "diversityScore": 20,
-          "coverageScore": 5,
-          "newsImpact": 37,
+          "sentimentScore": 50,
+          "qualityScore": 0,
+          "diversityScore": 0,
+          "coverageScore": 0,
+          "newsImpact": 0,
           "events": [],
-          "signals": [
-            {
-              "type": "negative",
-              "title": "Haber duyarlılığı",
-              "detail": "1 benzersiz içerikte duyarlılık puanı 0/100; 1 alan adı tarandı.",
-              "weight": 34
-            }
-          ],
-          "keyFactors": [
-            "1 güncel ve benzersiz içerik",
-            "1 farklı kaynak alan adı"
-          ]
+          "signals": [],
+          "keyFactors": []
         },
         "entityRecognition": false,
         "webResearchError": null,
         "sourceCoverage": {
           "planned": [],
-          "returned": [
-            "Ekonomim"
-          ],
+          "returned": [],
           "autoDiscovery": true
         },
-        "generatedAt": "2026-07-26T09:01:02.756Z",
+        "generatedAt": "2026-07-26T12:50:01.577Z",
         "cache": "miss"
       }
     },
@@ -431,7 +409,7 @@
         }
       },
       "answerTitle": "Kısa Vade finans değerlendirmesi",
-      "directAnswer": "Gold Aug 26 güncel fiyatı 4.070,8 USD. Kısa Vade için teknik görünüm negatif; veri güveni %72, risk seviyesi orta. Olası kırılım seviyesi 4.779,4 USD, takip bölgesi 4.025 USD - 4.062,3 USD, teknik geçersizlik 3.950,3 USD.",
+      "directAnswer": "Gold Aug 26 güncel fiyatı 4.070,8 USD. Kısa Vade için teknik görünüm negatif; veri güveni %64, risk seviyesi orta. Olası kırılım seviyesi 4.779,4 USD, takip bölgesi 4.025 USD - 4.062,3 USD, teknik geçersizlik 3.950,3 USD.",
       "summary": "Kısa Vade ufku; canlı fiyat serisi, RSI, EMA, SMA, MACD, ATR, hacim, destek-direnç ve erişilebilen haber sinyalleri birlikte değerlendirilerek hesaplandı. Sonuç kesin fiyat tahmini değil, olasılık bandıdır.",
       "dailyPrice": {
         "available": true,
@@ -493,9 +471,9 @@
       },
       "statistics": {
         "trendStrength": 39,
-        "dataConfidence": 72,
-        "riskScore": 37,
-        "newsImpact": 73,
+        "dataConfidence": 64,
+        "riskScore": 40,
+        "newsImpact": 15,
         "marketInterest": 100
       },
       "technicalPlan": {
@@ -593,7 +571,7 @@
           "description": "Riskler öne çıkarsa yaklaşık 3.793,04 USD - 3.736,02 USD bandı."
         }
       ],
-      "confidence": 72,
+      "confidence": 64,
       "confidenceLabel": "Orta",
       "signals": [
         {
@@ -661,16 +639,17 @@
         "Güncel içerik yoğunluğu",
         "Başlıklardaki olumlu ve olumsuz ifadeler",
         "Kaynak çeşitliliği",
-        "36 güncel ve benzersiz içerik",
-        "1 farklı kaynak alan adı",
         "Teknik skor 39/100",
         "RSI(14) 44.0",
         "EMA20 EMA50 altında",
         "MACD histogramı 16.88",
-        "Hacim oranı 18.38x"
+        "Hacim oranı 18.38x",
+        "ATR oynaklığı %1.73",
+        "Teknik skor: 39/100"
       ],
       "missingInformation": [
-        "Sorunun alanına özel nicel ölçütler"
+        "Sorunun alanına özel nicel ölçütler",
+        "Güncel haber ve KAP açıklamalarının tam taraması"
       ],
       "nextChecks": [
         "Karar vermeden önce gerçek fiyat, ilan veya resmi veri örneklerini kontrol et.",
@@ -681,144 +660,9 @@
           "title": "Gold Aug 26 piyasa verisi",
           "publisher": "Yahoo Finance",
           "url": "https://finance.yahoo.com/quote/GC%3DF",
-          "publishedAt": "2026-07-26T09:01:02.699Z",
+          "publishedAt": "2026-07-26T12:49:55.626Z",
           "evidenceType": "market-data",
           "credibility": 88,
-          "isOfficial": false
-        },
-        {
-          "title": "ÇEYREK ALTIN FİYATI - GRAM ALTIN FİYATI: 23 Temmuz altın fiyatları güncel durum! Altın ne kadar oldu?",
-          "publisher": "Uzmanpara",
-          "url": "https://news.google.com/rss/articles/CBMi4gFBVV95cUxOTlF4YXlGOWFCb2cxSzhHWGpOa2tUb0dzb2ZlRXQwWXdlZ1VEOFlwbURNcW11TnQzUF9WVXJBQnF3MmUxUFFQM2ZFNlRXTWNYczd6ODllaXIwZGhWQUJudUJwT0Rhb0ZaOENfbWJFRk9PdXNDRWFzbWJmOC1CYnB5aUZ5QnRIS2w5S1ZYVzVLSHNWRXMwTE5JTldZeHJfMENpSzdiZ1RtMGs0bEhiZzk2WWtnbGV2ajFxWDhLVjhSc1VsRHIxdldvci0xMHo1eFZMQ1VHSC1PSlZaWnVqN3ZRYjh3?oc=5",
-          "publishedAt": "2026-07-23T11:36:30.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "GRAM ALTIN FİYATLARI 10 TEMMUZ: Gram, yarım, çeyrek altın ne kadar? Altın fiyatları düşüyor mu yükseliyor mu?",
-          "publisher": "CNN Türk",
-          "url": "https://news.google.com/rss/articles/CBMi3AFBVV95cUxOVzhsMTB2QllwQUItaTl3WjJEa2dKejA1aHpjcGc0ZHFMeDJlQ3R0VEt0UTdnemJwZnZCOTdVcGZ1N3FpRG5YNVhmQXdJSjhBeDZ5SHg0d1pGZ3FQd3VsdFhHQi1KSTlnbW1NeHQxMEV3UHpHMFItUGdZN3BaUkdickVvWHZpc3dZY01FODQ4eDE0ZW1RQXhhSXNmVVFETG14Wkk2Q1BPNEd1LUhSYWtNYVp4Rm1RWC1rMHFsOXhHUnZ4NXNwRjZxTHBxYVpvX3pJYkhNa3pmWXNXdkll?oc=5",
-          "publishedAt": "2026-07-10T07:00:00.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "ALTIN FİYATLARI 16 TEMMUZ | BUGÜN ÇEYREK, GRAM ALTIN NE KADAR?",
-          "publisher": "Yeni Asır",
-          "url": "https://news.google.com/rss/articles/CBMiqAFBVV95cUxOd29vN04yTXdZcWEzT1VEVVIxRlJqVThZZWxTX05pUFZoazZiejByM04yU19ocTVsSUlqVEs0bDM1LWo1amVYc1FSTWprVlg5NjYtXzhQUmxmRDVnTzVrRzhmVnlzVFRRcTRtVzJpc19FT0JWemFyRGJER2VuY2xTQ3k1RnZMZ0EzUlhpLVB5WlQ1b0ZLQVotdnVUUXEwZVlkQmlsdDNCQjQ?oc=5",
-          "publishedAt": "2026-07-16T07:13:11.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "Altının gramı 6 bin 270 liradan işlem görüyor. Çeyrek altın 10 bin 286 liradan, cumhuriyet altını 40 bin 987 liradan satılıyor Gram altın, güne yükselişle başlamasının ardından 6 bin 270 liradan işlem görüyor. Dün, ons fiyatındaki yükselişe paralel alış ağırlıklı bir",
-          "publisher": "instagram.com",
-          "url": "https://news.google.com/rss/articles/CBMiUkFVX3lxTE1WeWRJVURXSi1ybWJfNk1ZUDZIVm1lajUzRmM2N0pwM05oN29abmRVSkdaOG0xSWk1akY3R1BjbEJ1Z2Z4UXVwM2JVdTFLQmp4Ymc?oc=5",
-          "publishedAt": "2026-07-22T06:50:49.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "Gram altında son durum ne? 3 Temmuz 2026 Cuma altın fiyatları…",
-          "publisher": "Bloomberght",
-          "url": "https://news.google.com/rss/articles/CBMiowFBVV95cUxNcGM5eWMxMU5OVEtpRjVDWUZ3b1ItZWtwOUpJOXBKb2xwNlBVTW03LTNuRG95N0wtOXZEdmR1Q3lrb0l5R2w3UVNHTVQ2cmhtOWljM2FGT0dPNERYRVFMb0pMaXdXSDJ4cFlvYjV1WjBGNW1ZcHBpYnJEM2k0V2g3MEVmUVRIOFZjZkNrR19UWHp5ZzJlRkE2SElpcUllZ09LOEg0?oc=5",
-          "publishedAt": "2026-07-03T07:00:00.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "HAFTA SONU ALTIN FİYATLARI 4 TEMMUZ 2026 || Bugün gram altın, çeyrek altın, ONS altın ve Cumhuriyet altını ne kadar, kaç lira? Serbest piyasa altın alış satış fiyatları takip tablosu...",
-          "publisher": "Bigpara",
-          "url": "https://news.google.com/rss/articles/CBMi3wFBVV95cUxPOWpyRC1qajJfZWxvZ0kyb1gwdDY4XzBHS2JYWGMtS085OGxCUmhyMlIwWlZYb0VzVzhESHkwV2dqVmlLaTBwdC1kem9hNC1pV1FZUzJnWTJsU0tNdUpMdG42T0Q4NWNaS3dBVnlzc2MxSXBGS0VPRU8ySmZkWTUtZGpHR1lyOEFLUVpCbEc3QWplMXFJbFg4QkN5Nl9rWG5BSkkwZWR6SGFJbXpNcTdrX05jNW9HOEN3dnpROXprSzd5STdYZ1NCMzRGd1hrcmUyYlAtdmRhQWdSRS1yekE4?oc=5",
-          "publishedAt": "2026-07-04T07:00:00.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "ABD ve İran'ın füze yağmuru altın fiyatlarını sarstı",
-          "publisher": "Halk TV",
-          "url": "https://news.google.com/rss/articles/CBMipwFBVV95cUxNWjVhbm1lamdIT1BlckNvbEpUendla0dXMkUtUjZMYVFYYTRtekNwOE9hUi1yQ1VVMzVKVnUwRmxvUkNobVdyejQ5cmJtd0hCWUFYc2Iyb0ZsanJuQ1lhNWRYVEg3TlEtTGNhS2lHY2pxUExpVzFJTHVmZ1pkNnZsdFBoZGlhZmdUb3dvbUR4by1mS1RROG84dVIzZC1fS2ZMbkpSU1FQUQ?oc=5",
-          "publishedAt": "2026-07-09T07:00:00.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "Altın fiyatlarında toparlanma sinyali! Gram altın ne kadar? | 4 Temmuz canlı altın kuru takibi!",
-          "publisher": "Fotomaç",
-          "url": "https://news.google.com/rss/articles/CBMivAFBVV95cUxQM0FSeVNVR3lrajRWSEcwdEtqcWZScVZtdUxQTDVIRjdzYXpNNjFWZUx0LXhISGZJSER0SmZJSHZzbWxWZ3BfWjRtUG9RQWhhaEFGdEw5NDNEXzJndlNRdFNqNFFHZHVGeUpkNzlrZ1lVVzRsM0xFQlF0T2RSa3pQVjh2cEYyOF9xNTcyTndGVl9lYjVTZmVOcHpqRDJaLVpQaDF5cTVkYjljOXBZdFdKVjRCLXZYLW90TFFJcNIBwgFBVV95cUxPXzZXdGd3czNVeFpKMEdZY3RHSXJsa3RVbkRfeGd0X0IzWHRWeEtCeUxUR2FyYURmRmNJcjNUZmFsd2stYUNXM0ZaX2t4Ukw0UTNPU2ZTZGdHY2c0WXY2NVBMR0ROTXlqZGNsN2UzVFowRHdJeTlxTEhzMFB5RGJ6MXRjV2dRNVluSnRJNUFLNzV2TkZzRXpYX01UVE9zbkhIN2V6Y0VvN192bVR0dWxFN0h2TWRHUHZIRXFnNVlrVkRNQQ?oc=5",
-          "publishedAt": "2026-07-04T07:00:00.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "7 TEMMUZ SALI CANLI ÇEYREK ALTIN FİYATI - GRAM ALTIN FİYATI: Bugünkü altın fiyatları ne kadar? Altın ne kadar oldu?",
-          "publisher": "Uzmanpara",
-          "url": "https://news.google.com/rss/articles/CBMi7AFBVV95cUxONjRERmh2TWg0Q3JULVdITDMwTWJYWnZQZmh5M0FVby01STJXMTdhcTBLb1R2dTIwdGhlZGNWTkdIa2N1NlhlM3pkcW5sWGYxVkJ3Q3RhUXBWYlc4eHBYZjJ2Ri1Ycld5MDJFLTJ3X3p5SnA2MGJmcF81ZUdSSzV4a1FZLXFXcXBxQ2haX0VUUXBHTkZNaFZpU2NOZUJZdmVoUXNOQkhEeFQxQ296STdCRXhWem9OWm1LQnNpek5WZ1lYNDhOcVhQNlc1bWlTeEp2ZUNveVNMUnNMbVdiNldEczRuS0Y3cWJMOFRtQw?oc=5",
-          "publishedAt": "2026-07-07T07:00:00.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "CANLI ALTIN FİYATLARI | 13 TEMMUZ ALTIN FİYATLARI NE KADAR? GRAM ALTIN NE KADAR OLDU?",
-          "publisher": "Yeni Asır",
-          "url": "https://news.google.com/rss/articles/CBMixwFBVV95cUxQMkJxYmhzWkhMbVpSeWhLVTFKSnFDcEtlVjVkODllTDMwRzFJSmFWQktyVDI1bmRzTVY4NHk0UmwySkhJd3RsT0JjWkFHbDc2enBOdnY2WUI2aDdUZ01nMG5heXBpbDByQ2syd0RyMERZLUNrQ0d3bmtoa1ZVR01pbDgwMFN3a1pSQU9GRGJwaS1JNkR0Ty1SQTRPYVVnblY0bWZmZjh4eU9Fa1VBNDlCTDUxQ3BiT2NBQjBzQ2JSajI2NkxiZS13?oc=5",
-          "publishedAt": "2026-07-13T08:03:30.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "BUGÜNKÜ ALTIN FİYATLARI 5 TEMMUZ 2026: Gram Altın ve Çeyrek Altın Ne Kadar Oldu? Gram Altın Rekora mı Gidiyor? Çeyrek Altın, Yarım Altın, Cumhuriyet Altını Kaç TL?",
-          "publisher": "CNN Türk",
-          "url": "https://news.google.com/rss/articles/CBMi-gFBVV95cUxNaG0zWURlVUJUd25HOFpMV3cyLUlfMnloVWtKQk1FVkpyaDlRdnpPcnp1empSYU1tNEk2ZFhvWE1hSjdwaHNIMHBNZWhoS0pGdFA4NWZnT18xMk91QmZ0NVBFTjVlU2FBeHBidllKbzNpTXdTNTV2TExTMTlGZURqampIRDdqeFhyVW9faEhzSXN6UGdBbkxGN0t6d2I1bjE4alRsd3hIc0JLWU5mVHlqS0RnUnRBMi1OaWtlc3FCOW1SREFkNTBOVTk1eDFtWHVuVXZPZHRIN1pFTXB4UDZXcjRLTVFPN1Z0RDJoOUNhLTFjR191dnpWWFln?oc=5",
-          "publishedAt": "2026-07-05T07:00:00.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "Güvenli liman sarsılıyor: Altın piyasasında kritik sınır mücadelesi!",
-          "publisher": "Halk TV",
-          "url": "https://news.google.com/rss/articles/CBMiqAFBVV95cUxPbTZYNDZXZnYxNTRIcVVqWVNtMmFlMTBIQWtqbXIzckJ0bVR5OWk2d3hLdEV6aDdFVEp0T2ZSZ2NRaTcyd0tLc2NyV0VwUDItVVE0UldUSlhnaXBkRnVkaXlzZnZtRmZPMTJZVDVNcEFzNkswTFhvdXpYV2tKTXlzOTFzY0w0SS01eW5xLW1IVE1kX2R3WDVkdEpPUHh3MVhaSVR5c24tOFA?oc=5",
-          "publishedAt": "2026-07-10T07:00:00.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "Gram altında son durum ne? 10 Temmuz 2026 Cuma altın fiyatları…",
-          "publisher": "Bloomberght",
-          "url": "https://news.google.com/rss/articles/CBMipAFBVV95cUxQbGJGcDdSb1JFUkFicUxsU1Exc2VFUlBXaGd0VkFyWTBSWHhmT0ZVNWYwOFpNT1NaSkNWYW5YMWc1WHhjNlZBdVo3RGhsaFd6bTQyNlpkSFF6RkZUSFdNXzNLeGk1WlBvdFhXcjNNSWNaMmx3alg0RWcwdUYzcU5YdHJhNWY5X2tHTTNqQ2xmOFdaR2k1enJxSzh5VHV2MmlzMzdkRQ?oc=5",
-          "publishedAt": "2026-07-10T07:00:00.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "SON DAKİKA ÇEYREK VE GRAM ALTIN FİYATI 24 TEMMUZ CUMA 2026: Haftanın son işlem gününde altın fiyatları ne kadar? Çeyrek altın, Yarım altın fiyatı",
-          "publisher": "Uzmanpara",
-          "url": "https://news.google.com/rss/articles/CBMijAJBVV95cUxNMDNvdlBjd24wcG41YVVIN3NmRWs4MmV5MV9iVlppVU1FalZFN1FBS2FaenVyaXpBZGNyR01UNnl3ZzFrdnlwZHBIdkgxa2paVXpCenVRZjRjdExXa1ROaUtTM1AzTFp1R0N5VUp1eGc5ZjVRbS05blBReV84SGN0Tnd5RHczUkhrejBZRmxQeG00WkFGSjJRbm1ON2NFWnlROG1LaDg3ZmdvUmh6azRlVjl0Mzh3MnZCNnhKYjRic3VNZmE0LWotOWphSTBMakxRUTlsQ2lrV1ZZS1hsN3dnQW5qalVJbm1MdGZZLVpKQjQ0d3FFNFNVcGhLVFlSd1RqdWRkUVUxdFZ4aHpr?oc=5",
-          "publishedAt": "2026-07-24T13:55:53.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "ALTIN FİYATLARI SON DAKİKA | YATIRIMCILAR DİKKAT: BUGÜN GRAM ALTIN NE KADAR OLDU? ÇEYREK ALTIN NE KADAR OLDU?",
-          "publisher": "Yeni Asır",
-          "url": "https://news.google.com/rss/articles/CBMi5gFBVV95cUxQYy1WQ28weXdvRlIzbk42OTd3QW5LVVdVVV9Eei1jeWRHZjVvck9ZWHVLX0RtZnVGRmdnOGMyR2liSF9uWEl3Q1lEQWIwTllOUkxtYjZuRE1qYkU4ZXBzcmtKMVk3VlpqYi1jWXRaM2o1cHM5aUg2ZDIyejgyeGxkQUxwTWF4bXVIX2xaWXhyYTJnVVZrWEkxZ3lRb1lNMlRkLVhHaUkxUGVFMjRLSDhqX3QzaUtUNFJ5UGR0OWp0Q3hTOFA3dTlZYUlqdk5OUkNCNVV0S2t4bkFGOVJacGVSTktKbDMxQQ?oc=5",
-          "publishedAt": "2026-07-08T06:24:30.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
           "isOfficial": false
         }
       ],
@@ -828,30 +672,20 @@
         "mode": "market-data",
         "usedLiveMarketData": true,
         "usedLiveWebResearch": false,
-        "usedFallbackNews": true,
+        "usedFallbackNews": false,
         "evidenceProfile": {
-          "itemCount": 36,
-          "publisherCount": 13,
-          "domainCount": 1,
+          "itemCount": 0,
+          "publisherCount": 0,
+          "domainCount": 0,
           "officialCount": 0,
-          "sentimentScore": 59,
-          "qualityScore": 62,
-          "diversityScore": 92,
-          "coverageScore": 100,
-          "newsImpact": 73,
+          "sentimentScore": 50,
+          "qualityScore": 0,
+          "diversityScore": 0,
+          "coverageScore": 0,
+          "newsImpact": 0,
           "events": [],
-          "signals": [
-            {
-              "type": "positive",
-              "title": "Haber duyarlılığı",
-              "detail": "36 benzersiz içerikte duyarlılık puanı 59/100; 1 alan adı tarandı.",
-              "weight": 81
-            }
-          ],
-          "keyFactors": [
-            "36 güncel ve benzersiz içerik",
-            "1 farklı kaynak alan adı"
-          ]
+          "signals": [],
+          "keyFactors": []
         },
         "entityRecognition": true,
         "webResearchError": null,
@@ -878,26 +712,11 @@
             "BIST 30"
           ],
           "returned": [
-            "Yahoo Finance",
-            "Uzmanpara",
-            "CNN Türk",
-            "Yeni Asır",
-            "instagram.com",
-            "Bloomberght",
-            "Bigpara",
-            "Halk TV",
-            "Fotomaç",
-            "Uzmanpara",
-            "Yeni Asır",
-            "CNN Türk",
-            "Halk TV",
-            "Bloomberght",
-            "Uzmanpara",
-            "Yeni Asır"
+            "Yahoo Finance"
           ],
           "autoDiscovery": true
         },
-        "generatedAt": "2026-07-26T09:01:03.133Z",
+        "generatedAt": "2026-07-26T12:50:01.670Z",
         "cache": "miss"
       }
     },
@@ -1085,7 +904,7 @@
           "returned": [],
           "autoDiscovery": true
         },
-        "generatedAt": "2026-07-26T09:01:02.868Z",
+        "generatedAt": "2026-07-26T12:50:01.670Z",
         "cache": "miss"
       }
     },
@@ -1144,7 +963,7 @@
       },
       "answerTitle": "Ürün ve Fiyat değerlendirmesi",
       "directAnswer": "Şu anda yalnızca açık haber sinyallerine ulaşılabildiği için kesin fiyat veya güçlü karar sonucu üretmek güvenilir olmaz.",
-      "summary": "Teknoloji ürünlerinde fiyatların düşme olasılığı var mı? hakkında 2 benzersiz güncel içerik incelendi. Bu yedek analiz yalnızca haber yoğunluğu ve başlık eğiliminden oluşur; piyasa ilanı, fiyat geçmişi veya alan verisi bulunmadığında sonuç sınırlıdır.",
+      "summary": "Teknoloji ürünlerinde fiyatların düşme olasılığı var mı? hakkında 0 benzersiz güncel içerik incelendi. Bu yedek analiz yalnızca haber yoğunluğu ve başlık eğiliminden oluşur; piyasa ilanı, fiyat geçmişi veya alan verisi bulunmadığında sonuç sınırlıdır.",
       "dailyPrice": {
         "available": false,
         "currency": null,
@@ -1208,26 +1027,26 @@
           "description": "Risk ve zayıflama sinyallerinin öne çıkması."
         }
       ],
-      "confidence": 26,
+      "confidence": 22,
       "confidenceLabel": "Düşük",
       "signals": [
         {
           "type": "neutral",
           "title": "Haber hacmi",
-          "detail": "2 benzersiz içerik bulundu.",
-          "weight": 8
+          "detail": "0 benzersiz içerik bulundu.",
+          "weight": 0
         },
         {
           "type": "positive",
           "title": "Olumlu başlık sinyali",
-          "detail": "1 olumlu ifade tespit edildi.",
-          "weight": 10
+          "detail": "0 olumlu ifade tespit edildi.",
+          "weight": 0
         },
         {
           "type": "negative",
           "title": "Olumsuz başlık sinyali",
-          "detail": "1 risk ifadesi tespit edildi.",
-          "weight": 10
+          "detail": "0 risk ifadesi tespit edildi.",
+          "weight": 0
         }
       ],
       "keyFactors": [
@@ -1244,58 +1063,38 @@
         "Karar vermeden önce gerçek fiyat, ilan veya resmi veri örneklerini kontrol et.",
         "Model, yıl, paket, konum, tarih ve bütçe gibi ayrıntıları soruya ekle."
       ],
-      "sources": [
-        {
-          "title": "Elektrik fiyatları yükselme baskısı altında mı yoksa düşme ihtimali var mı?",
-          "publisher": "Vietnam.vn",
-          "url": "https://news.google.com/rss/articles/CBMiggFBVV95cUxPQnJ5azNnWW9zWmpGWGpHVVZOY05YT0oxLVBkODg0QlhXSTNLOXduX29seHZBMURYV1FvWWN1Qml3a05IRTRqUl9BTmxUSm02MGJzMExPLWNjVHE4VUowcXZjdVdYT2dobUJPUWN4NE5SMG1oN2dzWjFnYmM1RlY2bDZR?oc=5",
-          "publishedAt": "2026-07-13T07:00:00.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        },
-        {
-          "title": "25 Mart 2026, Tarım Ürünleri Fiyatları: Kahve fiyatlarında keskin artış bekleniyor; ABD, Orta Doğu ile görüşmelerin başladığını açıkladı; Asya, İran petrolü satın almaya hazırlanıyor.",
-          "publisher": "Vietnam.vn",
-          "url": "https://news.google.com/rss/articles/CBMi7AFBVV95cUxOSkRHWjRrMlpGVmxJTEdhRGxVOGpLaldSbEJ6UzFlREtPXzhJYUVuZXFscy1WVS1yc0plLWlvcWpwTmdreDRfdFhRN1dLZ2R1c2Q1cndTblI2T2E1a0JPd0VnZml3bThBNUJ3dHl6NExHenpBWjMwS3VJOHZRbEttWWw5XzVlejRIRWhjUTludE1RVjZCdl9iVlJuNW5fbm80SzVkM0xKYV9wYTh2eEJLazcyb0R4NHhZTHY5QUhCU19TV25qdHhLSjlYTW9SakU2ZzJpTnI4TUx2SlFZaGNCTmhYbEhLR0ljY1FXYg?oc=5",
-          "publishedAt": "2026-07-19T15:34:51.000Z",
-          "evidenceType": "news",
-          "credibility": 62,
-          "isOfficial": false
-        }
-      ],
+      "sources": [],
       "disclaimer": "Bu değerlendirme sınırlı açık haber sinyallerinden üretilmiştir; kesin sonuç, yatırım, alım veya satım tavsiyesi değildir.",
       "engine": {
         "version": "5.0.0",
         "mode": "limited-fallback",
         "usedLiveMarketData": false,
         "usedLiveWebResearch": false,
-        "usedFallbackNews": true,
+        "usedFallbackNews": false,
         "evidenceProfile": {
-          "itemCount": 2,
-          "publisherCount": 1,
-          "domainCount": 1,
+          "itemCount": 0,
+          "publisherCount": 0,
+          "domainCount": 0,
           "officialCount": 0,
-          "sentimentScore": 78,
-          "qualityScore": 62,
-          "diversityScore": 20,
-          "coverageScore": 10,
-          "newsImpact": 26,
+          "sentimentScore": 50,
+          "qualityScore": 0,
+          "diversityScore": 0,
+          "coverageScore": 0,
+          "newsImpact": 0,
           "events": [],
-          "signals": [
-            {
-              "type": "positive",
-              "title": "Haber duyarlılığı",
-              "detail": "2 benzersiz içerikte duyarlılık puanı 78/100; 1 alan adı tarandı.",
-              "weight": 36
-            }
-          ],
-          "keyFactors": [
-            "2 güncel ve benzersiz içerik",
-            "1 farklı kaynak alan adı"
-          ]
+          "signals": [],
+          "keyFactors": []
         },
         "entityRecognition": false,
         "webResearchError": null,
         "sourceCoverage": {
-          "pl
+          "planned": [],
+          "returned": [],
+          "autoDiscovery": true
+        },
+        "generatedAt": "2026-07-26T12:50:01.671Z",
+        "cache": "miss"
+      }
+    }
+  ]
+}

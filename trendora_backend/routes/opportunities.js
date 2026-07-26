@@ -7,12 +7,15 @@ const {
 } = require('../services/bimCollector');
 
 const {
-  bankaKampanyalariniYenile,
-  otomobilKampanyalariniYenile,
-  tumKampanyalariYenile
-} = require('../services/campaignSync');
+  startMarketCollectorScheduler,
+  runMarketCollectorsNow,
+  getMarketCollectorStatus
+} = require('../services/marketCollectorScheduler');
 
 const router = express.Router();
+
+// Sunucu açıldığında yalnızca bir kez düşük yük zamanlayıcısını başlatır.
+startMarketCollectorScheduler();
 
 const dataFilePath = path.join(
   __dirname,
@@ -560,43 +563,39 @@ router.get('/bim/refresh', async (req, res) => {
   }
 });
 
-router.get('/bank/refresh', async (req, res) => {
+
+/*
+  Tüm marketleri sırayla ve güvenli şekilde elle yeniler:
+  /api/opportunities/markets/refresh
+*/
+router.get('/markets/refresh', async (req, res) => {
   try {
-    const result = await bankaKampanyalariniYenile();
-    res.status(result.success ? 200 : 502).json(result);
+    const result = await runMarketCollectorsNow();
+
+    res.status(result.success ? 200 : 207).json({
+      ...result,
+      message: result.success
+        ? 'BİM, A101, Migros ve CarrefourSA yenilendi.'
+        : 'Market yenileme tamamlandı; bazı kaynaklar hata verdi.'
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Banka kampanyaları yenilenemedi.',
+      message: 'Marketler yenilenemedi.',
       error: error.message
     });
   }
 });
 
-router.get('/automotive/refresh', async (req, res) => {
-  try {
-    const result = await otomobilKampanyalariniYenile();
-    res.status(result.success ? 200 : 502).json(result);
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Otomobil kampanyaları yenilenemedi.',
-      error: error.message
-    });
-  }
-});
-
-router.get('/campaigns/refresh', async (req, res) => {
-  try {
-    const result = await tumKampanyalariYenile();
-    res.status(result.success ? 200 : 502).json(result);
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Banka ve otomobil kampanyaları yenilenemedi.',
-      error: error.message
-    });
-  }
+/*
+  Zamanlayıcı durumunu gösterir:
+  /api/opportunities/markets/status
+*/
+router.get('/markets/status', (req, res) => {
+  res.json({
+    success: true,
+    ...getMarketCollectorStatus()
+  });
 });
 
 router.get('/:source', (req, res) => {

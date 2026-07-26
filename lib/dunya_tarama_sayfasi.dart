@@ -710,17 +710,16 @@ class _DunyaTaramaSayfasiState extends State<DunyaTaramaSayfasi>
 
   @override
   Widget build(BuildContext context) {
-    final double ekranGenisligi =
-        MediaQuery.sizeOf(context).width;
+    final Size ekran = MediaQuery.sizeOf(context);
+    final bool cokKucuk = ekran.height < 720;
+    final double yatayBosluk = ekran.width < 380 ? 14 : 20;
 
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
       body: SafeArea(
         child: Stack(
           children: [
-            const Positioned.fill(
-              child: _YildizliArkaPlan(),
-            ),
+            const Positioned.fill(child: _YildizliArkaPlan()),
             Positioned.fill(
               child: IgnorePointer(
                 child: AnimatedBuilder(
@@ -740,54 +739,64 @@ class _DunyaTaramaSayfasiState extends State<DunyaTaramaSayfasi>
                 parent: girisKontrolcusu,
                 curve: Curves.easeOut,
               ),
-              child: Center(
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: ekranGenisligi < 380 ? 14 : 20,
-                    vertical: 22,
-                  ),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxWidth: 620,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(
+                      yatayBosluk,
+                      cokKucuk ? 8 : 14,
+                      yatayBosluk,
+                      cokKucuk ? 8 : 14,
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _ustBaslik(),
-                        const SizedBox(height: 14),
-                        _dunyaAlani(),
-                        const SizedBox(height: 18),
-                        _anaDurumAlani(),
-                        const SizedBox(height: 20),
-                        if (!baglantiHatasiVar) ...[
-                          _istatistikler(),
-                          const SizedBox(height: 14),
-                          _modulKartlari(),
-                          const SizedBox(height: 14),
-                          _taramaBilgiKarti(),
-                          const SizedBox(height: 14),
-                          _canliLogPaneli(),
-                          const SizedBox(height: 18),
-                          _ilerlemeAlani(),
-                        ],
-                        if (taramaTamamlandi) ...[
-                          const SizedBox(height: 16),
-                          _tamamlandiAlani(),
-                        ],
-                        if (baglantiHatasiVar) ...[
-                          const SizedBox(height: 18),
-                          _hataAlani(),
-                        ],
-                      ],
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight -
+                            (cokKucuk ? 16 : 28),
+                      ),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 560),
+                          child: _taramaIcerigi(cokKucuk),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _taramaIcerigi(bool cokKucuk) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ustBaslik(),
+        SizedBox(height: cokKucuk ? 8 : 14),
+        _dunyaAlani(
+          boyut: cokKucuk ? 150 : 184,
+        ),
+        SizedBox(height: cokKucuk ? 8 : 14),
+        _anaDurumAlani(),
+        SizedBox(height: cokKucuk ? 12 : 18),
+        if (!baglantiHatasiVar) ...[
+          _istatistikler(),
+          SizedBox(height: cokKucuk ? 12 : 18),
+          _ilerlemeAlani(),
+        ],
+        if (taramaTamamlandi) ...[
+          SizedBox(height: cokKucuk ? 12 : 18),
+          _tamamlandiAlani(),
+        ],
+        if (baglantiHatasiVar) ...[
+          SizedBox(height: cokKucuk ? 12 : 18),
+          _hataAlani(),
+        ],
+      ],
     );
   }
 
@@ -896,7 +905,7 @@ class _DunyaTaramaSayfasiState extends State<DunyaTaramaSayfasi>
     );
   }
 
-  Widget _dunyaAlani() {
+  Widget _dunyaAlani({double boyut = 238}) {
     return AnimatedBuilder(
       animation: Listenable.merge([
         donusKontrolcusu,
@@ -905,8 +914,8 @@ class _DunyaTaramaSayfasiState extends State<DunyaTaramaSayfasi>
       ]),
       builder: (context, _) {
         return SizedBox(
-          width: 238,
-          height: 238,
+          width: boyut,
+          height: boyut,
           child: CustomPaint(
             painter: _DunyaRadarPainter(
               rotationValue: donusKontrolcusu.value,
@@ -977,48 +986,102 @@ class _DunyaTaramaSayfasiState extends State<DunyaTaramaSayfasi>
   }
 
   Widget _istatistikler() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double kartGenisligi =
-            (constraints.maxWidth - 10) / 2;
-
-        return Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            _istatistikKarti(
-              genislik: kartGenisligi,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xC90F172A),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF1E3A5F)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1800D4FF),
+            blurRadius: 18,
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _kompaktIstatistik(
               icon: Icons.article_outlined,
               baslik: 'Haber',
               deger: analizEdilenHaber,
-              altMetin: 'Canlı içerik',
             ),
-            _istatistikKarti(
-              genislik: kartGenisligi,
+          ),
+          _inceAyirici(),
+          Expanded(
+            child: _kompaktIstatistik(
               icon: Icons.local_offer_outlined,
               baslik: 'Fırsat',
               deger: bulunanFirsat,
-              altMetin: 'Doğrulanan kayıt',
             ),
-            _istatistikKarti(
-              genislik: kartGenisligi,
+          ),
+          _inceAyirici(),
+          Expanded(
+            child: _kompaktIstatistik(
               icon: Icons.trending_up_rounded,
               baslik: 'Trend',
               deger: yeniTrendSayisi,
-              altMetin: 'Analiz sonucu',
             ),
-            _istatistikKarti(
-              genislik: kartGenisligi,
+          ),
+          _inceAyirici(),
+          Expanded(
+            child: _kompaktIstatistik(
               icon: Icons.hub_outlined,
               baslik: 'Kaynak',
               deger: tarananKaynak,
-              altMetin: hedefKaynakSayisi > 0
-                  ? '$aktifKaynakSayisi aktif'
-                  : 'Kaynak ağı',
             ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _kompaktIstatistik({
+    required IconData icon,
+    required String baslik,
+    required int deger,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: const Color(0xFF67E8F9), size: 19),
+        const SizedBox(height: 5),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 160),
+          child: Text(
+            _sayiBicimlendir(deger),
+            key: ValueKey('$baslik-$deger'),
+            maxLines: 1,
+            overflow: TextOverflow.fade,
+            softWrap: false,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          baslik,
+          maxLines: 1,
+          style: const TextStyle(
+            color: Colors.white54,
+            fontSize: 9.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _inceAyirici() {
+    return Container(
+      width: 1,
+      height: 42,
+      color: Colors.white10,
     );
   }
 
