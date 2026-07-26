@@ -7,11 +7,7 @@ const path = require('path');
 
 const opportunitiesRoutes = require('./routes/opportunities');
 const newsModule = require('./routes/news');
-
-const newsRoutes =
-  typeof newsModule === 'function'
-    ? newsModule
-    : newsModule.router;
+const newsRoutes = newsModule.router || newsModule;
 const trendsRoutes = require('./routes/trends');
 
 const app = express();
