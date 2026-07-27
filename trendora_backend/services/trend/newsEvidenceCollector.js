@@ -1,5 +1,26 @@
 const axios = require('axios');
 const Parser = require('rss-parser');
+const fs = require('fs');
+const path = require('path');
+
+const NEWS_DATABASE_FILE = path.join(
+  __dirname,
+  '..',
+  '..',
+  'database',
+  'news_database.json'
+);
+const EVIDENCE_CACHE_TTL_MS = Math.max(
+  60 * 1000,
+  Number(process.env.TRENDORA_EVIDENCE_CACHE_TTL_MS || 10 * 60 * 1000)
+);
+const LOCAL_NEWS_LIMIT = Math.max(
+  500,
+  Number(process.env.TRENDORA_LOCAL_NEWS_LIMIT || 3000)
+);
+const evidenceCache = new Map();
+const evidenceRequests = new Map();
+let localNewsCache = { mtimeMs: 0, loadedAt: 0, items: [] };
 
 const parser = new Parser({
   timeout: 20000,
@@ -43,6 +64,80 @@ function uniqueItems(items) {
   });
 }
 
+function queryTokens(value) {
+  return normalizeText(value)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter(token => token.length >= 3);
+}
+
+function loadLocalNews() {
+  try {
+    const stat = fs.statSync(NEWS_DATABASE_FILE);
+    const fresh = localNewsCache.items.length > 0 &&
+      localNewsCache.mtimeMs === stat.mtimeMs;
+    if (fresh) return localNewsCache.items;
+
+    const database = JSON.parse(fs.readFileSync(NEWS_DATABASE_FILE, 'utf8'));
+    const items = Array.isArray(database?.items)
+      ? database.items.slice(0, LOCAL_NEWS_LIMIT)
+      : [];
+    localNewsCache = {
+      mtimeMs: stat.mtimeMs,
+      loadedAt: Date.now(),
+      items
+    };
+    return items;
+  } catch (error) {
+    console.error('Yerel haber kanıt havuzu okunamadı:', error.message);
+    return localNewsCache.items;
+  }
+}
+
+function searchLocalEvidence(query) {
+  const tokens = queryTokens(query);
+  if (!tokens.length) return [];
+  const publisherCounts = new Map();
+
+  return loadLocalNews()
+    .map(item => {
+      const title = normalizeText(item?.title);
+      const description = normalizeText(item?.description);
+      const matches = tokens.reduce(
+        (score, token) => score +
+          (title.includes(token) ? 5 : 0) +
+          (description.includes(token) ? 2 : 0),
+        0
+      );
+      const publishedAt = new Date(item?.publishedAt || 0).getTime();
+      const ageDays = Number.isFinite(publishedAt)
+        ? Math.max(0, (Date.now() - publishedAt) / 86400000)
+        : 365;
+      const recency = Math.max(0, 5 - ageDays / 7);
+      return { item, score: matches + recency };
+    })
+    .filter(entry => entry.score >= 5)
+    .sort((a, b) => b.score - a.score)
+    .map(entry => entry.item)
+    .filter(item => {
+      const publisher = String(item?.source || item?.feedSource || 'Bilinmeyen');
+      const count = publisherCounts.get(publisher) || 0;
+      if (count >= 3) return false;
+      publisherCounts.set(publisher, count + 1);
+      return true;
+    })
+    .slice(0, 24)
+    .map(item => ({
+      title: item.title || 'Başlıksız içerik',
+      url: item.url || '',
+      source: item.source || item.feedSource || 'Trendora Haber Havuzu',
+      publisher: item.source || item.feedSource || 'Trendora Haber Havuzu',
+      publishedAt: item.publishedAt || null,
+      evidenceType: 'news',
+      credibility: Number(item.confidenceScore || 60)
+    }));
+}
+
 function buildEvidenceQueries(query) {
   const cleaned = String(query || '').trim();
   const looksFinancial = /\b[A-Z]{4,6}\b|bist|hisse|altın|gümüş|dolar|euro|bitcoin|fon/i.test(cleaned);
@@ -78,18 +173,41 @@ async function fetchFeed(query, days) {
 }
 
 async function collectNewsEvidence(query, days = 30) {
-  const requests = buildEvidenceQueries(query).map(item => fetchFeed(item, days));
-  const settled = await Promise.allSettled(requests);
-  const items = settled
-    .filter(result => result.status === 'fulfilled')
-    .flatMap(result => result.value || []);
-
-  if (!items.length && settled.some(result => result.status === 'rejected')) {
-    const firstError = settled.find(result => result.status === 'rejected')?.reason;
-    throw firstError || new Error('Haber kanıtı alınamadı.');
+  const cacheKey = `${normalizeText(query)}:${days}`;
+  const cached = evidenceCache.get(cacheKey);
+  if (cached && Date.now() - cached.createdAt < EVIDENCE_CACHE_TTL_MS) {
+    return cached.items.map(item => ({ ...item }));
+  }
+  if (evidenceRequests.has(cacheKey)) {
+    return evidenceRequests.get(cacheKey);
   }
 
-  return uniqueItems(items).slice(0, 36);
+  const request = (async () => {
+    const localItems = searchLocalEvidence(query);
+    let remoteItems = [];
+
+    if (localItems.length < 8) {
+      try {
+        remoteItems = await fetchFeed(buildEvidenceQueries(query)[0] || query, days);
+      } catch (error) {
+        if (!localItems.length) throw error;
+      }
+    }
+
+    const items = uniqueItems([...localItems, ...remoteItems]).slice(0, 24);
+    evidenceCache.set(cacheKey, { createdAt: Date.now(), items });
+    if (evidenceCache.size > 200) {
+      evidenceCache.delete(evidenceCache.keys().next().value);
+    }
+    return items.map(item => ({ ...item }));
+  })();
+
+  evidenceRequests.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    evidenceRequests.delete(cacheKey);
+  }
 }
 
 module.exports = {

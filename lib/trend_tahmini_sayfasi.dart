@@ -5,10 +5,20 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
+import 'core/api_client.dart';
+import 'core/api_config.dart';
+import 'core/saved_analysis_store.dart';
 import 'profesyonel_grafik_sayfasi.dart';
 
 class TrendTahminiSayfasi extends StatefulWidget {
-  const TrendTahminiSayfasi({super.key});
+  final String? initialQuery;
+  final bool autoAnalyze;
+
+  const TrendTahminiSayfasi({
+    super.key,
+    this.initialQuery,
+    this.autoAnalyze = false,
+  });
 
   @override
   State<TrendTahminiSayfasi> createState() => _TrendTahminiSayfasiState();
@@ -16,13 +26,15 @@ class TrendTahminiSayfasi extends StatefulWidget {
 
 class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
     with SingleTickerProviderStateMixin {
-  static const _backend = 'https://trendora-icj9.onrender.com';
+  static const _backend = ApiConfig.baseUrl;
   static final List<TrendAnalizi> _trendOnbellegi = <TrendAnalizi>[];
   static final Map<String, TrendAnalizi> _analizOnbellegi = <String, TrendAnalizi>{};
   static DateTime? _onbellekZamani;
   static const Duration _onbellekSuresi = Duration(minutes: 20);
 
   final _trendler = <TrendAnalizi>[];
+  final _kayitliAnalizler = <SavedAnalysis>[];
+  final _dogrulananKayitlar = <String>{};
   final _soruKontrolcusu = TextEditingController();
   final _soruOdakNoktasi = FocusNode();
 
@@ -32,24 +44,14 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
   bool _yukleniyor = true;
   bool _yenileniyor = false;
   bool _soruAnalizEdiliyor = false;
+  bool _grafikYukleniyor = false;
   String? _hataMesaji;
   DateTime? _sonGuncelleme;
-  String _seciliKategori = 'Tümü';
-
-  final _kategoriler = const [
-    'Tümü', 'Finans', 'Emlak', 'Araç', 'Ürün', 'Seyahat', 'İş', 'Genel',
-  ];
-
-  List<TrendAnalizi> get _gorunenTrendler {
-    if (_seciliKategori == 'Tümü') return _trendler;
-    return _trendler
-        .where((e) => e.uygulamaKategorisi == _seciliKategori)
-        .toList();
-  }
 
   @override
   void initState() {
     super.initState();
+    _kayitlariYukle();
     _animasyonKontrolcusu = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 10),
@@ -70,6 +72,13 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
       const Duration(minutes: 15),
       (_) => _trendleriGetir(arkaPlanda: true),
     );
+    final initial = widget.initialQuery?.trim() ?? '';
+    if (initial.isNotEmpty) {
+      _soruKontrolcusu.text = initial;
+      if (widget.autoAnalyze) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _soruyuAnalizEt());
+      }
+    }
   }
 
   Future<void> _trendleriGetir({bool arkaPlanda = false}) async {
@@ -152,14 +161,11 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
     setState(() => _soruAnalizEdiliyor = true);
 
     try {
-      final response = await http.post(
+      final response = await ApiClient.post(
         Uri.parse('$_backend/api/trends/analyze'),
-        headers: const {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
         body: jsonEncode({'query': soru}),
-      ).timeout(const Duration(seconds: 70));
+        timeout: const Duration(seconds: 70),
+      );
 
       final body = jsonDecode(utf8.decode(response.bodyBytes));
       if (response.statusCode != 200 ||
@@ -186,7 +192,6 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
               sonuc.query.toLowerCase(),
         );
         _trendler.insert(0, sonuc);
-        _seciliKategori = 'Tümü';
         _soruAnalizEdiliyor = false;
         _sonGuncelleme =
             DateTime.tryParse(body['updatedAt']?.toString() ?? '') ??
@@ -207,6 +212,9 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
   }
 
   void _analizDetayiniGoster(TrendAnalizi trend) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _soruOdakNoktasi.unfocus();
+    final kayitli = ValueNotifier<bool>(_analizKayitli(trend));
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -225,6 +233,7 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
           ),
           child: ListView(
             controller: controller,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
             children: [
               Center(
@@ -249,6 +258,24 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
                         color: Colors.white,
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  ValueListenableBuilder<bool>(
+                    valueListenable: kayitli,
+                    builder: (_, isSaved, __) => IconButton(
+                      tooltip: isSaved ? 'Analiz kaydedildi' : 'Analizi kaydet',
+                      onPressed: () async {
+                        await _analiziKaydet(trend);
+                        kayitli.value = true;
+                      },
+                      icon: Icon(
+                        isSaved
+                            ? Icons.bookmark_rounded
+                            : Icons.bookmark_add_outlined,
+                        color: isSaved
+                            ? const Color(0xFFFFC857)
+                            : const Color(0xFF6EE7F9),
                       ),
                     ),
                   ),
@@ -363,7 +390,11 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
           ),
         ),
       ),
-    );
+    ).whenComplete(() {
+      kayitli.dispose();
+      FocusManager.instance.primaryFocus?.unfocus();
+      _soruOdakNoktasi.unfocus();
+    });
   }
 
   @override
@@ -394,8 +425,6 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
       );
     }
 
-    final gorunenler = _gorunenTrendler;
-
     return RefreshIndicator(
       onRefresh: _trendleriGetir,
       color: const Color(0xFF6EE7F9),
@@ -410,19 +439,17 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
           const SizedBox(height: 15),
           _soruKarti(),
           const SizedBox(height: 18),
-          _kategoriCubugu(),
-          const SizedBox(height: 22),
+          _kaydedilenIstatistiklerKarti(),
+          const SizedBox(height: 20),
           _bolumBasligi(
-            _seciliKategori == 'Tümü'
-                ? 'Güncel analizler'
-                : '$_seciliKategori analizleri',
-            '${gorunenler.length} başlık Trendora motoruyla değerlendirildi',
+            'Güncel analizler',
+            '${_trendler.length} başlık Trendora motoruyla değerlendirildi',
           ),
           const SizedBox(height: 13),
-          if (gorunenler.isEmpty)
+          if (_trendler.isEmpty)
             _bosKategoriKarti()
           else
-            ...gorunenler.asMap().entries.map(
+            ..._trendler.asMap().entries.map(
                   (entry) => Padding(
                     padding: const EdgeInsets.only(bottom: 13),
                     child: _trendKarti(entry.key + 1, entry.value),
@@ -436,6 +463,163 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
       ),
     );
   }
+
+  Widget _kaydedilenIstatistiklerKarti() {
+    final checked = _kayitliAnalizler
+        .where((item) => item.directionMatched != null)
+        .toList();
+    final matched = checked.where((item) => item.directionMatched == true).length;
+    final accuracy = checked.isEmpty ? null : (matched / checked.length * 100).round();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: _panelDekorasyon(const Color(0xFF285D75)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.bookmarks_outlined, color: Color(0xFF6EE7F9)),
+              const SizedBox(width: 9),
+              const Expanded(
+                child: Text(
+                  'Kaydedilen İstatistiklerim',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              Text(
+                '${_kayitliAnalizler.length}/100',
+                style: const TextStyle(
+                  color: Color(0xFF8FA9BD),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          const Text(
+            'Başlangıç fiyatını ve tahmin yönünü sakla; sonraki kontrollerde '
+            'gerçekleşen sonuçla karşılaştır.',
+            style: TextStyle(
+              color: Color(0xFF91A9BC),
+              fontSize: 11.5,
+              height: 1.4,
+            ),
+          ),
+          if (accuracy != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Ölçülen yön isabeti: %$accuracy (${checked.length} doğrulanmış kayıt)',
+              style: const TextStyle(
+                color: Color(0xFF4ADE80),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+          if (_kayitliAnalizler.isEmpty) ...[
+            const SizedBox(height: 13),
+            const Text(
+              'Henüz kayıt yok. Bir analiz açıp yer imi simgesine dokun.',
+              style: TextStyle(color: Color(0xFF6F8CA3), fontSize: 11.5),
+            ),
+          ] else ...[
+            const SizedBox(height: 12),
+            ..._kayitliAnalizler.take(5).map(_kayitSatiri),
+          ],
+        ],
+      ),
+    );
+  }
+
+  bool _analizKayitli(TrendAnalizi trend) => _kayitliAnalizler.any(
+        (item) => item.query.trim().toLowerCase() ==
+            trend.query.trim().toLowerCase(),
+      );
+
+  Widget _kayitSatiri(SavedAnalysis item) {
+    final price = item.startingPrice == null
+        ? 'Fiyat verisi yok'
+        : '${item.startingPrice!.toStringAsFixed(2).replaceAll('.', ',')} ${item.currency}';
+    final directionIcon = item.expectedDirection == 'up'
+        ? Icons.trending_up_rounded
+        : item.expectedDirection == 'down'
+            ? Icons.trending_down_rounded
+            : Icons.trending_flat_rounded;
+    final outcome = item.directionMatched == null
+        ? 'Henüz doğrulanmadı'
+        : item.directionMatched!
+            ? 'Yön eşleşti'
+            : 'Yön eşleşmedi';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(11, 9, 5, 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFF091A2A),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: const Color(0xFF1A3A53)),
+      ),
+      child: Row(
+        children: [
+          Icon(directionIcon, color: const Color(0xFF6EE7F9), size: 22),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.query,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '$price • Güven %${item.confidence} • ${_kisaTarih(item.savedAt)}\n$outcome',
+                  style: const TextStyle(color: Color(0xFF7895AB), fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Güncel veriyle doğrula',
+            onPressed: _dogrulananKayitlar.contains(item.id)
+                ? null
+                : () => _kaydiDogrula(item),
+            icon: _dogrulananKayitlar.contains(item.id)
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(
+                    Icons.fact_check_outlined,
+                    color: Color(0xFF4ADE80),
+                    size: 19,
+                  ),
+          ),
+          IconButton(
+            tooltip: 'Kaydı sil',
+            onPressed: () => _kaydiSil(item),
+            icon: const Icon(Icons.close_rounded, color: Color(0xFF6F8CA3), size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _kisaTarih(DateTime value) =>
+      '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}.${value.year}';
 
   Widget _ustBaslik() {
     return Row(
@@ -643,10 +827,10 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
         children: [
           const Row(
             children: [
-              Icon(Icons.auto_awesome_rounded, color: Color(0xFF6EE7F9)),
+              Icon(Icons.analytics_rounded, color: Color(0xFF6EE7F9)),
               SizedBox(width: 9),
               Text(
-                'Bir konuyu Trendora’ya sor',
+                'Trendora İstatistiksel Analiz Motoru',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -657,13 +841,36 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
           ),
           const SizedBox(height: 7),
           const Text(
-            'Hisse, altın, araç, arsa, konut, ürün veya iş fikri yaz. '
-            'Trendora senaryo, olasılık, güven puanı ve risk analizi oluştursun.',
+            'Analiz etmek istediğin konuyu yaz. Trendora mevcut piyasa verilerini, '
+            'teknik göstergeleri, haber kanıtlarını ve geçmiş eğilimleri birlikte '
+            'değerlendirerek olasılık, senaryo, güven puanı ve risk analizi oluştursun.',
             style: TextStyle(
               color: Color(0xFF91A9BC),
               fontSize: 12.5,
               height: 1.45,
             ),
+          ),
+          const SizedBox(height: 10),
+          const Wrap(
+            spacing: 8,
+            runSpacing: 7,
+            children: [
+              _MotorDurumRozeti(
+                icon: Icons.sync_rounded,
+                label: 'Güncel veri',
+                color: Color(0xFF4ADE80),
+              ),
+              _MotorDurumRozeti(
+                icon: Icons.calculate_outlined,
+                label: 'İstatistiksel hesaplama',
+                color: Color(0xFF6EE7F9),
+              ),
+              _MotorDurumRozeti(
+                icon: Icons.pause_circle_outline_rounded,
+                label: 'AI askıda',
+                color: Color(0xFFFBBF24),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           TextField(
@@ -673,7 +880,7 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
             onSubmitted: (_) => _soruyuAnalizEt(),
             style: const TextStyle(color: Colors.white, fontSize: 13.5),
             decoration: InputDecoration(
-              hintText: 'Örn. Tüpraş hissesinin gidişatı nasıl?',
+              hintText: 'Örn. Tüpraş hissesi önümüzdeki dönemde nasıl hareket edebilir?',
               hintStyle: const TextStyle(color: Color(0xFF68839A)),
               prefixIcon: const Icon(
                 Icons.search_rounded,
@@ -718,49 +925,6 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _kategoriCubugu() {
-    return SizedBox(
-      height: 42,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _kategoriler.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, index) {
-          final kategori = _kategoriler[index];
-          final secili = kategori == _seciliKategori;
-          return InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () => setState(() => _seciliKategori = kategori),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-              decoration: BoxDecoration(
-                gradient: secili
-                    ? const LinearGradient(
-                        colors: [Color(0xFF14B8A6), Color(0xFF2563EB)],
-                      )
-                    : null,
-                color: secili ? null : const Color(0xFF102238),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: secili ? Colors.transparent : const Color(0xFF1A3855),
-                ),
-              ),
-              child: Text(
-                kategori,
-                style: TextStyle(
-                  color: secili ? Colors.white : const Color(0xFFA7BDD0),
-                  fontWeight: secili ? FontWeight.w900 : FontWeight.w700,
-                  fontSize: 12.5,
-                ),
-              ),
-            ),
-          );
-        },
       ),
     );
   }
@@ -830,7 +994,6 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
                     spacing: 7,
                     runSpacing: 7,
                     children: [
-                      _etiket(trend.uygulamaKategorisi, Icons.grid_view_rounded),
                       _etiket(trend.confidenceLabel, Icons.verified_outlined),
                     ],
                   ),
@@ -1086,21 +1249,7 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
 
     return InkWell(
       borderRadius: BorderRadius.circular(20),
-      onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ProfesyonelGrafikSayfasi(
-              baslik: trend.answerTitle,
-              sorgu: trend.query,
-              guncelFiyat: current,
-              elliIkiHaftaDusuk: trend.yearlyPrice.low52w,
-              elliIkiHaftaYuksek: trend.yearlyPrice.high52w,
-              paraBirimi: currency,
-              guvenPuani: trend.confidence,
-            ),
-          ),
-        );
-      },
+      onTap: () => _gercekGrafigiAc(trend, current, currency),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -1154,9 +1303,41 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
                 ],
               ),
             ),
-            const Icon(
-              Icons.open_in_full_rounded,
-              color: Color(0xFF6EE7F9),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0D3C4C),
+                borderRadius: BorderRadius.circular(11),
+                border: Border.all(color: const Color(0xFF39C6CF)),
+              ),
+              child: _grafikYukleniyor
+                  ? const SizedBox(
+                      width: 17,
+                      height: 17,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF6EE7F9),
+                      ),
+                    )
+                  : const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'AÇ',
+                          style: TextStyle(
+                            color: Color(0xFF6EE7F9),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(
+                          Icons.open_in_full_rounded,
+                          color: Color(0xFF6EE7F9),
+                          size: 18,
+                        ),
+                      ],
+                    ),
             ),
           ],
         ),
@@ -2138,15 +2319,17 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
 
   Future<http.Response> _getWithWarmup(Uri uri) async {
     try {
-      return await http
-          .get(uri, headers: const {'Accept': 'application/json'})
-          .timeout(const Duration(seconds: 25));
+      return await ApiClient.get(
+        uri,
+        timeout: const Duration(seconds: 25),
+      );
     } on TimeoutException {
       // Render ilk istekte uyanıyorsa kısa bir ikinci deneme yap.
       await Future<void>.delayed(const Duration(milliseconds: 700));
-      return http
-          .get(uri, headers: const {'Accept': 'application/json'})
-          .timeout(const Duration(seconds: 45));
+      return ApiClient.get(
+        uri,
+        timeout: const Duration(seconds: 45),
+      );
     }
   }
 
@@ -2304,6 +2487,240 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
     _soruOdakNoktasi.dispose();
     super.dispose();
   }
+
+  Future<void> _kayitlariYukle() async {
+    final items = await SavedAnalysisStore.load();
+    if (!mounted) return;
+    setState(() {
+      _kayitliAnalizler
+        ..clear()
+        ..addAll(items);
+    });
+  }
+
+  Future<void> _analiziKaydet(TrendAnalizi trend) async {
+    final dominant = trend.scenarios.isEmpty
+        ? null
+        : trend.scenarios.reduce(
+            (a, b) => a.probability >= b.probability ? a : b,
+          );
+    final scenarioName = dominant?.name.toLowerCase() ?? '';
+    final direction = scenarioName.contains('olum') ||
+            scenarioName.contains('yüks')
+        ? 'up'
+        : scenarioName.contains('olumsuz') || scenarioName.contains('düş')
+            ? 'down'
+            : 'neutral';
+    final price = trend.dailyPrice.current ?? trend.dailyPrice.close;
+    final item = SavedAnalysis(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      query: trend.query,
+      title: trend.answerTitle,
+      savedAt: DateTime.now(),
+      startingPrice: price,
+      currency: trend.dailyPrice.currency ?? 'TRY',
+      confidence: trend.confidence,
+      dominantScenario: dominant?.name ?? 'Dengeli görünüm',
+      dominantProbability: dominant?.probability ?? trend.confidence,
+      expectedDirection: direction,
+    );
+
+    setState(() {
+      _kayitliAnalizler.removeWhere(
+        (saved) => saved.query.trim().toLowerCase() ==
+            trend.query.trim().toLowerCase(),
+      );
+      _kayitliAnalizler.insert(0, item);
+    });
+    await SavedAnalysisStore.saveAll(_kayitliAnalizler);
+    if (mounted) _mesajGoster('Analiz, Kaydedilen İstatistiklerim bölümüne eklendi.');
+  }
+
+  Future<void> _kaydiSil(SavedAnalysis item) async {
+    setState(() => _kayitliAnalizler.removeWhere((e) => e.id == item.id));
+    await SavedAnalysisStore.saveAll(_kayitliAnalizler);
+  }
+
+  Future<void> _kaydiDogrula(SavedAnalysis item) async {
+    if (_dogrulananKayitlar.contains(item.id)) return;
+    if (item.startingPrice == null || item.startingPrice! <= 0) {
+      _mesajGoster('Bu kayıtta karşılaştırılabilir başlangıç fiyatı yok.');
+      return;
+    }
+
+    setState(() => _dogrulananKayitlar.add(item.id));
+    _mesajGoster('Güncel veri alınıyor ve tahmin kontrol ediliyor...');
+    try {
+      final response = await ApiClient.post(
+        Uri.parse('$_backend/api/trends/analyze'),
+        body: jsonEncode({'query': item.query, 'refresh': true}),
+        timeout: const Duration(seconds: 70),
+      );
+      final body = jsonDecode(utf8.decode(response.bodyBytes));
+      if (response.statusCode != 200 || body is! Map<String, dynamic>) {
+        throw Exception('Güncel analiz alınamadı.');
+      }
+      final raw = body['analysis'];
+      if (raw is! Map) throw Exception('Güncel fiyat verisi bulunamadı.');
+      final trend = TrendAnalizi.fromJson(Map<String, dynamic>.from(raw));
+      final latest = trend.dailyPrice.current ?? trend.dailyPrice.close;
+      if (latest == null || latest <= 0) {
+        throw Exception('Doğrulanmış güncel fiyat bulunamadı.');
+      }
+
+      final change = (latest - item.startingPrice!) / item.startingPrice!;
+      final matched = item.expectedDirection == 'up'
+          ? change > 0.01
+          : item.expectedDirection == 'down'
+              ? change < -0.01
+              : change.abs() <= 0.03;
+      final updated = item.withOutcome(
+        latestPrice: latest,
+        checkedAt: DateTime.now(),
+        directionMatched: matched,
+      );
+      final index = _kayitliAnalizler.indexWhere((e) => e.id == item.id);
+      if (index >= 0 && mounted) {
+        setState(() => _kayitliAnalizler[index] = updated);
+        await SavedAnalysisStore.saveAll(_kayitliAnalizler);
+      }
+      if (mounted) {
+        _mesajGoster(
+          matched
+              ? 'Tahmin yönü güncel hareketle eşleşti.'
+              : 'Tahmin yönü güncel hareketle eşleşmedi.',
+        );
+      }
+    } catch (error) {
+      _mesajGoster(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _dogrulananKayitlar.remove(item.id));
+    }
+  }
+
+  Future<void> _gercekGrafigiAc(
+    TrendAnalizi trend,
+    double? current,
+    String currency,
+    {bool yenile = false}
+  ) async {
+    if (_grafikYukleniyor) return;
+    setState(() => _grafikYukleniyor = true);
+    _mesajGoster('Doğrulanmış grafik verisi yükleniyor...');
+    try {
+      final uri = Uri.parse('$_backend/api/trends/chart').replace(
+        queryParameters: {
+          'query': trend.query,
+          'range': '1y',
+          if (yenile) 'refresh': '1',
+        },
+      );
+      final response = await ApiClient.get(
+        uri,
+        timeout: const Duration(seconds: 30),
+      );
+      final body = jsonDecode(utf8.decode(response.bodyBytes));
+      if (response.statusCode != 200 || body is! Map<String, dynamic>) {
+        final message = body is Map ? body['message']?.toString() : null;
+        throw Exception(message ?? 'Grafik verisi alınamadı.');
+      }
+      final mumlar = _toList(body['candles'])
+          .map((item) => _toMap(item))
+          .map((item) {
+            final date = DateTime.tryParse(_toText(item['date']));
+            final close = _toDouble(item['close']);
+            if (date == null || close == null) return null;
+            return GrafikMumu(
+              tarih: date,
+              acilis: _toDouble(item['open']) ?? close,
+              yuksek: _toDouble(item['high']) ?? close,
+              dusuk: _toDouble(item['low']) ?? close,
+              kapanis: close,
+              hacim: _toDouble(item['volume']) ?? 0,
+            );
+          })
+          .whereType<GrafikMumu>()
+          .toList();
+
+      if (mumlar.isEmpty) {
+        throw Exception('Doğrulanmış geçmiş fiyat serisi bulunamadı.');
+      }
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ProfesyonelGrafikSayfasi(
+            baslik: body['title']?.toString() ?? trend.answerTitle,
+            sorgu: trend.query,
+            guncelFiyat: current,
+            elliIkiHaftaDusuk: trend.yearlyPrice.low52w,
+            elliIkiHaftaYuksek: trend.yearlyPrice.high52w,
+            paraBirimi: body['currency']?.toString() ?? currency,
+            guvenPuani: trend.confidence,
+            mumlar: mumlar,
+            guncellenmeZamani: DateTime.tryParse(
+              body['updatedAt']?.toString() ?? '',
+            ),
+            yenile: () {
+              Navigator.of(context).pop();
+              Future<void>.delayed(
+                const Duration(milliseconds: 180),
+                () => _gercekGrafigiAc(
+                  trend,
+                  current,
+                  currency,
+                  yenile: true,
+                ),
+              );
+            },
+          ),
+        ),
+      );
+    } catch (error) {
+      _mesajGoster(error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _grafikYukleniyor = false);
+    }
+  }
+}
+
+class _MotorDurumRozeti extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _MotorDurumRozeti({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 }
 
 class TrendAnalizi {

@@ -1,6 +1,26 @@
 import 'dart:math' as math;
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class GrafikMumu {
+  final DateTime tarih;
+  final double acilis;
+  final double yuksek;
+  final double dusuk;
+  final double kapanis;
+  final double hacim;
+
+  const GrafikMumu({
+    required this.tarih,
+    required this.acilis,
+    required this.yuksek,
+    required this.dusuk,
+    required this.kapanis,
+    required this.hacim,
+  });
+}
 
 class ProfesyonelGrafikSayfasi extends StatefulWidget {
   final String baslik;
@@ -10,6 +30,9 @@ class ProfesyonelGrafikSayfasi extends StatefulWidget {
   final double? elliIkiHaftaYuksek;
   final String paraBirimi;
   final int guvenPuani;
+  final List<GrafikMumu> mumlar;
+  final DateTime? guncellenmeZamani;
+  final VoidCallback? yenile;
 
   const ProfesyonelGrafikSayfasi({
     super.key,
@@ -20,6 +43,9 @@ class ProfesyonelGrafikSayfasi extends StatefulWidget {
     required this.elliIkiHaftaYuksek,
     required this.paraBirimi,
     required this.guvenPuani,
+    required this.mumlar,
+    this.guncellenmeZamani,
+    this.yenile,
   });
 
   @override
@@ -29,7 +55,7 @@ class ProfesyonelGrafikSayfasi extends StatefulWidget {
 
 class _ProfesyonelGrafikSayfasiState
     extends State<ProfesyonelGrafikSayfasi> {
-  static const _donemler = ['1G', '1H', '1A', '3A', '6A', '1Y'];
+  static const _donemler = ['1H', '1A', '3A', '6A', '1Y'];
   static const _araclar = <_CizimAraci>[
     _CizimAraci(Icons.show_chart_rounded, 'Trend'),
     _CizimAraci(Icons.horizontal_rule_rounded, 'Destek'),
@@ -46,6 +72,7 @@ class _ProfesyonelGrafikSayfasiState
   bool _macdAcik = true;
   int? _seciliMum;
   int _seciliArac = -1;
+  double _yakinlastirma = 1;
   final List<_Cizgi> _cizgiler = [];
   Offset? _baslangic;
   Offset? _geciciBitis;
@@ -55,73 +82,75 @@ class _ProfesyonelGrafikSayfasiState
   void initState() {
     super.initState();
     _mumlariYenile();
+    _cizimleriYukle();
+  }
+
+  String get _cizimKaydiAnahtari =>
+      'trendora_chart_${widget.sorgu.toLowerCase().hashCode}_$_seciliDonem';
+
+  Future<void> _cizimleriYukle() async {
+    final preferences = await SharedPreferences.getInstance();
+    final raw = preferences.getString(_cizimKaydiAnahtari);
+    if (!mounted) return;
+    if (raw == null || raw.isEmpty) {
+      setState(_cizgiler.clear);
+      return;
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      final items = decoded is List
+          ? decoded
+              .whereType<Map>()
+              .map((item) => _Cizgi.fromJson(Map<String, dynamic>.from(item)))
+              .toList()
+          : <_Cizgi>[];
+      setState(() {
+        _cizgiler
+          ..clear()
+          ..addAll(items);
+      });
+    } catch (_) {
+      setState(_cizgiler.clear);
+    }
+  }
+
+  Future<void> _cizimleriKaydet() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      _cizimKaydiAnahtari,
+      jsonEncode(_cizgiler.map((item) => item.toJson()).toList()),
+    );
   }
 
   void _mumlariYenile() {
     final adet = switch (_seciliDonem) {
-      '1G' => 32,
-      '1H' => 42,
-      '1A' => 46,
-      '3A' => 60,
-      '6A' => 72,
-      _ => 90,
+      '1H' => 5,
+      '1A' => 22,
+      '3A' => 66,
+      '6A' => 132,
+      _ => 260,
     };
-    _mumlar = _demoMumlariUret(adet);
+    final donemMumlari = widget.mumlar
+        .skip(math.max(0, widget.mumlar.length - adet))
+        .toList();
+    final gorunenAdet = (donemMumlari.length / _yakinlastirma)
+        .round()
+        .clamp(math.min(5, donemMumlari.length), donemMumlari.length)
+        .toInt();
+    _mumlar = donemMumlari
+        .skip(math.max(0, donemMumlari.length - gorunenAdet))
+        .map(
+          (mum) => _Mum(
+            tarih: mum.tarih,
+            acilis: mum.acilis,
+            yuksek: mum.yuksek,
+            dusuk: mum.dusuk,
+            kapanis: mum.kapanis,
+            hacim: mum.hacim,
+          ),
+        )
+        .toList();
     _seciliMum = null;
-  }
-
-  List<_Mum> _demoMumlariUret(int adet) {
-    final seed = widget.sorgu.codeUnits.fold<int>(17, (a, b) => a * 31 + b);
-    final random = math.Random(seed + adet);
-    final current = widget.guncelFiyat ?? 100;
-    final low52 = widget.elliIkiHaftaDusuk ?? current * 0.72;
-    final high52 = widget.elliIkiHaftaYuksek ?? current * 1.25;
-    final altSinir = math.min(low52, current * 0.68);
-    final ustSinir = math.max(high52, current * 1.22);
-
-    var close = (current * (0.82 + random.nextDouble() * 0.12))
-        .clamp(altSinir, ustSinir)
-        .toDouble();
-    final now = DateTime.now();
-    final result = <_Mum>[];
-
-    for (var i = 0; i < adet; i++) {
-      final progress = i / math.max(1, adet - 1);
-      final hedef = close * (1 - progress) + current * progress;
-      final oynaklik = math.max(current * 0.008, (ustSinir - altSinir) * 0.018);
-      final open = close;
-      close = (hedef + (random.nextDouble() - 0.48) * oynaklik)
-          .clamp(altSinir, ustSinir)
-          .toDouble();
-      final wick = oynaklik * (0.35 + random.nextDouble());
-      final high = math.max(open, close) + wick * random.nextDouble();
-      final low = math.max(0.01, math.min(open, close) - wick * random.nextDouble());
-      final volume = 650000 + random.nextDouble() * 4200000;
-      result.add(
-        _Mum(
-          tarih: now.subtract(Duration(days: adet - i)),
-          acilis: open,
-          yuksek: high,
-          dusuk: low,
-          kapanis: close,
-          hacim: volume,
-        ),
-      );
-    }
-
-    if (result.isNotEmpty && widget.guncelFiyat != null) {
-      final son = result.last;
-      final target = widget.guncelFiyat!;
-      result[result.length - 1] = _Mum(
-        tarih: son.tarih,
-        acilis: son.acilis,
-        yuksek: math.max(son.yuksek, target),
-        dusuk: math.min(son.dusuk, target),
-        kapanis: target,
-        hacim: son.hacim,
-      );
-    }
-    return result;
   }
 
   @override
@@ -143,7 +172,7 @@ class _ProfesyonelGrafikSayfasiState
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 28),
                 children: [
-                  _demoUyarisi(),
+                  _veriUyarisi(),
                   const SizedBox(height: 10),
                   _anaGrafikKarti(),
                   if (_hacimAcik) ...[
@@ -253,6 +282,12 @@ class _ProfesyonelGrafikSayfasiState
           ),
           const SizedBox(width: 7),
           IconButton(
+            tooltip: 'Piyasa verisini yenile',
+            onPressed: widget.yenile,
+            icon: const Icon(Icons.refresh_rounded),
+            color: const Color(0xFF6EE7F9),
+          ),
+          IconButton(
             tooltip: 'Tam ekran',
             onPressed: () => _mesaj('Grafik zaten tam ekran görünümünde.'),
             icon: const Icon(Icons.fullscreen_rounded),
@@ -280,9 +315,10 @@ class _ProfesyonelGrafikSayfasiState
             onTap: () {
               setState(() {
                 _seciliDonem = donem;
+                _yakinlastirma = 1;
                 _mumlariYenile();
-                _cizgiler.clear();
               });
+              _cizimleriYukle();
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
@@ -314,23 +350,23 @@ class _ProfesyonelGrafikSayfasiState
     );
   }
 
-  Widget _demoUyarisi() {
+  Widget _veriUyarisi() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: const Color(0xFF2B2110),
+        color: const Color(0xFF0D2A24),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: const Color(0xFF6A5018)),
+        border: Border.all(color: const Color(0xFF1D6B58)),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(Icons.science_outlined, color: Color(0xFFFFD166), size: 18),
-          SizedBox(width: 8),
+          const Icon(Icons.verified_rounded, color: Color(0xFF4ADE80), size: 18),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'Ön izleme: Mum geçmişi şimdilik demo olarak üretiliyor. Güncel fiyat varsa son mumda korunur.',
-              style: TextStyle(
-                color: Color(0xFFFFDEA0),
+              'Gerçek günlük OHLCV verisi • ${_guncellemeMetni()}\nMuma dokun; Trend, Destek veya Fibonacci aracını seçip grafik üzerinde sürükle.',
+              style: const TextStyle(
+                color: Color(0xFF9CF0C8),
                 fontSize: 11,
                 height: 1.35,
                 fontWeight: FontWeight.w700,
@@ -340,6 +376,14 @@ class _ProfesyonelGrafikSayfasiState
         ],
       ),
     );
+  }
+
+  String _guncellemeMetni() {
+    final value = widget.guncellenmeZamani;
+    if (value == null) return 'sorgu açıldığında alınır';
+    final local = value.toLocal();
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${two(local.day)}.${two(local.month)}.${local.year} ${two(local.hour)}:${two(local.minute)}';
   }
 
   Widget _anaGrafikKarti() {
@@ -371,6 +415,38 @@ class _ProfesyonelGrafikSayfasiState
                   ),
                 ),
                 const Spacer(),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Uzaklaştır',
+                  onPressed: _yakinlastirma <= 1
+                      ? null
+                      : () => setState(() {
+                            _yakinlastirma = math.max(1, _yakinlastirma / 1.5);
+                            _mumlariYenile();
+                          }),
+                  icon: const Icon(Icons.zoom_out_rounded, size: 19),
+                  color: const Color(0xFF8FB9D4),
+                ),
+                Text(
+                  '${_yakinlastirma.toStringAsFixed(1)}×',
+                  style: const TextStyle(
+                    color: Color(0xFF7DD3FC),
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Yakınlaştır',
+                  onPressed: _mumlar.length <= 5
+                      ? null
+                      : () => setState(() {
+                            _yakinlastirma = math.min(12, _yakinlastirma * 1.5);
+                            _mumlariYenile();
+                          }),
+                  icon: const Icon(Icons.zoom_in_rounded, size: 19),
+                  color: const Color(0xFF8FB9D4),
+                ),
                 Text(
                   _seciliDonem,
                   style: const TextStyle(
@@ -420,6 +496,7 @@ class _ProfesyonelGrafikSayfasiState
                     _baslangic = null;
                     _geciciBitis = null;
                   });
+                  _cizimleriKaydet();
                 },
                 child: CustomPaint(
                   painter: _MumGrafikPainter(
@@ -595,8 +672,34 @@ class _ProfesyonelGrafikSayfasiState
     return _panel(
       baslik: 'Çizim araçları',
       icon: Icons.edit_road_rounded,
-      child: Row(
-        children: List.generate(_araclar.length, (index) {
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _seciliArac >= 0 && _seciliArac < 3
+                      ? '${_araclar[_seciliArac].ad} etkin: grafikte sürükle'
+                      : 'Bir araç seç ve grafik üzerinde sürükle',
+                  style: const TextStyle(color: Color(0xFF8FB9D4), fontSize: 10.5),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _cizgiler.isEmpty
+                    ? null
+                    : () {
+                        setState(() => _cizgiler.removeLast());
+                        _cizimleriKaydet();
+                      },
+                icon: const Icon(Icons.undo_rounded, size: 17),
+                label: const Text('Geri al'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Row(
+            children: List.generate(_araclar.length, (index) {
           final arac = _araclar[index];
           final secili = _seciliArac == index;
           return Expanded(
@@ -610,6 +713,7 @@ class _ProfesyonelGrafikSayfasiState
                       _cizgiler.clear();
                       _seciliArac = -1;
                     });
+                    _cizimleriKaydet();
                     return;
                   }
                   setState(() => _seciliArac = secili ? -1 : index);
@@ -651,7 +755,9 @@ class _ProfesyonelGrafikSayfasiState
               ),
             ),
           );
-        }),
+            }),
+          ),
+        ],
       ),
     );
   }
@@ -671,7 +777,7 @@ class _ProfesyonelGrafikSayfasiState
           SizedBox(width: 9),
           Expanded(
             child: Text(
-              'Bu ekran grafik modülünün çalışan ön izlemesidir. Gerçek geçmiş mum verisi backend uç noktası eklendiğinde aynı ekran veri kaynağı değiştirilerek kullanılacak; mevcut Trend Merkezi bozulmayacak.',
+              'Grafik gerçek geçmiş mum verisiyle çalışır. Yakınlaştırma düğmeleriyle son döneme odaklanabilir, muma dokunarak çapraz imleci açabilir, teknik göstergeleri karşılaştırabilir ve çizimlerini daha sonra kullanmak üzere kaydedebilirsin.',
               style: TextStyle(
                 color: Color(0xFFC5D0DB),
                 height: 1.42,
@@ -1042,6 +1148,26 @@ class _Cizgi {
   final Offset bitis;
   final int tur;
   const _Cizgi({required this.baslangic, required this.bitis, required this.tur});
+
+  factory _Cizgi.fromJson(Map<String, dynamic> json) => _Cizgi(
+        baslangic: Offset(
+          (json['startX'] as num?)?.toDouble() ?? 0,
+          (json['startY'] as num?)?.toDouble() ?? 0,
+        ),
+        bitis: Offset(
+          (json['endX'] as num?)?.toDouble() ?? 0,
+          (json['endY'] as num?)?.toDouble() ?? 0,
+        ),
+        tur: (json['type'] as num?)?.round() ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'startX': baslangic.dx,
+        'startY': baslangic.dy,
+        'endX': bitis.dx,
+        'endY': bitis.dy,
+        'type': tur,
+      };
 }
 
 List<double?> _sma(List<double> values, int period) {

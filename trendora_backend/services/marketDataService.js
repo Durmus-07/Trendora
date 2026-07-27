@@ -20,6 +20,19 @@ const INDEX_ALIASES = {
   XUHIZ: 'XUHIZ.IS', BISTHIZMETLER: 'XUHIZ.IS'
 };
 
+const GLOBAL_MARKET_ALIASES = {
+  GSPC: '^GSPC', SP500: '^GSPC',
+  IXIC: '^IXIC', NASDAQ: '^IXIC',
+  DJI: '^DJI', DOWJONES: '^DJI',
+  GDAXI: '^GDAXI', DAX: '^GDAXI',
+  FTSE: '^FTSE', FTSE100: '^FTSE',
+  N225: '^N225', NIKKEI: '^N225',
+  FCHI: '^FCHI', CAC40: '^FCHI',
+  HSI: '^HSI', HANGSENG: '^HSI',
+  TNX: '^TNX', US10YEAR: '^TNX',
+  COPPER: 'HG=F', NATGAS: 'NG=F', WHEAT: 'ZW=F', COFFEE: 'KC=F'
+};
+
 const BIST_ALIASES = {
   ASELS: 'ASELS.IS', ASELSAN: 'ASELS.IS',
   TUPRS: 'TUPRS.IS', TUPRAS: 'TUPRS.IS', TÜPRAŞ: 'TUPRS.IS',
@@ -58,6 +71,7 @@ function resolveYahooSymbol(query, classification) {
 
   for (const candidate of candidates) {
     if (INDEX_ALIASES[candidate]) return INDEX_ALIASES[candidate];
+    if (GLOBAL_MARKET_ALIASES[candidate]) return GLOBAL_MARKET_ALIASES[candidate];
     if (BIST_ALIASES[candidate]) return BIST_ALIASES[candidate];
     if (/^[A-Z]{3,6}\.IS$/.test(candidate)) return candidate;
     if (/^[A-Z]{3,6}$/.test(candidate) && classification?.entity?.subtype === 'bist_stock') {
@@ -69,8 +83,22 @@ function resolveYahooSymbol(query, classification) {
   if (/BIST\s*30|BIST30|XU030/.test(cleanedQuery)) return 'XU030.IS';
   if (/BIST\s*BANKA|BANKA\s*ENDEKSI|XBANK/.test(cleanedQuery)) return 'XBANK.IS';
 
+  if (/S&P\s*500|SP\s*500|SP500/.test(cleanedQuery)) return '^GSPC';
+  if (/NASDAQ/.test(cleanedQuery)) return '^IXIC';
+  if (/DOW\s*JONES/.test(cleanedQuery)) return '^DJI';
+  if (/DAX|ALMANYA\s*BORSASI/.test(cleanedQuery)) return '^GDAXI';
+  if (/FTSE|INGILTERE\s*BORSASI/.test(cleanedQuery)) return '^FTSE';
+  if (/NIKKEI|JAPONYA\s*BORSASI/.test(cleanedQuery)) return '^N225';
+  if (/CAC\s*40|FRANSA\s*BORSASI/.test(cleanedQuery)) return '^FCHI';
+  if (/HANG\s*SENG|HONG\s*KONG\s*BORSASI/.test(cleanedQuery)) return '^HSI';
+  if (/10\s*YILLIK\s*TAHVIL|US\s*10\s*YEAR|TNX/.test(cleanedQuery)) return '^TNX';
+
   if (/BENZIN|AKARYAKIT|GASOLINE|RBOB/.test(cleanedQuery)) return 'RB=F';
   if (/BRENT|PETROL/.test(cleanedQuery)) return 'BZ=F';
+  if (/BAKIR|COPPER/.test(cleanedQuery)) return 'HG=F';
+  if (/DOGAL\s*GAZ|NATURAL\s*GAS/.test(cleanedQuery)) return 'NG=F';
+  if (/BUGDAY|WHEAT/.test(cleanedQuery)) return 'ZW=F';
+  if (/KAHVE|COFFEE/.test(cleanedQuery)) return 'KC=F';
   if (/ALTIN|GOLD/.test(cleanedQuery)) return 'GC=F';
   if (/GUMUS|SILVER/.test(cleanedQuery)) return 'SI=F';
   if (/BITCOIN|BTC/.test(cleanedQuery)) return 'BTC-USD';
@@ -281,6 +309,17 @@ function signalFromScore(score) {
 async function fetchMarketData(query, classification, options = {}) {
   if (classification?.domain !== 'finance') return null;
 
+  const derivedGold = {
+    GRAM_ALTIN: { factor: 1, name: '24 Ayar Gram Altın' },
+    GRAM_22_ALTIN: { factor: 22 / 24, name: '22 Ayar Gram Altın' },
+    CEYREK_ALTIN: { factor: 1.6065, name: 'Çeyrek Ziynet Altın' },
+    YARIM_ALTIN: { factor: 3.213, name: 'Yarım Ziynet Altın' },
+    TAM_ALTIN: { factor: 6.426, name: 'Tam Ziynet Altın' },
+    CUMHURIYET_ALTINI: { factor: 6.608, name: 'Cumhuriyet/Ata Altını' }
+  };
+  const goldType = derivedGold[normalizeTurkish(classification?.entity?.symbol)];
+  if (goldType) return fetchDerivedGoldMarketData(goldType, options);
+
   const symbol = resolveYahooSymbol(query, classification);
   if (!symbol) return null;
 
@@ -436,6 +475,14 @@ async function fetchMarketData(query, classification, options = {}) {
       average52w: average(closes),
       high52w: yearlyHigh
     },
+    priceHistory: rows.slice(-260).map((row) => ({
+      date: new Date(row.timestamp * 1000).toISOString(),
+      open: row.open,
+      high: row.high,
+      low: row.low,
+      close: row.close,
+      volume: row.volume
+    })),
     technical: {
       ...indicators,
       score: technicalScore,
@@ -465,6 +512,70 @@ async function fetchMarketData(query, classification, options = {}) {
   } finally {
     marketRequests.delete(symbol);
   }
+}
+
+async function fetchDerivedGoldMarketData(goldType, options = {}) {
+  const [ounce, usdTry] = await Promise.all([
+    fetchMarketData('ons altın', {
+      domain: 'finance', entity: { symbol: 'XAUUSD', name: 'Ons Altın', subtype: 'commodity' }
+    }, options),
+    fetchMarketData('dolar tl', {
+      domain: 'finance', entity: { symbol: 'USDTRY', name: 'Dolar/TL', subtype: 'fx' }
+    }, options)
+  ]);
+  if (!ounce?.dailyPrice?.available || !usdTry?.dailyPrice?.available) return null;
+
+  const scale = goldType.factor / 31.1034768;
+  const fxByDay = new Map((usdTry.priceHistory || []).map(row => [String(row.date).slice(0, 10), row]));
+  const priceHistory = (ounce.priceHistory || []).map(row => {
+    const fx = fxByDay.get(String(row.date).slice(0, 10));
+    if (!fx) return null;
+    const product = (left, right) => finite(left) != null && finite(right) != null
+      ? Number(left) * Number(right) * scale
+      : null;
+    return {
+      date: row.date,
+      open: product(row.open, fx.open), high: product(row.high, fx.high),
+      low: product(row.low, fx.low), close: product(row.close, fx.close), volume: null
+    };
+  }).filter(row => row?.close != null);
+  const convert = (goldValue, fxValue) => finite(goldValue) != null && finite(fxValue) != null
+    ? Number(goldValue) * Number(fxValue) * scale
+    : null;
+  const current = convert(ounce.dailyPrice.current, usdTry.dailyPrice.current);
+  const previousClose = priceHistory.length > 1 ? priceHistory.at(-2).close : null;
+  const change = current != null && previousClose != null ? current - previousClose : null;
+  const changePercent = change != null && previousClose ? change / previousClose * 100 : null;
+  const closes = priceHistory.map(row => row.close).filter(Number.isFinite);
+
+  return {
+    symbol: goldType.name,
+    displayName: `${goldType.name} (teorik piyasa karşılığı)`,
+    exchange: 'Ons Altın × USD/TRY', currency: 'TRY', marketState: ounce.marketState,
+    updatedAt: ounce.updatedAt,
+    dailyPrice: {
+      available: current != null, currency: 'TRY', date: ounce.dailyPrice.date,
+      source: 'Yahoo Finance ons altın ve USD/TRY türevi',
+      open: convert(ounce.dailyPrice.open, usdTry.dailyPrice.open),
+      high: convert(ounce.dailyPrice.high, usdTry.dailyPrice.high),
+      low: convert(ounce.dailyPrice.low, usdTry.dailyPrice.low),
+      current, close: current, previousClose, average: average(closes.slice(-5)),
+      vwap: null, change, changePercent, volume: null
+    },
+    yearlyPrice: {
+      available: closes.length > 0, currency: 'TRY', date: ounce.dailyPrice.date,
+      source: 'Yahoo Finance ons altın ve USD/TRY türevi',
+      low52w: closes.length ? Math.min(...closes) : null,
+      average52w: average(closes), high52w: closes.length ? Math.max(...closes) : null
+    },
+    priceHistory,
+    technical: ounce.technical,
+    source: {
+      title: `${goldType.name} teorik piyasa karşılığı`, publisher: 'Trendora / Yahoo Finance',
+      url: 'https://finance.yahoo.com/quote/GC=F', publishedAt: new Date().toISOString(),
+      evidenceType: 'derived-market-data'
+    }
+  };
 }
 
 module.exports = {

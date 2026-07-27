@@ -4,6 +4,13 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const environment = require('./config/environment');
+const {
+  createRateLimiter,
+  requireAiEnabled,
+  requireAdminApiKey,
+  securityHeaders
+} = require('./middleware/security');
 
 const opportunitiesRoutes = require('./routes/opportunities');
 const newsModule = require('./routes/newsApi');
@@ -14,10 +21,27 @@ const newsRoutes =
     : newsModule.router;
 const trendsRoutes = require('./routes/trends');
 const weatherRoutes = require('./routes/weather');
+const aiRoutes = require('./routes/ai');
 const app = express();
-const PORT = Number(process.env.PORT || 3000);
+const PORT = environment.port;
 
-app.use(cors());
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+app.use(securityHeaders);
+app.use(cors({
+  origin(origin, callback) {
+    if (
+      !origin ||
+      environment.allowedOrigins.length === 0 ||
+      environment.allowedOrigins.includes(origin)
+    ) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Bu kaynağa CORS izni verilmemiş.'));
+  }
+}));
+app.use(createRateLimiter());
 
 app.use((req, res, next) => {
   console.log(`[ISTEK] ${req.method} ${req.originalUrl}`);
@@ -31,7 +55,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: environment.jsonLimit }));
 
 const opportunitiesFilePath = path.join(
   __dirname,
@@ -131,9 +155,33 @@ app.get('/', (req, res) => {
       bim: '/api/opportunities/bim',
       trendyol: '/api/opportunities/trendyol',
       trends: '/api/trends',
-      trendAnalysis: '/api/trends/analyze',
       trendHealth: '/api/trends/health',
-      ai: '/api/ai'
+      trendAnalysis: '/api/trends/analyze',
+      ...(environment.aiEnabled
+        ? {
+            ai: '/api/ai'
+          }
+        : {})
+    }
+  });
+});
+
+app.get('/api/features', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    success: true,
+    features: {
+      statisticalAnalysis: {
+        enabled: environment.analysisEnabled,
+        audience: 'all-users',
+        usesAi: false,
+        liveData: true
+      },
+      ai: {
+        enabled: environment.aiEnabled,
+        audience: environment.aiPremiumOnly ? 'premium' : 'all-users',
+        status: environment.aiEnabled ? 'active' : 'suspended'
+      }
     }
   });
 });
@@ -218,6 +266,18 @@ app.use(
 app.use(
   '/api/weather',
   weatherRoutes
+);
+
+app.use(
+  '/api/ai',
+  requireAiEnabled,
+  aiRoutes
+);
+
+app.use(
+  '/api/admin/opportunities',
+  requireAdminApiKey,
+  opportunitiesRoutes
 );
 
 function getOpportunityStatus() {
@@ -417,6 +477,24 @@ app.get('/api/scan-status', async (req, res) => {
   });
 });
 
+app.use((error, req, res, next) => {
+  if (res.headersSent) return next(error);
+
+  console.error('[HTTP HATA]', error?.message || error);
+
+  const corsRejected =
+    error?.message === 'Bu kaynağa CORS izni verilmemiş.';
+
+  return res.status(corsRejected ? 403 : 500).json({
+    success: false,
+    message: corsRejected
+      ? error.message
+      : environment.isProduction
+      ? 'İstek işlenirken beklenmeyen bir hata oluştu.'
+      : error?.message || 'Beklenmeyen sunucu hatası.'
+  });
+});
+
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -425,35 +503,46 @@ app.use((req, res) => {
   });
 });
 
-app.listen(
-  PORT,
-  '0.0.0.0',
-  () => {
+function startServer({ port = PORT, host = '0.0.0.0' } = {}) {
+  return app.listen(
+    port,
+    host,
+    () => {
     console.log('');
 
     console.log(
       `Trendora sunucusu çalışıyor: ` +
-      `http://127.0.0.1:${PORT}`
+      `http://127.0.0.1:${port}`
     );
 
     console.log(
       `Tüm fırsatlar: ` +
-      `http://127.0.0.1:${PORT}/api/opportunities`
+      `http://127.0.0.1:${port}/api/opportunities`
     );
 
     console.log(
       `A101: ` +
-      `http://127.0.0.1:${PORT}/api/opportunities/a101`
+      `http://127.0.0.1:${port}/api/opportunities/a101`
     );
 
     console.log(
       `BİM: ` +
-      `http://127.0.0.1:${PORT}/api/opportunities/bim`
+      `http://127.0.0.1:${port}/api/opportunities/bim`
     );
 
     console.log(
       `Trendyol: ` +
-      `http://127.0.0.1:${PORT}/api/opportunities/trendyol`
+      `http://127.0.0.1:${port}/api/opportunities/trendyol`
     );
-  }
-);
+    }
+  );
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = {
+  app,
+  startServer
+};

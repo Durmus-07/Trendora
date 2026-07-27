@@ -1,4 +1,5 @@
 const express = require('express');
+const { requireAdminApiKey } = require('../middleware/security');
 const fs = require('fs');
 const path = require('path');
 
@@ -7,7 +8,6 @@ const {
 } = require('../services/bimCollector');
 
 const {
-  startMarketCollectorScheduler,
   runMarketCollectorsNow,
   getMarketCollectorStatus
 } = require('../services/marketCollectorScheduler');
@@ -15,7 +15,6 @@ const {
 const router = express.Router();
 
 // Sunucu açıldığında yalnızca bir kez düşük yük zamanlayıcısını başlatır.
-startMarketCollectorScheduler();
 
 const dataFilePath = path.join(
   __dirname,
@@ -512,7 +511,7 @@ router.get('/', (req, res) => {
   BİM ürünlerini hemen yeniler:
   /api/opportunities/bim/refresh
 */
-router.get('/bim/refresh', async (req, res) => {
+router.get('/bim/refresh', requireAdminApiKey, async (req, res) => {
   try {
     const bimItems =
       await bimUrunleriniGetir();
@@ -568,7 +567,7 @@ router.get('/bim/refresh', async (req, res) => {
   Tüm marketleri sırayla ve güvenli şekilde elle yeniler:
   /api/opportunities/markets/refresh
 */
-router.get('/markets/refresh', async (req, res) => {
+router.get('/markets/refresh', requireAdminApiKey, async (req, res) => {
   try {
     const result = await runMarketCollectorsNow();
 

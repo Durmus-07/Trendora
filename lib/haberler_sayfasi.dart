@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
+import 'core/api_config.dart';
 
 class HaberlerSayfasi extends StatefulWidget {
   const HaberlerSayfasi({super.key});
@@ -13,8 +14,7 @@ class HaberlerSayfasi extends StatefulWidget {
 }
 
 class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
-  static const String _backendBaseUrl =
-      'https://trendora-icj9.onrender.com/api/news';
+  static const String _backendBaseUrl = ApiConfig.news;
 
   static const Duration _otomatikYenilemeSuresi =
       Duration(minutes: 2);

@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
+import 'core/api_client.dart';
+import 'core/api_config.dart';
 
-const String firsatlarApiAdresi = 'https://trendora-icj9.onrender.com';
+const String firsatlarApiAdresi = ApiConfig.baseUrl;
 
 class FirsatlarSayfasi extends StatefulWidget {
   const FirsatlarSayfasi({super.key});
@@ -80,13 +82,9 @@ class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
         '$firsatlarApiAdresi/api/opportunities?limit=6',
       );
 
-      final response = await http.get(
+      final response = await ApiClient.get(
         uri,
-        headers: const {
-          'Accept': 'application/json',
-        },
-      ).timeout(
-        const Duration(seconds: 15),
+        timeout: const Duration(seconds: 15),
       );
 
       if (response.statusCode != 200) {
@@ -794,13 +792,9 @@ class _CanliFirsatlarListeSayfasiState
         queryParameters: sorgu,
       );
 
-      final http.Response response = await http.get(
+      final http.Response response = await ApiClient.get(
         uri,
-        headers: const {
-          'Accept': 'application/json',
-        },
-      ).timeout(
-        const Duration(seconds: 20),
+        timeout: const Duration(seconds: 20),
       );
 
       if (response.statusCode != 200) {

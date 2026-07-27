@@ -1,15 +1,20 @@
 const OpenAI = require("openai");
+const environment = require('../config/environment');
 
 let openai = null;
 
 // API anahtarı varsa OpenAI'yi başlat
-if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim() !== "") {
+if (
+  environment.aiEnabled &&
+  process.env.OPENAI_API_KEY &&
+  process.env.OPENAI_API_KEY.trim() !== ""
+) {
   openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
 
   console.log("✅ Trendora AI aktif.");
-} else {
+} else if (environment.aiEnabled) {
   console.warn("⚠️ Trendora AI devre dışı (OPENAI_API_KEY bulunamadı).");
 }
 

@@ -78,11 +78,29 @@ const INDEX_ENTITIES = [
 ];
 
 const OTHER_FINANCE_ENTITIES = [
+  { symbol: 'GSPC', name: 'S&P 500 Endeksi', subtype: 'global_index', aliases: ['s&p 500', 'sp 500', 's&p500', 'sp500'] },
+  { symbol: 'IXIC', name: 'Nasdaq Composite', subtype: 'global_index', aliases: ['nasdaq', 'nasdaq composite'] },
+  { symbol: 'DJI', name: 'Dow Jones Industrial Average', subtype: 'global_index', aliases: ['dow jones', 'dow'] },
+  { symbol: 'GDAXI', name: 'DAX Endeksi', subtype: 'global_index', aliases: ['dax', 'almanya borsası'] },
+  { symbol: 'FTSE', name: 'FTSE 100 Endeksi', subtype: 'global_index', aliases: ['ftse', 'ftse 100', 'ingiltere borsası'] },
+  { symbol: 'N225', name: 'Nikkei 225 Endeksi', subtype: 'global_index', aliases: ['nikkei', 'nikkei 225', 'japonya borsası'] },
+  { symbol: 'FCHI', name: 'CAC 40 Endeksi', subtype: 'global_index', aliases: ['cac 40', 'cac40', 'fransa borsası'] },
+  { symbol: 'HSI', name: 'Hang Seng Endeksi', subtype: 'global_index', aliases: ['hang seng', 'hong kong borsası'] },
+  { symbol: 'TNX', name: 'ABD 10 Yıllık Tahvil Faizi', subtype: 'bond_yield', aliases: ['abd 10 yıllık', '10 yıllık tahvil', 'us 10 year', 'tnx'] },
   { symbol: 'XAUUSD', name: 'Ons Altın', subtype: 'commodity', aliases: ['ons altın', 'ons altin', 'xauusd'] },
-  { symbol: 'GRAM_ALTIN', name: 'Gram Altın', subtype: 'commodity', aliases: ['gram altın', 'gram altin', 'gram'] },
+  { symbol: 'GRAM_22_ALTIN', name: '22 Ayar Gram Altın', subtype: 'commodity', aliases: ['22 ayar gram altın', '22 ayar gram altin', '22 ayar altın', '22 ayar altin'] },
+  { symbol: 'CEYREK_ALTIN', name: 'Çeyrek Ziynet Altın', subtype: 'commodity', aliases: ['çeyrek altın', 'ceyrek altin', 'çeyrek ziynet', 'ceyrek ziynet'] },
+  { symbol: 'YARIM_ALTIN', name: 'Yarım Ziynet Altın', subtype: 'commodity', aliases: ['yarım altın', 'yarim altin', 'yarım ziynet', 'yarim ziynet'] },
+  { symbol: 'TAM_ALTIN', name: 'Tam Ziynet Altın', subtype: 'commodity', aliases: ['tam altın', 'tam altin', 'ziynet altın', 'ziynet altin'] },
+  { symbol: 'CUMHURIYET_ALTINI', name: 'Cumhuriyet/Ata Altını', subtype: 'commodity', aliases: ['cumhuriyet altını', 'cumhuriyet altini', 'ata altın', 'ata altin'] },
+  { symbol: 'GRAM_ALTIN', name: '24 Ayar Gram Altın', subtype: 'commodity', aliases: ['24 ayar gram altın', '24 ayar gram altin', 'gram altın', 'gram altin', '24 ayar', 'altın', 'altin', 'gram'] },
   { symbol: 'XAGUSD', name: 'Ons Gümüş', subtype: 'commodity', aliases: ['ons gümüş', 'ons gumus', 'xagusd', 'gümüş', 'gumus'] },
   { symbol: 'RBOB', name: 'Benzin Vadeli İşlemleri', subtype: 'commodity', aliases: ['benzin', 'benzin fiyatı', 'akaryakıt', 'akaryakit', 'rbob', 'gasoline'] },
   { symbol: 'BRENT', name: 'Brent Petrol', subtype: 'commodity', aliases: ['brent', 'brent petrol', 'petrol fiyatı', 'petrol fiyati'] },
+  { symbol: 'COPPER', name: 'Bakır Vadeli İşlemleri', subtype: 'commodity', aliases: ['bakır', 'bakir', 'copper'] },
+  { symbol: 'NATGAS', name: 'Doğal Gaz Vadeli İşlemleri', subtype: 'commodity', aliases: ['doğal gaz', 'dogal gaz', 'natural gas'] },
+  { symbol: 'WHEAT', name: 'Buğday Vadeli İşlemleri', subtype: 'commodity', aliases: ['buğday', 'bugday', 'wheat'] },
+  { symbol: 'COFFEE', name: 'Kahve Vadeli İşlemleri', subtype: 'commodity', aliases: ['kahve', 'coffee'] },
   { symbol: 'USDTRY', name: 'Dolar/TL', subtype: 'fx', aliases: ['dolar', 'dolar tl', 'usdtry', 'usd try'] },
   { symbol: 'EURTRY', name: 'Euro/TL', subtype: 'fx', aliases: ['euro', 'avro', 'euro tl', 'eurtry'] },
   { symbol: 'BTC', name: 'Bitcoin', subtype: 'crypto', aliases: ['bitcoin', 'btc'] },
@@ -143,7 +161,10 @@ function findBistEntity(query) {
   const normalized = normalizeText(query);
   const upperQuery = normalizeTicker(query);
 
-  const explicitSymbols = upperQuery.match(/[A-Z]{4,6}(?:\.S1)?/g) || [];
+  const explicitSymbols = String(query || '')
+    .toLocaleUpperCase('tr-TR')
+    .replace(/İ/g, 'I')
+    .match(/\b[A-Z]{4,6}(?:\.S1)?\b/g) || [];
   for (const symbol of explicitSymbols) {
     if (BIST_BY_SYMBOL.has(symbol)) {
       const item = BIST_BY_SYMBOL.get(symbol);
@@ -159,6 +180,26 @@ function findBistEntity(query) {
         confidence: 100
       };
     }
+  }
+
+  const rawLower = String(query || '').toLocaleLowerCase('tr-TR');
+  const mentionsBistInstrument = ['hisse', 'borsa', 'bist', 'yıldız pazar', 'yildiz pazar']
+    .some(word => rawLower.includes(word));
+  const genericSymbol = explicitSymbols.find(symbol =>
+    /^[A-Z]{4,6}$/.test(symbol) && !['HISSE', 'BORSA', 'BIST'].includes(symbol)
+  );
+  if (mentionsBistInstrument && genericSymbol) {
+    return {
+      found: true,
+      domain: 'finance',
+      subtype: 'bist_stock',
+      market: 'BIST',
+      symbol: genericSymbol,
+      name: `${genericSymbol} Hissesi`,
+      matchedBy: 'generic_bist_symbol',
+      matchedValue: genericSymbol,
+      confidence: 90
+    };
   }
 
   let best = null;

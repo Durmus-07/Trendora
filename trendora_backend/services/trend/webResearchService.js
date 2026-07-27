@@ -1,6 +1,9 @@
 const OpenAI = require('openai');
+const environment = require('../../config/environment');
 
 function getClient() {
+  if (!environment.aiEnabled) return null;
+
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
   return new OpenAI({ apiKey });

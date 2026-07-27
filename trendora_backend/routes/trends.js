@@ -1,13 +1,19 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const environment = require('../config/environment');
 
 const {
   analyzeQuery
 } = require('../services/trendEngine');
+const { classifyQuestion } = require('../services/trend/questionClassifier');
+const { BIST_ENTITIES } = require('../services/trend/entityEngine');
+const { fetchMarketData } = require('../services/marketDataService');
 
 const router = express.Router();
 const MAX_QUERY_LENGTH = 500;
+const CHART_LIMITS = { '1w': 5, '1m': 22, '3m': 66, '6m': 132, '1y': 260 };
+let marketBoardCache = { createdAt: 0, value: null };
 
 const TRENDS_DATABASE_FILE = path.join(
   __dirname,
@@ -133,11 +139,125 @@ router.get('/', (req, res) => {
   }
 });
 
+router.get('/chart', async (req, res) => {
+  const query = String(req.query?.query || '').trim();
+  const range = String(req.query?.range || '1y').toLowerCase();
+
+  if (query.length < 2 || query.length > MAX_QUERY_LENGTH) {
+    return res.status(400).json({
+      success: false,
+      message: 'Grafik için geçerli bir varlık veya sembol gerekli.'
+    });
+  }
+
+  try {
+    const classification = classifyQuestion(query);
+    const marketData = await fetchMarketData(query, classification, {
+      forceRefresh: String(req.query?.refresh || '') === '1'
+    });
+    const history = Array.isArray(marketData?.priceHistory)
+      ? marketData.priceHistory
+      : [];
+
+    if (!history.length) {
+      return res.status(404).json({
+        success: false,
+        code: 'CHART_DATA_UNAVAILABLE',
+        message: 'Bu varlık için doğrulanmış piyasa grafiği bulunamadı.'
+      });
+    }
+
+    const limit = CHART_LIMITS[range] || CHART_LIMITS['1y'];
+    res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
+    return res.json({
+      success: true,
+      symbol: marketData.symbol,
+      title: marketData.displayName,
+      currency: marketData.currency,
+      updatedAt: marketData.updatedAt,
+      range: CHART_LIMITS[range] ? range : '1y',
+      candles: history.slice(-limit)
+    });
+  } catch (error) {
+    console.error('Grafik verisi alınamadı:', error?.message || error);
+    return res.status(502).json({
+      success: false,
+      message: 'Piyasa veri kaynağına şu anda ulaşılamıyor.'
+    });
+  }
+});
+
+router.get('/market-board', async (req, res) => {
+  if (marketBoardCache.value && Date.now() - marketBoardCache.createdAt < 2 * 60 * 1000) {
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+    return res.json({ ...marketBoardCache.value, cached: true });
+  }
+  const primaryInstruments = [
+    ['Gram Altın', 'gram altın'], ['USD/TRY', 'dolar tl'], ['EUR/TRY', 'euro tl'],
+    ['BIST 100', 'bist 100'], ['ASELS', 'ASELS'], ['THYAO', 'THYAO'],
+    ['TUPRS', 'TUPRS'], ['GARAN', 'GARAN'], ['EREGL', 'EREGL'], ['BIMAS', 'BIMAS'],
+    ['AKBNK', 'AKBNK'], ['KCHOL', 'KCHOL'], ['ISCTR', 'ISCTR'], ['SISE', 'SISE'],
+    ['SAHOL', 'SAHOL'], ['PETKM', 'PETKM'], ['FROTO', 'FROTO'], ['TCELL', 'TCELL'],
+    ['ENKAI', 'ENKAI'], ['YKBNK', 'YKBNK'], ['SASA', 'SASA'], ['PGSUS', 'PGSUS'],
+    ['TOASO', 'TOASO'], ['TTKOM', 'TTKOM'], ['MGROS', 'MGROS'], ['VESTL', 'VESTL']
+  ];
+  const instrumentMap = new Map(primaryInstruments.map(item => [item[1], item]));
+  for (const entity of BIST_ENTITIES) {
+    if (!entity.symbol.endsWith('.S1')) instrumentMap.set(entity.symbol, [entity.symbol, entity.symbol]);
+  }
+  const instruments = [...instrumentMap.values()];
+  try {
+    const settled = await Promise.allSettled(instruments.map(async ([label, query]) => {
+      const data = await fetchMarketData(query, classifyQuestion(query));
+      const price = data?.dailyPrice?.current ?? data?.dailyPrice?.close;
+      if (!Number.isFinite(Number(price))) return null;
+      return {
+        label,
+        symbol: data.symbol,
+        price: Number(price),
+        changePercent: Number.isFinite(Number(data?.dailyPrice?.changePercent))
+          ? Number(data.dailyPrice.changePercent) : null,
+        currency: data.currency,
+        updatedAt: data.updatedAt,
+        technicalScore: data?.technical?.score != null && Number.isFinite(Number(data.technical.score)) ? Number(data.technical.score) : null,
+        direction: data?.technical?.direction || 'neutral',
+        rsi14: data?.technical?.rsi14 != null && Number.isFinite(Number(data.technical.rsi14)) ? Number(data.technical.rsi14) : null,
+        atrPercent: data?.technical?.atrPercent != null && Number.isFinite(Number(data.technical.atrPercent)) ? Number(data.technical.atrPercent) : null,
+        support: data?.technical?.support1 != null && Number.isFinite(Number(data.technical.support1)) ? Number(data.technical.support1) : null,
+        resistance: data?.technical?.resistance1 != null && Number.isFinite(Number(data.technical.resistance1)) ? Number(data.technical.resistance1) : null,
+        history: Array.isArray(data?.priceHistory)
+          ? data.priceHistory.slice(-60).map(row => Number(row.close)).filter(Number.isFinite)
+          : [],
+        candles: Array.isArray(data?.priceHistory)
+          ? data.priceHistory.slice(-60).map(row => ({
+              date: row.date, open: row.open, high: row.high, low: row.low, close: row.close, volume: row.volume
+            })).filter(row => Number.isFinite(Number(row.close)))
+          : []
+      };
+    }));
+    const items = settled.filter(x => x.status === 'fulfilled' && x.value).map(x => x.value);
+    const value = { success: true, items, updatedAt: new Date().toISOString(), cached: false };
+    marketBoardCache = { createdAt: Date.now(), value };
+    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+    return res.json(value);
+  } catch (error) {
+    return res.status(502).json({ success: false, message: 'Piyasa bandı şu anda güncellenemedi.' });
+  }
+});
+
 /*
   Canlı kullanıcı sorusu korunur.
   Sadece genel trend özeti collector mimarisine taşındı.
 */
 router.post('/analyze', async (req, res) => {
+  if (!environment.analysisEnabled) {
+    return res.status(503).json({
+      success: false,
+      code: 'ANALYSIS_DISABLED',
+      message: 'İstatistiksel analiz motoru geçici olarak kullanılamıyor.'
+    });
+  }
+
   try {
     const query = String(
       req.body?.query ||
@@ -213,6 +333,13 @@ router.get('/health', (req, res) => {
     success: true,
     service: 'Trendora Trend Collector',
     ready: database.ready,
+    capabilities: {
+      statisticalAnalysis: environment.analysisEnabled,
+      liveMarketData: true,
+      newsEvidence: true,
+      ai: environment.aiEnabled,
+      aiPremiumOnly: environment.aiPremiumOnly
+    },
     trendCount: database.trends.length,
     updatedAt: database.updatedAt,
     collector

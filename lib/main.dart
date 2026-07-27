@@ -1,13 +1,24 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:trendora_app/premium_sayfasi.dart';
 import 'ayarlar_sayfasi.dart';
 import 'dunya_tarama_sayfasi.dart';
 import 'firsatlar_sayfasi.dart';
 import 'haberler_sayfasi.dart';
+import 'hava_merkezi_sayfasi.dart';
 import 'theme/trendora_theme.dart';
 import 'trend_tahmini_sayfasi.dart';
+import 'core/weather_notification_service.dart';
+import 'core/api_client.dart';
+import 'core/api_config.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await WeatherNotificationService.initialize();
   runApp(const TrendoraApp());
 }
 
@@ -20,6 +31,15 @@ class TrendoraApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Trendora',
       theme: TrendoraTheme.dark,
+      builder: (context, child) => ColoredBox(
+        color: const Color(0xFF030812),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 900),
+            child: child ?? const SizedBox.shrink(),
+          ),
+        ),
+      ),
       home: const AcilisSayfasi(),
     );
   }
@@ -136,9 +156,12 @@ class AnaMenu extends StatelessWidget {
             ),
           ),
           SafeArea(
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(
                     darEkran ? 15 : 19,
@@ -290,26 +313,770 @@ class AnaMenu extends StatelessWidget {
 ),
                         const SizedBox(height: 10),
                         _PremiumYatayKart(
-                          baslik: 'Ayarlar',
-                          aciklama: 'Uygulama tercihlerini yönet',
-                          icon: Icons.tune_rounded,
-                          accent: const Color(0xFF91A4C2),
-                          onTap: () {
-                            _sayfayaGit(
-                              context,
-                              const AyarlarSayfasi(),
-                            );
-                          },
+                          baslik: 'Akıllı Hava Merkezi',
+                          aciklama: 'Otomatik konum, saatlik tahmin ve isteğe bağlı bildirimler',
+                          icon: Icons.cloud_outlined,
+                          accent: const Color(0xFF6EE7F9),
+                          onTap: () => _sayfayaGit(
+                            context,
+                            const HavaMerkeziSayfasi(),
+                          ),
                         ),
                       ],
                     ),
                   ),
                 ),
-              ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: ColoredBox(
+              color: const Color(0xFF050C16),
+              child: _SabitAnaMenuIcerigi(
+                onAyarlar: () => _sayfayaGit(context, const AyarlarSayfasi()),
+                onTrend: () => _sayfayaGit(context, const TrendTahminiSayfasi()),
+                onHaberler: () => _sayfayaGit(context, const HaberlerSayfasi()),
+                onFirsatlar: () => _sayfayaGit(context, const FirsatlarSayfasi()),
+                onPremium: () => _sayfayaGit(context, const PremiumSayfasi()),
+                onHava: () => _sayfayaGit(context, const HavaMerkeziSayfasi()),
+              ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SabitAnaMenuIcerigi extends StatelessWidget {
+  final VoidCallback onAyarlar;
+  final VoidCallback onTrend;
+  final VoidCallback onHaberler;
+  final VoidCallback onFirsatlar;
+  final VoidCallback onPremium;
+  final VoidCallback onHava;
+
+  const _SabitAnaMenuIcerigi({
+    required this.onAyarlar,
+    required this.onTrend,
+    required this.onHaberler,
+    required this.onFirsatlar,
+    required this.onPremium,
+    required this.onHava,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: LayoutBuilder(
+        builder: (context, constraints) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.center,
+              child: SizedBox(
+                width: 410,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _PremiumUstBar(onAyarlar: onAyarlar),
+                    const SizedBox(height: 12),
+                    const _AnaMenuHero(),
+                    const SizedBox(height: 14),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: _BolumBasligi(
+                        baslik: 'KEŞFET',
+                        aciklama: 'Trendora merkezlerinden birini seç',
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    _CanliTrendKart(onFallback: onTrend),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _CanliHaberKart(onTap: onHaberler),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _CanliFirsatKart(onTap: onFirsatlar),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    _PremiumYatayKart(
+                      baslik: 'Premium',
+                      aciklama: 'Gelişmiş özellikler yakında',
+                      icon: Icons.workspace_premium_rounded,
+                      accent: TrendoraColors.accent,
+                      kilitli: true,
+                      onTap: onPremium,
+                    ),
+                    const SizedBox(height: 10),
+                    _CanliHavaKart(onTap: onHava),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CanliTrendKart extends StatefulWidget {
+  final VoidCallback onFallback;
+  const _CanliTrendKart({required this.onFallback});
+
+  @override
+  State<_CanliTrendKart> createState() => _CanliTrendKartState();
+}
+
+class _CanliTrendKartState extends State<_CanliTrendKart> {
+  List<Map<String, dynamic>> _items = const [];
+  Timer? _ticker;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _ticker = Timer.periodic(const Duration(seconds: 7), (_) {
+      if (mounted && _items.length > 1) setState(() => _index = (_index + 1) % _items.length);
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final response = await ApiClient.get(Uri.parse('${ApiConfig.baseUrl}/api/trends/market-board'), timeout: const Duration(seconds: 35));
+      final body = jsonDecode(utf8.decode(response.bodyBytes));
+      final raw = body is Map ? body['items'] : null;
+      if (raw is! List) return;
+      final items = raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).where((item) {
+        return item['technicalScore'] is num && item['history'] is List && (item['history'] as List).length >= 10 && '${item['symbol']}'.endsWith('.IS');
+      }).toList()
+        ..sort((a, b) => ((b['technicalScore'] as num) - 50).abs().compareTo(((a['technicalScore'] as num) - 50).abs()));
+      if (mounted && items.isNotEmpty) setState(() => _items = items.take(30).toList());
+    } catch (_) {}
+  }
+
+  void _open(Map<String, dynamic> item) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => _OngoruIstatistikSayfasi(item: item)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_items.isEmpty) {
+      return _PremiumAnaKart(
+        etiket: 'TRENDORA ANALİZ MOTORU', baslik: 'Trend Analiz Merkezi',
+        aciklama: 'Gerçek piyasa verilerinden öngörüler hazırlanıyor.',
+        icon: Icons.auto_graph_rounded, accent: TrendoraColors.primary,
+        ikincilRenk: TrendoraColors.secondary, bilgi: 'Canlı analiz', onTap: widget.onFallback,
+      );
+    }
+    final item = _items[_index];
+    final score = (item['technicalScore'] as num).round();
+    final rising = score >= 55;
+    final neutral = score > 43 && score < 55;
+    final color = neutral ? const Color(0xFFFFC857) : rising ? const Color(0xFF55E6A5) : const Color(0xFFFF7580);
+    final history = (item['history'] as List).whereType<num>().map((e) => e.toDouble()).toList();
+    final label = '${item['label']}';
+    return GestureDetector(
+      onTap: () => _open(item),
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 650),
+        child: Container(
+          key: ValueKey(label),
+          height: 185,
+          padding: const EdgeInsets.all(17),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [Color(0xFF152C48), Color(0xFF081522)]),
+            borderRadius: BorderRadius.circular(25),
+            border: Border.all(color: color.withValues(alpha: .45)),
+          ),
+          child: Stack(children: [
+            Positioned.fill(child: Opacity(opacity: .38, child: CustomPaint(painter: _MiniTrendPainter(history, color)))),
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const Icon(Icons.analytics_rounded, color: Color(0xFF7DD3FC)),
+                const SizedBox(width: 8),
+                const Text('TRENDORA ÖNGÖRÜ AKIŞI', style: TextStyle(color: Color(0xFFBCEBFF), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .7)),
+                const Spacer(),
+                Text('$score/100', style: TextStyle(color: color, fontWeight: FontWeight.w900)),
+              ]),
+              const Spacer(),
+              Text('$label • ${neutral ? 'YATAY/BEKLE' : rising ? 'YÜKSELİŞ EĞİLİMİ' : 'DÜŞÜŞ RİSKİ'}', style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 7),
+              Text('Fiyat ${item['price']} • RSI ${item['rsi14'] is num ? (item['rsi14'] as num).toStringAsFixed(1) : '-'} • Değişim ${item['changePercent'] is num ? (item['changePercent'] as num).toStringAsFixed(2) : '-'}%', style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              const Text('İSTATİSTİKLERİ AÇ  →', style: TextStyle(color: Color(0xFF7DD3FC), fontSize: 10, fontWeight: FontWeight.w900)),
+            ]),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _OngoruIstatistikSayfasi extends StatefulWidget {
+  final Map<String, dynamic> item;
+  const _OngoruIstatistikSayfasi({required this.item});
+
+  @override
+  State<_OngoruIstatistikSayfasi> createState() => _OngoruIstatistikSayfasiState();
+}
+
+class _OngoruIstatistikSayfasiState extends State<_OngoruIstatistikSayfasi> {
+  String _period = '1A';
+  bool _saved = false;
+
+  Map<String, dynamic> get item => widget.item;
+
+  Future<void> _save() async {
+    final prefs = await SharedPreferences.getInstance();
+    final current = prefs.getStringList('saved_market_forecasts') ?? <String>[];
+    final record = jsonEncode({
+      'symbol': item['label'], 'price': item['price'], 'score': item['technicalScore'],
+      'direction': item['direction'], 'savedAt': DateTime.now().toIso8601String(),
+    });
+    current.removeWhere((raw) {
+      try { return jsonDecode(raw)['symbol'] == item['label']; } catch (_) { return false; }
+    });
+    current.insert(0, record);
+    await prefs.setStringList('saved_market_forecasts', current.take(50).toList());
+    if (mounted) setState(() => _saved = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allCandles = (item['candles'] as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    final limit = switch (_period) { '1H' => 5, '1A' => 22, '3A' => 60, _ => 60 };
+    final candles = allCandles.skip(allCandles.length > limit ? allCandles.length - limit : 0).toList();
+    final score = item['technicalScore'] is num ? (item['technicalScore'] as num).round() : 50;
+    final color = score >= 55 ? const Color(0xFF55E6A5) : score <= 43 ? const Color(0xFFFF7580) : const Color(0xFFFFC857);
+    final label = '${item['label']}';
+    Widget stat(String title, dynamic value) => Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: const Color(0xFF0B1B2A), borderRadius: BorderRadius.circular(15), border: Border.all(color: const Color(0xFF1C4059))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: Color(0xFF829BAD), fontSize: 11)), const SizedBox(height: 5), Text('$value', style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900))]),
+    );
+    return Scaffold(
+      backgroundColor: const Color(0xFF050C16),
+      appBar: AppBar(title: Text('$label İstatistikleri')),
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        Wrap(spacing: 8, children: ['1H', '1A', '3A'].map((period) => ChoiceChip(
+          label: Text(period), selected: _period == period, onSelected: (_) => setState(() => _period = period),
+        )).toList()),
+        const SizedBox(height: 12),
+        Container(
+          height: 300,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: const Color(0xFF081725), borderRadius: BorderRadius.circular(20), border: Border.all(color: color)),
+          child: CustomPaint(painter: _MumOngoruPainter(candles: candles, color: color, support: item['support'] as num?, resistance: item['resistance'] as num?)),
+        ),
+        const SizedBox(height: 8),
+        const Text('Gerçek OHLC mumları • Destek/direnç • Fibonacci seviyeleri', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF7892A5), fontSize: 10.5)),
+        const SizedBox(height: 14),
+        GridView.count(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), crossAxisCount: 2, childAspectRatio: 1.8, mainAxisSpacing: 10, crossAxisSpacing: 10, children: [
+          stat('Teknik skor', '$score/100'), stat('Güncel fiyat', item['price']),
+          stat('RSI (14)', item['rsi14'] is num ? (item['rsi14'] as num).toStringAsFixed(1) : '-'),
+          stat('ATR oynaklığı', item['atrPercent'] is num ? '%${(item['atrPercent'] as num).toStringAsFixed(2)}' : '-'),
+          stat('Destek', item['support'] ?? '-'), stat('Direnç', item['resistance'] ?? '-'),
+        ]),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => TrendTahminiSayfasi(initialQuery: '$label önümüzdeki 1 ay ne olur?', autoAnalyze: true))),
+          icon: const Icon(Icons.auto_graph_rounded), label: const Text('ANALİZİ AÇ'),
+        ),
+        const SizedBox(height: 9),
+        OutlinedButton.icon(
+          onPressed: _save,
+          icon: Icon(_saved ? Icons.bookmark_rounded : Icons.bookmark_add_outlined),
+          label: Text(_saved ? 'KAYDEDİLDİ' : 'ÖNGÖRÜYÜ KAYDET'),
+        ),
+        const SizedBox(height: 9),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TrendTahminiSayfasi())),
+          icon: const Icon(Icons.search_rounded), label: const Text('BAŞKA HİSSE SOR'),
+        ),
+        const SizedBox(height: 10),
+        const Text('Bu ön izleme teknik olasılık taramasıdır; kesin getiri veya yatırım tavsiyesi değildir.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF7F93A5), fontSize: 11)),
+      ]),
+    );
+  }
+}
+
+class _MumOngoruPainter extends CustomPainter {
+  final List<Map<String, dynamic>> candles;
+  final Color color;
+  final num? support;
+  final num? resistance;
+  const _MumOngoruPainter({required this.candles, required this.color, this.support, this.resistance});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (candles.isEmpty) return;
+    double? value(Map<String, dynamic> row, String key) => row[key] is num ? (row[key] as num).toDouble() : null;
+    final lows = candles.map((e) => value(e, 'low') ?? value(e, 'close')).whereType<double>().toList();
+    final highs = candles.map((e) => value(e, 'high') ?? value(e, 'close')).whereType<double>().toList();
+    if (lows.isEmpty || highs.isEmpty) return;
+    final minPrice = lows.reduce((a, b) => a < b ? a : b);
+    final maxPrice = highs.reduce((a, b) => a > b ? a : b);
+    final range = (maxPrice - minPrice).abs() < .0001 ? 1.0 : maxPrice - minPrice;
+    final area = Rect.fromLTRB(8, 12, size.width - 48, size.height - 18);
+    double y(double price) => area.bottom - (price - minPrice) / range * area.height;
+    final grid = Paint()..color = const Color(0xFF1C3447)..strokeWidth = .7;
+    for (var i = 0; i <= 4; i++) {
+      final yy = area.top + area.height * i / 4;
+      canvas.drawLine(Offset(area.left, yy), Offset(area.right, yy), grid);
+      final price = maxPrice - range * i / 4;
+      final tp = TextPainter(text: TextSpan(text: price.toStringAsFixed(price < 100 ? 2 : 1), style: const TextStyle(color: Color(0xFF7790A3), fontSize: 8)), textDirection: TextDirection.ltr)..layout();
+      tp.paint(canvas, Offset(area.right + 4, yy - 5));
+    }
+    final step = area.width / candles.length;
+    final bodyWidth = (step * .58).clamp(2.0, 10.0);
+    for (var i = 0; i < candles.length; i++) {
+      final row = candles[i];
+      final close = value(row, 'close');
+      final open = value(row, 'open') ?? close;
+      final high = value(row, 'high') ?? close;
+      final low = value(row, 'low') ?? close;
+      if (close == null || open == null || high == null || low == null) continue;
+      final x = area.left + step * (i + .5);
+      final up = close >= open;
+      final paint = Paint()..color = up ? const Color(0xFF52D99A) : const Color(0xFFFF6F7D)..strokeWidth = 1;
+      canvas.drawLine(Offset(x, y(high)), Offset(x, y(low)), paint);
+      canvas.drawRect(Rect.fromLTRB(x - bodyWidth / 2, math.min(y(open), y(close)), x + bodyWidth / 2, math.max(y(open), y(close)) + 1), paint);
+    }
+    void level(num? raw, Color levelColor) {
+      if (raw == null || raw <= minPrice || raw >= maxPrice) return;
+      final yy = y(raw.toDouble());
+      canvas.drawLine(Offset(area.left, yy), Offset(area.right, yy), Paint()..color = levelColor..strokeWidth = 1.1);
+    }
+    level(support, const Color(0xFF38BDF8));
+    level(resistance, const Color(0xFFFFC857));
+    for (final ratio in [.236, .382, .5, .618, .786]) {
+      final yy = y(minPrice + range * ratio);
+      canvas.drawLine(Offset(area.left, yy), Offset(area.right, yy), Paint()..color = const Color(0x555E7CE2)..strokeWidth = .65);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _MumOngoruPainter oldDelegate) => true;
+}
+
+class _MiniTrendPainter extends CustomPainter {
+  final List<double> values;
+  final Color color;
+  const _MiniTrendPainter(this.values, this.color);
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.length < 2) return;
+    final minValue = values.reduce((a, b) => a < b ? a : b);
+    final maxValue = values.reduce((a, b) => a > b ? a : b);
+    final range = (maxValue - minValue).abs() < .0001 ? 1.0 : maxValue - minValue;
+    final path = Path();
+    for (var i = 0; i < values.length; i++) {
+      final x = i / (values.length - 1) * size.width;
+      final y = size.height - ((values[i] - minValue) / range * (size.height - 20)) - 10;
+      if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
+    }
+    canvas.drawPath(path, Paint()..color = color..strokeWidth = 2.2..style = PaintingStyle.stroke..strokeCap = StrokeCap.round);
+  }
+  @override
+  bool shouldRepaint(covariant _MiniTrendPainter oldDelegate) => oldDelegate.values != values || oldDelegate.color != color;
+}
+
+class _CanliHavaKart extends StatefulWidget {
+  final VoidCallback onTap;
+  const _CanliHavaKart({required this.onTap});
+
+  @override
+  State<_CanliHavaKart> createState() => _CanliHavaKartState();
+}
+
+class _CanliHaberKart extends StatefulWidget {
+  final VoidCallback onTap;
+  const _CanliHaberKart({required this.onTap});
+
+  @override
+  State<_CanliHaberKart> createState() => _CanliHaberKartState();
+}
+
+class _CanliHaberKartState extends State<_CanliHaberKart> {
+  List<Map<String, dynamic>> _news = const [];
+  Timer? _ticker;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+    _ticker = Timer.periodic(const Duration(seconds: 6), (_) {
+      if (!mounted || _news.length < 2) return;
+      setState(() => _index = (_index + 1) % _news.length);
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final uri = Uri.parse(ApiConfig.news).replace(
+        queryParameters: {'period': '7d', 'category': 'tumu', 'page': '1', 'limit': '30'},
+      );
+      final response = await ApiClient.get(uri, timeout: const Duration(seconds: 30));
+      final body = jsonDecode(utf8.decode(response.bodyBytes));
+      final raw = body is Map ? (body['news'] ?? body['data']) : null;
+      if (raw is! List) return;
+      final visual = raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).where((item) {
+        final image = '${item['imageUrl'] ?? ''}'.trim();
+        return image.startsWith('http://') || image.startsWith('https://');
+      }).take(12).toList();
+      if (mounted && visual.isNotEmpty) setState(() { _news = visual; _index = 0; });
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final item = _news.isEmpty ? null : _news[_index.clamp(0, _news.length - 1)];
+    final image = '${item?['imageUrl'] ?? ''}';
+    final title = '${item?['title'] ?? 'Görselli haberler yükleniyor…'}';
+    return AspectRatio(
+      aspectRatio: 0.98,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 700),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) => AnimatedBuilder(
+                animation: animation,
+                child: child,
+                builder: (_, page) {
+                  final turn = (1 - animation.value) * 0.72;
+                  return Opacity(
+                    opacity: animation.value.clamp(0, 1),
+                    child: Transform(
+                      alignment: Alignment.centerLeft,
+                      transform: Matrix4.identity()
+                        ..setEntry(3, 2, 0.0018)
+                        ..rotateY(turn),
+                      child: page,
+                    ),
+                  );
+                },
+              ),
+              child: Container(
+                key: ValueKey(image),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  image: image.isEmpty ? null : DecorationImage(
+                    image: NetworkImage(image),
+                    fit: BoxFit.cover,
+                    colorFilter: const ColorFilter.mode(Color(0x99020A13), BlendMode.darken),
+                  ),
+                  gradient: image.isEmpty ? const LinearGradient(colors: [Color(0xFF17324A), Color(0xFF0C192B)]) : null,
+                  border: Border.all(color: TrendoraColors.secondary.withValues(alpha: 0.45)),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      _GazeteSayfasiOnizleme(imageUrl: image),
+                      const SizedBox(width: 8),
+                      const Expanded(child: Text('HABER MERKEZİ', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .7))),
+                      const Icon(Icons.swipe_rounded, color: Color(0xFFBCEEFF), size: 16),
+                    ]),
+                    const Spacer(),
+                    Text(title, maxLines: 3, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 13.5, height: 1.2, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 6),
+                    Text('${item?['source'] ?? item?['feedSource'] ?? 'Canlı haber akışı'}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFFBCEEFF), fontSize: 9.5, fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GazeteSayfasiOnizleme extends StatelessWidget {
+  final String imageUrl;
+  const _GazeteSayfasiOnizleme({required this.imageUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 46,
+      height: 42,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 6,
+            top: 3,
+            child: Transform.rotate(
+              angle: .10,
+              child: Container(
+                width: 36,
+                height: 35,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD9E6EE),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: const Color(0xFF6D8798)),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 1,
+            top: 1,
+            child: Container(
+              width: 38,
+              height: 37,
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(4),
+                boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 5, offset: Offset(1, 2))],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: imageUrl.isEmpty
+                    ? const ColoredBox(color: Color(0xFF17324A), child: Icon(Icons.article_rounded, size: 20, color: Colors.white))
+                    : Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF17324A), child: Icon(Icons.article_rounded, size: 20, color: Colors.white)),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CanliFirsatKart extends StatefulWidget {
+  final VoidCallback onTap;
+  const _CanliFirsatKart({required this.onTap});
+
+  @override
+  State<_CanliFirsatKart> createState() => _CanliFirsatKartState();
+}
+
+class _CanliFirsatKartState extends State<_CanliFirsatKart>
+    with SingleTickerProviderStateMixin {
+  List<Map<String, dynamic>> _items = const [];
+  late final AnimationController _scroll;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll = AnimationController(vsync: this, duration: const Duration(seconds: 48))..repeat();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final uri = Uri.parse(ApiConfig.opportunities).replace(queryParameters: {'limit': '40'});
+      final response = await ApiClient.get(uri, timeout: const Duration(seconds: 30));
+      final body = jsonDecode(utf8.decode(response.bodyBytes));
+      final raw = body is Map ? (body['opportunities'] ?? body['items'] ?? body['data']) : null;
+      if (raw is! List) return;
+      final opportunities = <Map<String, dynamic>>[];
+      final seenTitles = <String>{};
+      final storeCounts = <String, int>{};
+      for (final rawItem in raw.whereType<Map>()) {
+        final item = Map<String, dynamic>.from(rawItem);
+        final title = _text(item, const ['title', 'name', 'productName', 'description']);
+        final store = '${item['store'] ?? item['market'] ?? item['source'] ?? ''}'.trim().toLowerCase();
+        if (title.isEmpty || seenTitles.contains(title.toLowerCase())) continue;
+        if ((storeCounts[store] ?? 0) >= 3) continue;
+        seenTitles.add(title.toLowerCase());
+        storeCounts[store] = (storeCounts[store] ?? 0) + 1;
+        opportunities.add(item);
+        if (opportunities.length >= 18) break;
+      }
+      if (mounted && opportunities.isNotEmpty) setState(() => _items = opportunities);
+    } catch (_) {}
+  }
+
+  String _text(Map<String, dynamic> item, List<String> keys) {
+    for (final key in keys) {
+      final value = '${item[key] ?? ''}'.trim();
+      if (value.isNotEmpty && value != 'null') return value;
+    }
+    return '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const rowHeight = 54.0;
+    final segmentHeight = _items.length * rowHeight;
+    return AspectRatio(
+      aspectRatio: .98,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(colors: [Color(0xFF14382F), Color(0xFF071713)]),
+                border: Border.all(color: TrendoraColors.success.withValues(alpha: .45)),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Column(children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(13, 11, 13, 8),
+                  child: Row(children: [
+                    Icon(Icons.local_offer_rounded, color: TrendoraColors.success, size: 20),
+                    SizedBox(width: 7),
+                    Expanded(child: Text('CANLI FIRSATLAR', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: .7))),
+                    Icon(Icons.keyboard_double_arrow_up_rounded, color: Color(0xFF9CF0C8), size: 18),
+                  ]),
+                ),
+                const Divider(height: 1, color: Color(0xFF245445)),
+                Expanded(
+                  child: _items.isEmpty
+                      ? const Center(child: Text('Fırsatlar yükleniyor…', style: TextStyle(color: Color(0xFF9FC5B5), fontSize: 11)))
+                      : ClipRect(child: AnimatedBuilder(
+                          animation: _scroll,
+                          builder: (_, __) => Transform.translate(
+                            offset: Offset(0, -_scroll.value * segmentHeight),
+                            child: OverflowBox(
+                              alignment: Alignment.topCenter,
+                              minHeight: segmentHeight * 2,
+                              maxHeight: segmentHeight * 2,
+                              child: Column(
+                                children: [_items, _items].expand((group) => group).map((item) {
+                                  final title = _text(item, const ['title', 'name', 'productName', 'description']);
+                                  final store = _text(item, const ['store', 'market', 'source', 'brand']);
+                                  final price = _text(item, const ['price', 'newPrice', 'salePrice', 'currentPrice']);
+                                  return SizedBox(
+                                    height: rowHeight,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
+                                        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800)),
+                                        const SizedBox(height: 3),
+                                        Row(children: [
+                                          Expanded(child: Text(store.isEmpty ? 'Fırsat' : store.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF8FE4B9), fontSize: 8.8, fontWeight: FontWeight.w800))),
+                                          if (price.isNotEmpty) Text(price, style: const TextStyle(color: Color(0xFFFFD166), fontSize: 9.5, fontWeight: FontWeight.w900)),
+                                        ]),
+                                      ]),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+                        )),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CanliHavaKartState extends State<_CanliHavaKart> with WidgetsBindingObserver {
+  String _location = 'Konum bekleniyor';
+  String _description = 'Hava Merkezini açarak konumunu algıla';
+  int? _code;
+  double? _temperature;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _location = prefs.getString('weather_card_location') ?? 'Konum bekleniyor';
+      _description = prefs.getString('weather_card_description') ?? 'Hava Merkezini açarak konumunu algıla';
+      _code = prefs.getInt('weather_card_code');
+      _temperature = prefs.getDouble('weather_card_temperature');
+    });
+  }
+
+  IconData get _icon {
+    final code = _code ?? -1;
+    if (code == 0 || code == 1) return Icons.wb_sunny_rounded;
+    if ([2, 3, 45, 48].contains(code)) return Icons.cloud_rounded;
+    if (code >= 71 && code <= 86) return Icons.ac_unit_rounded;
+    if (code >= 95) return Icons.thunderstorm_rounded;
+    if (code >= 51 && code <= 67 || code >= 80 && code <= 82) return Icons.water_drop_rounded;
+    return Icons.cloud_outlined;
+  }
+
+  Color get _color {
+    final code = _code ?? -1;
+    if (code == 0 || code == 1) return const Color(0xFFFFC857);
+    if (code >= 71 && code <= 86) return const Color(0xFFBDEBFF);
+    if (code >= 95) return const Color(0xFFB69CFF);
+    return const Color(0xFF6EE7F9);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final temp = _temperature == null ? '' : ' • ${_temperature!.toStringAsFixed(0)}°';
+    return _PremiumYatayKart(
+      baslik: 'Akıllı Hava Merkezi',
+      aciklama: '$_location$temp • $_description',
+      icon: _icon,
+      accent: _color,
+      onTap: widget.onTap,
     );
   }
 }
@@ -406,8 +1173,66 @@ class _PremiumUstBar extends StatelessWidget {
   }
 }
 
-class _AnaMenuHero extends StatelessWidget {
+class _AnaMenuHero extends StatefulWidget {
   const _AnaMenuHero();
+
+  @override
+  State<_AnaMenuHero> createState() => _AnaMenuHeroState();
+}
+
+class _AnaMenuHeroState extends State<_AnaMenuHero>
+    with TickerProviderStateMixin {
+  late final AnimationController _dunya;
+  late final AnimationController _bant;
+  Timer? _yenileme;
+  List<Map<String, dynamic>> _veriler = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _dunya = AnimationController(vsync: this, duration: const Duration(seconds: 12))..repeat();
+    _bant = AnimationController(vsync: this, duration: const Duration(seconds: 65))..repeat();
+    _piyasayiGetir();
+    _yenileme = Timer.periodic(const Duration(minutes: 5), (_) => _piyasayiGetir());
+  }
+
+  @override
+  void dispose() {
+    _yenileme?.cancel();
+    _dunya.dispose();
+    _bant.dispose();
+    super.dispose();
+  }
+
+  Future<void> _piyasayiGetir() async {
+    try {
+      final response = await ApiClient.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/trends/market-board'),
+        timeout: const Duration(seconds: 30),
+      );
+      final body = jsonDecode(utf8.decode(response.bodyBytes));
+      final items = body is Map ? body['items'] : null;
+      if (response.statusCode == 200 && items is List && mounted) {
+        setState(() => _veriler = items.whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item)).toList());
+      }
+    } catch (_) {}
+  }
+
+  bool get _gunduz {
+    final hour = DateTime.now().hour;
+    return hour >= 7 && hour < 19;
+  }
+
+  String _fiyat(Map<String, dynamic> item) {
+    final value = item['price'];
+    if (value is! num) return '-';
+    final symbol = '${item['symbol'] ?? ''}';
+    final label = '${item['label'] ?? ''}';
+    final currency = label == 'BIST 100' || symbol.endsWith('.IS') ? '' : '${item['currency'] ?? ''}';
+    final digits = value.abs() < 100 ? 2 : value.abs() < 1000 ? 2 : 0;
+    return '${value.toStringAsFixed(digits).replaceAll('.', ',')}${currency.isEmpty ? '' : ' $currency'}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -455,13 +1280,19 @@ class _AnaMenuHero extends StatelessWidget {
               ),
             ),
           ),
-          Row(
+          Column(
             children: [
+              Row(children: [
               Container(
                 width: 66,
                 height: 66,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF0B1729),
+                  gradient: RadialGradient(
+                    center: _gunduz ? const Alignment(-0.45, -0.45) : const Alignment(0.55, 0.4),
+                    colors: _gunduz
+                        ? const [Color(0xFF74D8FF), Color(0xFF125D87), Color(0xFF07182A)]
+                        : const [Color(0xFF7891C7), Color(0xFF18294A), Color(0xFF050A16)],
+                  ),
                   borderRadius: BorderRadius.circular(21),
                   border: Border.all(
                     color: TrendoraColors.primary.withValues(alpha: 0.34),
@@ -473,18 +1304,25 @@ class _AnaMenuHero extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const Icon(
-                  Icons.public_rounded,
-                  color: TrendoraColors.secondary,
-                  size: 34,
+                child: AnimatedBuilder(
+                  animation: _dunya,
+                  builder: (_, child) => Transform.rotate(
+                    angle: _dunya.value * 6.283185307,
+                    child: child,
+                  ),
+                  child: const Icon(
+                    Icons.public_rounded,
+                    color: Colors.white,
+                    size: 34,
+                  ),
                 ),
               ),
               const SizedBox(width: 15),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    const Row(
                       children: [
                         _CanliNokta(),
                         SizedBox(width: 8),
@@ -500,25 +1338,73 @@ class _AnaMenuHero extends StatelessWidget {
                       ],
                     ),
                     SizedBox(height: 7),
-                    Text(
-                      'Trendora motoru hazır',
-                      style: TextStyle(
-                        color: TrendoraColors.textPrimary,
-                        fontSize: 19,
-                        height: 1.1,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 5,
+                      children: _veriler.take(3).map((item) {
+                        final change = item['changePercent'] is num ? item['changePercent'] as num : null;
+                        final positive = (change ?? 0) >= 0;
+                        return Text(
+                          '${item['label']}  ${_fiyat(item)}${change == null ? '' : '  ${positive ? '+' : ''}${change.toStringAsFixed(2)}%'}',
+                          style: TextStyle(
+                            color: positive ? const Color(0xFF7BE7B4) : const Color(0xFFFF8B94),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        );
+                      }).toList(),
                     ),
-                    SizedBox(height: 6),
-                    Text(
-                      'Haberler, fırsatlar ve analiz merkezleri kullanıma hazır.',
-                      style: TextStyle(
-                        color: TrendoraColors.textSecondary,
-                        fontSize: 12.3,
-                        height: 1.4,
-                      ),
-                    ),
+                    if (_veriler.isEmpty)
+                      const Text('Piyasa verileri yükleniyor…', style: TextStyle(color: TrendoraColors.textSecondary, fontSize: 11)),
                   ],
+                ),
+              ),
+            ]),
+              const SizedBox(height: 12),
+              Container(
+                height: 25,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF06111E),
+                  borderRadius: BorderRadius.circular(7),
+                  border: Border.all(color: const Color(0xFF1C3B53)),
+                ),
+                child: ClipRect(
+                  child: LayoutBuilder(
+                    builder: (_, constraints) {
+                      final stocks = _veriler.skip(3).toList();
+                      const itemWidth = 150.0;
+                      final segmentWidth = stocks.length * itemWidth;
+                      if (stocks.isEmpty) return const SizedBox.shrink();
+                      return AnimatedBuilder(
+                        animation: _bant,
+                        builder: (_, __) => Transform.translate(
+                          offset: Offset(-_bant.value * segmentWidth, 0),
+                          child: OverflowBox(
+                            alignment: Alignment.centerLeft,
+                            minWidth: segmentWidth * 2,
+                            maxWidth: segmentWidth * 2,
+                            child: Row(
+                              children: [stocks, stocks].expand((group) => group).map((item) {
+                              final change = item['changePercent'] is num ? item['changePercent'] as num : null;
+                              final positive = (change ?? 0) >= 0;
+                              return SizedBox(
+                                width: itemWidth,
+                                child: Center(
+                                  child: Text(
+                                    '${item['label']}  ${_fiyat(item)}  ${change == null ? '' : '${positive ? '▲' : '▼'}${change.abs().toStringAsFixed(2)}%'}',
+                                    maxLines: 1,
+                                    style: TextStyle(color: positive ? const Color(0xFF74E5AF) : const Color(0xFFFF8993), fontSize: 10.2, fontWeight: FontWeight.w900),
+                                  ),
+                                ),
+                              );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
             ],

@@ -44,5 +44,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 node_modules/
-.evn
+.env
+.env.*
+!.env.example
 android/.kotlin/

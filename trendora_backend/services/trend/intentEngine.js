@@ -21,6 +21,10 @@ function detectPeriod(value) {
   if (yearMatch) return { key: `${yearMatch[1]}y`, label: `${yearMatch[1]} Yıl`, days: Number(yearMatch[1]) * 365 };
 
   if (/bugün|günlük|gün içi/.test(text)) return { key: '1d', label: 'Günlük', days: 1 };
+  if (/haftalık|bu hafta|önümüzdeki hafta/.test(text)) return { key: '1w', label: '1 Hafta', days: 7 };
+  if (/aylık|bu ay|önümüzdeki ay/.test(text)) return { key: '1mo', label: '1 Ay', days: 30 };
+  if (/çeyreklik|bu çeyrek|önümüzdeki çeyrek/.test(text)) return { key: '3mo', label: '3 Ay', days: 90 };
+  if (/yıllık|bu yıl|önümüzdeki yıl/.test(text)) return { key: '1y', label: '1 Yıl', days: 365 };
   if (/kısa vade|kısa vadeli/.test(text)) return { key: '30d', label: 'Kısa Vade', days: 30 };
   if (/orta vade|orta vadeli/.test(text)) return { key: '180d', label: 'Orta Vade', days: 180 };
   if (/uzun vade|uzun vadeli/.test(text)) return { key: '1y', label: 'Uzun Vade', days: 365 };

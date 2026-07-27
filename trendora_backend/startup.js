@@ -13,7 +13,16 @@ console.log('');
   API ana süreçte hemen başlar.
   Collector işlemleri ayrı Node süreçlerinde çalışır.
 */
-require('./server');
+const { startServer } = require('./server');
+startServer();
+
+if (envEnabled('ENABLE_MARKET_COLLECTOR', true)) {
+  const {
+    startMarketCollectorScheduler
+  } = require('./services/marketCollectorScheduler');
+
+  startMarketCollectorScheduler();
+}
 
 const children = new Map();
 const restartTimers = new Map();

@@ -8,6 +8,7 @@ const { researchWithWeb } = require('./webResearchService');
 const { clamp, normalizeScenarios, confidenceLabel } = require('./probabilityEngine');
 const { analyzeEvidence, sourceWeight, getHostname } = require('./evidenceAnalyzer');
 const { buildTechnicalPlan, buildPlanSignals } = require('./technicalLevelEngine');
+const environment = require('../../config/environment');
 
 const WEB_TIMEOUT_MS = Number(process.env.TRENDORA_WEB_TIMEOUT_MS || 10000);
 const FALLBACK_NEWS_TIMEOUT_MS = Number(process.env.TRENDORA_FALLBACK_NEWS_TIMEOUT_MS || 6500);
@@ -187,6 +188,87 @@ function riskLabel(score) {
   return 'çok düşük';
 }
 
+function buildExpertProfile(marketData, classification) {
+  const history = Array.isArray(marketData?.priceHistory) ? marketData.priceHistory : [];
+  const closes = history.map(row => positivePrice(row?.close)).filter(Number.isFinite);
+  const returns = [];
+  for (let i = 1; i < closes.length; i += 1) {
+    if (closes[i - 1] > 0) returns.push(closes[i] / closes[i - 1] - 1);
+  }
+  const mean = returns.length ? returns.reduce((sum, value) => sum + value, 0) / returns.length : null;
+  const variance = returns.length > 1
+    ? returns.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / (returns.length - 1)
+    : null;
+  const dailyVolatility = variance != null ? Math.sqrt(Math.max(0, variance)) : null;
+  const annualizedVolatility = dailyVolatility != null ? dailyVolatility * Math.sqrt(252) * 100 : null;
+  const sortedReturns = [...returns].sort((a, b) => a - b);
+  const var95 = sortedReturns.length
+    ? Math.abs(sortedReturns[Math.max(0, Math.floor(sortedReturns.length * 0.05))]) * 100
+    : null;
+
+  let peak = null;
+  let maxDrawdown = 0;
+  for (const close of closes) {
+    peak = peak == null ? close : Math.max(peak, close);
+    maxDrawdown = Math.min(maxDrawdown, (close / peak) - 1);
+  }
+  const maxDrawdownPct = Math.abs(maxDrawdown) * 100;
+
+  const t = marketData?.technical || {};
+  const current = firstValidPrice(marketData?.dailyPrice?.current, marketData?.dailyPrice?.close);
+  const above20 = current != null && finiteNumber(t.ema20) != null ? current >= t.ema20 : null;
+  const above50 = current != null && finiteNumber(t.ema50) != null ? current >= t.ema50 : null;
+  const above200 = current != null && finiteNumber(t.ema200) != null ? current >= t.ema200 : null;
+  const regime = above20 === true && above50 === true && (above200 == null || above200 === true)
+    ? 'yükseliş rejimi'
+    : above20 === false && above50 === false && (above200 == null || above200 === false)
+      ? 'düşüş rejimi'
+      : 'geçiş/yatay rejim';
+
+  const plan = buildTechnicalPlan(marketData);
+  const invalidation = positivePrice(plan?.invalidation?.level);
+  const target = positivePrice(plan?.profitTaking?.first);
+  const downside = current != null && invalidation != null ? Math.max(0, current - invalidation) : null;
+  const upside = current != null && target != null ? Math.max(0, target - current) : null;
+  const riskReward = downside != null && downside > 0 && upside != null ? upside / downside : null;
+  const horizon = horizonDays(classification);
+  const dataQuality = Math.round(clamp(
+    35 + Math.min(35, closes.length / 5) + (t.atrPercent != null ? 10 : 0) +
+      (t.volumeRatio != null ? 8 : 0) + (marketData?.updatedAt ? 7 : 0),
+    35,
+    95
+  ));
+
+  return {
+    observations: closes.length,
+    horizon,
+    regime,
+    annualizedVolatility,
+    var95,
+    maxDrawdown: maxDrawdownPct,
+    riskReward,
+    dataQuality,
+    plan,
+    signals: [
+      { type: regime === 'yükseliş rejimi' ? 'positive' : regime === 'düşüş rejimi' ? 'negative' : 'neutral', title: 'Piyasa rejimi', detail: `${regime}; kısa, orta ve uzun vadeli ortalamaların konumu birlikte değerlendirildi.`, weight: 82 },
+      annualizedVolatility != null ? { type: annualizedVolatility >= 45 ? 'negative' : annualizedVolatility >= 25 ? 'neutral' : 'positive', title: 'Yıllıklaştırılmış oynaklık', detail: `%${annualizedVolatility.toFixed(1)}; ${returns.length} günlük getiri gözleminden hesaplandı.`, weight: 78 } : null,
+      closes.length > 1 ? { type: maxDrawdownPct >= 30 ? 'negative' : maxDrawdownPct >= 15 ? 'neutral' : 'positive', title: 'Maksimum düşüş', detail: `İncelenen seride zirveden en sert gerileme %${maxDrawdownPct.toFixed(1)}.`, weight: 84 } : null,
+      var95 != null ? { type: var95 >= 4 ? 'negative' : var95 >= 2 ? 'neutral' : 'positive', title: 'Günlük aşağı yönlü risk', detail: `Tarihsel %95 VaR yaklaşık %${var95.toFixed(2)}; daha kötü günler yine mümkündür.`, weight: 80 } : null,
+      riskReward != null ? { type: riskReward >= 2 ? 'positive' : riskReward >= 1 ? 'neutral' : 'negative', title: 'Risk/getiri oranı', detail: `İlk teknik hedef ve geçersizlik seviyesine göre yaklaşık ${riskReward.toFixed(2)}x.`, weight: 86 } : null
+    ].filter(Boolean),
+    factors: [
+      `${closes.length} doğrulanmış fiyat gözlemi`,
+      `Piyasa rejimi: ${regime}`,
+      annualizedVolatility != null ? `Yıllıklaştırılmış oynaklık: %${annualizedVolatility.toFixed(1)}` : null,
+      closes.length > 1 ? `Maksimum düşüş: %${maxDrawdownPct.toFixed(1)}` : null,
+      riskReward != null ? `Risk/getiri: ${riskReward.toFixed(2)}x` : null
+    ].filter(Boolean),
+    invalidationText: invalidation != null
+      ? `${fmt(invalidation, marketData.currency)} altında kalıcılık mevcut teknik senaryoyu geçersiz kılar.`
+      : 'Geçersizlik seviyesi için yeterli destek verisi oluşmadı.'
+  };
+}
+
 function scanScore(data, mode) {
   const tech = finiteNumber(data?.technical?.score) ?? 50;
   const rsi = finiteNumber(data?.technical?.rsi14) ?? 50;
@@ -279,11 +361,13 @@ async function analyzeQuestion(query) {
   const marketTask = classification.domain === 'finance'
     ? fetchMarketData(cleanedQuery, classification)
     : Promise.resolve(null);
-  const webTask = withTimeout(
-    researchWithWeb(cleanedQuery, classification, sourcePlan),
-    WEB_TIMEOUT_MS,
-    'Web araştırması'
-  );
+  const webTask = environment.aiEnabled
+    ? withTimeout(
+        researchWithWeb(cleanedQuery, classification, sourcePlan),
+        WEB_TIMEOUT_MS,
+        'Web araştırması'
+      )
+    : Promise.resolve(null);
   const evidenceTask = withTimeout(
     collectNewsEvidence(evidenceQuery, 24),
     FALLBACK_NEWS_TIMEOUT_MS,
@@ -310,13 +394,15 @@ async function analyzeQuestion(query) {
   let base = webResult ? { ...webResult, dailyPrice:{...(webResult.dailyPrice||{})}, yearlyPrice:{...(webResult.yearlyPrice||{})}, estimatedRange:{...(webResult.estimatedRange||{})}, technical:{...(webResult.technical||{})}, statistics:{...(webResult.statistics||{})}, sources:[...(webResult.sources||[])] } : buildFallbackAnalysis(cleanedQuery, classification, evidence);
 
   if (marketData) {
+    const expert = buildExpertProfile(marketData, classification);
     const current = firstValidPrice(marketData.dailyPrice?.current, marketData.dailyPrice?.close, marketData.dailyPrice?.open);
     const technicalScore = finiteNumber(marketData.technical?.score) ?? 50;
     const atrPercent = Math.abs(finiteNumber(marketData.technical?.atrPercent) || 0);
     const changePercent = Math.abs(finiteNumber(marketData.dailyPrice?.changePercent) || 0);
     const hasWeb = Boolean(webResult || evidence.length);
     const evidenceBonus = Math.min(10, Math.round((evidenceProfile.qualityScore + evidenceProfile.diversityScore) / 20));
-    const confidence = Math.round(clamp(60 + Math.min(16, Math.abs(technicalScore - 50) * .35) + (webResult ? 7 : 0) + evidenceBonus, 55, 90));
+    const rawConfidence = 60 + Math.min(16, Math.abs(technicalScore - 50) * .35) + (webResult ? 7 : 0) + evidenceBonus;
+    const confidence = Math.round(clamp(Math.min(rawConfidence, expert.dataQuality + (webResult ? 3 : 0)), 45, 88));
     const riskScore = calibratedRiskScore(marketData, classification) + (hasWeb ? 0 : 3);
     const marketScenarios = buildMarketScenarios(marketData, classification);
     base.dailyPrice = { ...marketData.dailyPrice, current, close: firstValidPrice(marketData.dailyPrice?.close, current) };
@@ -328,6 +414,7 @@ async function analyzeQuestion(query) {
     base.confidence = confidence;
     if (marketScenarios) { base.estimatedRange = marketScenarios.estimatedRange; base.scenarios = marketScenarios.scenarios; }
     base.signals = [
+      ...expert.signals,
       ...buildTechnicalSignals(marketData.technical || {}),
       ...buildPlanSignals(technicalPlan),
       ...evidenceProfile.signals,
@@ -337,6 +424,7 @@ async function analyzeQuestion(query) {
       ...(base.keyFactors || []),
       ...evidenceProfile.keyFactors,
       ...(technicalPlan.reasons || []),
+      ...expert.factors,
       `Teknik skor: ${technicalScore}/100`,
       marketData.technical?.volumeRatio != null ? `Hacim oranı: ${Number(marketData.technical.volumeRatio).toFixed(2)}x` : null
     ].filter(Boolean))].slice(0, 10);
@@ -347,11 +435,23 @@ async function analyzeQuestion(query) {
     const priceText = fmt(current, marketData.currency);
     const direction = technicalScore >= 65 ? 'pozitif' : technicalScore <= 42 ? 'negatif' : 'temkinli-nötr';
     base.answerTitle = `${periodLabel} finans değerlendirmesi`;
-    base.directAnswer = `${marketData.displayName} güncel fiyatı ${priceText}. ${periodLabel} için teknik görünüm ${direction}; veri güveni %${confidence}, risk seviyesi ${riskLabel(riskScore)}. Olası kırılım seviyesi ${fmt(technicalPlan.breakout?.level, marketData.currency)}, takip bölgesi ${fmt(technicalPlan.followZone?.low, marketData.currency)} - ${fmt(technicalPlan.followZone?.high, marketData.currency)}, teknik geçersizlik ${fmt(technicalPlan.invalidation?.level, marketData.currency)}.`;
-    base.summary = `${periodLabel} ufku; canlı fiyat serisi, RSI, EMA, SMA, MACD, ATR, hacim, destek-direnç ve erişilebilen haber sinyalleri birlikte değerlendirilerek hesaplandı. Sonuç kesin fiyat tahmini değil, olasılık bandıdır.`;
+    const financeChecks = (base.nextChecks || []).filter(item =>
+      !/(ilan|model, yıl|paket|konum|metrekare|ekspertiz)/i.test(String(item))
+    );
+    base.nextChecks = [...new Set([
+      expert.invalidationText,
+      `Tahmin ufku ${expert.horizon} gün; süre değişirse olasılık ve fiyat bandı yeniden hesaplanmalı.`,
+      'Karardan önce güncel KAP açıklamaları, bilanço ve önemli haber akışı ayrıca kontrol edilmeli.',
+      ...financeChecks
+    ])].slice(0, 10);
+    const volatilityText = expert.annualizedVolatility != null ? `yıllıklandırılmış oynaklık %${expert.annualizedVolatility.toFixed(1)}` : 'oynaklık ölçümü sınırlı';
+    const drawdownText = Number.isFinite(expert.maxDrawdown) ? `geçmiş maksimum düşüş %${expert.maxDrawdown.toFixed(1)}` : 'maksimum düşüş ölçülemedi';
+    const rrText = expert.riskReward != null ? `risk/getiri ${expert.riskReward.toFixed(2)}x` : 'risk/getiri ölçülemedi';
+    base.directAnswer = `${marketData.displayName} güncel fiyatı ${priceText}. ${periodLabel} için ${expert.regime}; teknik görünüm ${direction}. Veri güveni %${confidence}, risk ${riskLabel(riskScore)}, ${volatilityText}, ${drawdownText} ve ${rrText}. Olası kırılım ${fmt(technicalPlan.breakout?.level, marketData.currency)}, takip bölgesi ${fmt(technicalPlan.followZone?.low, marketData.currency)} - ${fmt(technicalPlan.followZone?.high, marketData.currency)}. ${expert.invalidationText}`;
+    base.summary = `${periodLabel} ufkunda ${expert.observations} fiyat gözlemi; getiri dağılımı, tarihsel VaR, maksimum düşüş, piyasa rejimi, RSI, EMA, SMA, MACD, ATR, hacim ve destek-direnç birlikte değerlendirildi. Güven puanı veri yeterliliğiyle sınırlandı; sonuç kesin vaat değil, ölçülebilir olasılık bandıdır.`;
   }
 
   const normalized = normalizeAnalysis(base, cleanedQuery, classification, sourcePlan);
-  return { ...normalized, engine: { version:'5.0.0', mode: marketData && webResult ? 'market-plus-web' : marketData ? 'market-data' : webResult ? 'web-research' : 'limited-fallback', usedLiveMarketData:Boolean(marketData), usedLiveWebResearch:Boolean(webResult), usedFallbackNews:evidence.length>0, evidenceProfile, entityRecognition:classification.entity?.found||false, webResearchError:webError ? webError.message : null, sourceCoverage: { planned: Array.isArray(sourcePlan?.sources) ? sourcePlan.sources.map(s => s.name) : [], returned: normalized.sources.map(s => s.publisher), autoDiscovery: sourcePlan?.discovery?.enabled === true }, generatedAt:new Date().toISOString() } };
+  return { ...normalized, engine: { version:'6.0.0', mode: marketData && webResult ? 'market-plus-web' : marketData ? 'expert-statistical-market' : webResult ? 'web-research' : 'limited-fallback', usedLiveMarketData:Boolean(marketData), usedLiveWebResearch:Boolean(webResult), usedFallbackNews:evidence.length>0, evidenceProfile, entityRecognition:classification.entity?.found||false, ai: { enabled: environment.aiEnabled, premiumOnly: environment.aiPremiumOnly, used: Boolean(webResult) }, webResearchError:webError ? webError.message : null, sourceCoverage: { planned: Array.isArray(sourcePlan?.sources) ? sourcePlan.sources.map(s => s.name) : [], returned: normalized.sources.map(s => s.publisher), autoDiscovery: sourcePlan?.discovery?.enabled === true }, generatedAt:new Date().toISOString() } };
 }
 module.exports = { analyzeQuestion, normalizeAnalysis };

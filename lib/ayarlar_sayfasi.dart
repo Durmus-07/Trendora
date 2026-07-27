@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'core/feature_flags.dart';
+
 class AyarlarSayfasi extends StatelessWidget {
   const AyarlarSayfasi({super.key});
 
@@ -25,13 +27,14 @@ class AyarlarSayfasi extends StatelessWidget {
             altBaslik: 'Yakında',
             yakinda: true,
           ),
-          _menu(
-            context,
-            ikon: Icons.smart_toy_outlined,
-            baslik: 'Trendora AI Ayarları',
-            altBaslik: 'Yakında',
-            yakinda: true,
-          ),
+          if (FeatureFlags.aiEnabled)
+            _menu(
+              context,
+              ikon: Icons.smart_toy_outlined,
+              baslik: 'Trendora AI Ayarları',
+              altBaslik: 'Yakında',
+              yakinda: true,
+            ),
           _menu(
             context,
             ikon: Icons.notifications_none,
