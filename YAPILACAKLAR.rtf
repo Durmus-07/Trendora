@@ -1,0 +1,424 @@
+TRENDORA İÇİN CODEX GELİŞTİRME SIRASI
+CODEX’E HER AŞAMADA EKLENECEK DEĞİŞMEZ TALİMAT
+Aşağıdaki kural bütün aşamalarda geçerlidir:
+“Çalışan bir özelliği yeniden yazma; mevcut yapının üzerine bağımsız, modüler ve geriye dönük uyumlu ekleme yap. Mevcut çalışan hiçbir ekranı, tasarımı, API bağlantısını, endpoint’i, collector’ı, veri akışını, kullanıcı kaydını veya navigasyon yapısını bozma, kaldırma ya da geriye götürme. Her aşamaya başlamadan önce ilgili dosyaları incele, riskleri belirle ve kodu küçük adımlarla uygula. Her adımdan sonra test yap. Hata çözülmeden sonraki adıma geçme. Bir değişiklik çalışan sistemi bozarsa değişikliği geri al ve daha güvenli bir yöntem uygula.”
+________________________________________
+0. AŞAMA — ALTYAPI VE VERİ AĞI
+İlk olarak Codex’e şunu gönder:
+TRENDORA 0. AŞAMA TALİMATI
+Trendora’ya yeni kişiselleştirme, öneri, bildirim, sesli komut ve Premium Yapay Zekâ özellikleri eklemeden önce mevcut altyapıyı ve veri ağını incele ve güçlendir.
+Bu aşamada kullanıcıya görünen yeni özellik ekleme.
+Şunları incele:
+•	Flutter dosya yapısı
+•	Backend dosya yapısı
+•	server.js
+•	startup.js
+•	Route dosyaları
+•	Collector sistemleri
+•	Haber veri ağı
+•	Fırsat veri ağı
+•	Finansal veri ağı
+•	Trend analiz sistemi
+•	Hava durumu servisi
+•	Takip listesi
+•	Kaydedilen analizler
+•	Kullanıcı kayıt sistemi
+•	Flutter HTTP servisleri
+•	Önbellek yapısı
+•	Zamanlanmış görevler
+•	Render sunucu yapısı
+•	Log ve hata yönetimi
+Kalıcı backend adresi:
+https://trendora-icj9.onrender.com
+Mevcut çalışan endpoint adlarını değiştirme.
+İlk olarak kod değiştirmeden bana rapor ver:
+1.	Mevcut mimari
+2.	Çalışan veri kaynakları
+3.	Bozuk veya eksik kaynaklar
+4.	Mevcut endpoint’ler
+5.	Eksik endpoint ihtiyaçları
+6.	Veri modeli uyumsuzlukları
+7.	Tekrarlanan ağ istekleri
+8.	Collector zamanlamaları
+9.	Sunucu yükü riskleri
+10.	Güvenlik riskleri
+11.	Değiştirilecek dosyalar
+12.	Yeni oluşturulacak dosyalar
+13.	Geri alma yöntemi
+14.	Uygulama sırası
+Raporu verdikten sonra aşağıdaki işleri uygula:
+•	Ortak veri modelleri oluştur.
+•	Mevcut veri alanlarını kaldırma veya yeniden adlandırma.
+•	Yeni alanları geriye dönük uyumlu şekilde ekle.
+•	Haber, fırsat, finans, hava ve trend verilerinde kaynak ve güncelleme zamanı bilgisini standartlaştır.
+•	Veri kaynakları için sağlık takip sistemi oluştur.
+•	Son başarılı çalışma, son hata, kayıt sayısı ve cevap süresini takip et.
+•	Bir kaynak hata verdiğinde bütün sistemin durmasını engelle.
+•	Tekrarlanan haber ve fırsatları tespit eden altyapı oluştur.
+•	Aynı verinin gereksiz tekrar çekilmesini önle.
+•	Önbellek, zaman aşımı, kontrollü tekrar deneme ve istek birleştirme kullan.
+•	Flutter tarafında ortak ve modüler servis katmanı hazırla.
+•	Finansal veriler için ortak sembol, fiyat, değişim, hacim, kaynak ve veri zamanı modeli oluştur.
+•	Haberler için kategori, kaynak, ilişkili şirket, benzer haber ve uygulama içi okuma alanlarını hazırla.
+•	Fırsatlar için mağaza, kategori, fiyat, kampanya tarihi, kaynak ve aktiflik modeli oluştur.
+•	Hava durumu için eksik endpoint ihtiyaçlarını gider.
+•	/api/weather/search ihtiyacını incele.
+•	/api/scan-status endpoint’ini bozma.
+•	Hata ve log sistemini güçlendir.
+•	API anahtarlarını Flutter içine koyma.
+•	Sunucuya aşırı yük bindirme.
+Collector kuralları:
+•	Online fırsatlar normalde 15 dakikada bir çalışabilir.
+•	Yük oluşursa 1 saat, 6 saat ve 24 saate düşebilir.
+•	BİM, Migros ve CarrefourSA normalde günde bir çalışır.
+•	Yük oluşursa 2 günde bir ve ardından haftada bir çalışabilir.
+•	A101 geçici olarak kapalı kalmalı.
+•	A101 403 aldığında sistemi zorlamamalı.
+•	Banka ve otomobil kampanyalarında hafif değişiklik kontrolü yapılmalı.
+•	Değişiklik yoksa tam veri tekrar çekilmemeli.
+•	Araç fiyat listelerinde hash karşılaştırması kullanılmalı.
+•	Collector’lar bağımsız şekilde yavaşlamalı.
+•	Hepsi aynı anda başlatılmamalı.
+Bu aşamanın sonunda test et:
+•	Backend açılıyor mu?
+•	Flutter uygulaması açılıyor mu?
+•	Haber Merkezi çalışıyor mu?
+•	Fırsatlar Merkezi çalışıyor mu?
+•	Trend Tahmini çalışıyor mu?
+•	Akıllı Hava Merkezi açılıyor mu?
+•	Mevcut endpoint’ler çalışıyor mu?
+•	Bir kaynak hata verdiğinde diğerleri çalışıyor mu?
+•	Tekrarlanan kayıt oluşuyor mu?
+•	Gereksiz API istekleri var mı?
+•	Sunucu yükü arttı mı?
+•	flutter analyze sonucu nedir?
+İşlem sonunda ayrıntılı rapor ver ve 1. aşamaya geçmeye hazır olup olmadığını açıkça belirt.
+Çalışan bir özelliği yeniden yazma; mevcut yapının üzerine bağımsız, modüler ve geriye dönük uyumlu ekleme yap.
+________________________________________
+1. AŞAMA — KİŞİSELLEŞTİRME ALTYAPISI
+1.	aşama tamamen bittikten sonra Codex’e şunu gönder:
+TRENDORA 1. AŞAMA TALİMATI
+1.	aşamada hazırlanan veri ve servis altyapısını kullanarak yalnızca kişiselleştirme altyapısını oluştur.
+Bu aşamada ana sayfaya yeni alan ekleme, bildirim gönderme, hava ekranını değiştirme, sesli komut ekleme veya yapay zekâ entegrasyonu yapma.
+Kullanıcı tercih modeli oluştur.
+Desteklenecek ilgi alanları:
+•	Borsa
+•	Altın
+•	Döviz
+•	Kripto
+•	Ekonomi
+•	Siyaset
+•	Spor
+•	Otomobil
+•	Teknoloji
+•	Bilim
+•	Uzay
+•	Sağlık
+•	Seyahat
+•	Market fırsatları
+•	Alışveriş fırsatları
+•	Yerel haberler
+•	Dünya gündemi
+Kullanıcı şunları yapabilsin:
+•	İlgi alanı ekleme
+•	İlgi alanı kaldırma
+•	İlgi alanlarını değiştirme
+•	Tercihleri sıfırlama
+•	Kişiselleştirmeyi açma ve kapatma
+•	Bildirim kategorilerini açma ve kapatma
+Verileri mümkünse cihaz üzerinde sakla.
+Her kullanıcı hareketinde backend’e istek gönderme.
+Mevcut kullanıcıları yeni sisteme zorunlu olarak dahil etme.
+Tercih verisi yoksa mevcut genel sistem çalışmaya devam etsin.
+Test et:
+•	Eski kullanıcılar giriş yapabiliyor mu?
+•	Yeni tercihler kaydediliyor mu?
+•	Uygulama kapanıp açılınca tercihler korunuyor mu?
+•	Tercihler sıfırlanabiliyor mu?
+•	Kişiselleştirme kapatılınca genel sistem çalışıyor mu?
+•	Mevcut modüller çalışmaya devam ediyor mu?
+İşlem sonunda rapor ver ve 2. aşamaya geçmeye hazır olup olmadığını belirt.
+________________________________________
+2. AŞAMA — İLGİ ALANI SEÇİM EKRANI
+1.	aşama bittikten sonra Codex’e şunu gönder:
+TRENDORA 2. AŞAMA TALİMATI
+Birinci aşamada oluşturulan kullanıcı tercih altyapısını kullanarak isteğe bağlı “İlgi Alanların” ekranı ekle.
+Mevcut kayıt ve giriş sistemini yeniden yazma.
+Kurallar:
+•	Yeni kullanıcı kayıt olduktan sonra isteğe bağlı ilgi alanı ekranı göster.
+•	Kullanıcı birden fazla alan seçebilsin.
+•	Kullanıcı bu adımı geçebilsin.
+•	Seçim yapmayan kullanıcıya mevcut genel ana sayfa gösterilsin.
+•	Mevcut kullanıcıları zorunlu olarak bu ekrana yönlendirme.
+•	Mevcut kullanıcılar Profil veya Ayarlar üzerinden seçim yapabilsin.
+•	Kullanıcı ilgi alanlarını daha sonra değiştirebilsin.
+•	Seçimler birinci aşamadaki tercih servisine kaydedilsin.
+•	Kayıt başarısız olsa bile uygulama kullanılmaya devam etsin.
+•	Kullanıcının seçmediği içerikleri tamamen kaldırma, yalnızca önceliğini azalt.
+Test et:
+•	Yeni kullanıcı kayıt olabiliyor mu?
+•	İlgi alanı ekranı açılıyor mu?
+•	Seçimler kaydediliyor mu?
+•	Ekran geçilebiliyor mu?
+•	Mevcut kullanıcılar zorunlu ekrana düşüyor mu?
+•	Ayarlardan tercihler değiştirilebiliyor mu?
+•	Kayıt sistemi bozuldu mu?
+İşlem sonunda rapor ver ve 3. aşamaya hazır olup olmadığını belirt.
+________________________________________
+3. AŞAMA — BUGÜN SENİN İÇİN VE SANA ÖNERİLER
+2.	aşama bittikten sonra Codex’e şunu gönder:
+TRENDORA 3. AŞAMA TALİMATI
+Ana sayfaya mevcut yapıyı bozmadan iki yeni bölüm ekle:
+•	Bugün Senin İçin
+•	Sana Öneriler
+Mevcut ana sayfa kartlarını kaldırma veya yerlerini bozma.
+“Bugün Senin İçin” alanında en fazla 3–5 önemli içerik göster.
+Veriler şunlardan gelebilsin:
+•	Kullanıcının ilgi alanları
+•	Takip edilen hisseler
+•	Kaydedilen analizler
+•	Okunan haber kategorileri
+•	Kaydedilen fırsatlar
+•	Hava durumu
+•	Dijital Hayat Asistanı kayıtları
+Her öneri şu işlemleri desteklesin:
+•	İlgileniyorum
+•	İlgilenmiyorum
+•	Kaydet
+•	Takibe al
+•	Daha sonra hatırlat
+•	Bu tür önerileri azalt
+Mümkünse öneride şunları göster:
+•	Neden önerildiği
+•	Kaynağı
+•	Güncelleme zamanı
+Kurallar:
+•	Sahte öneri gösterme.
+•	Veri yoksa boş kart gösterme.
+•	Aynı öneriyi sürekli tekrar etme.
+•	Öneri servisi hata verirse ana sayfa çökmesin.
+•	Kişiselleştirme kapalıysa genel akış devam etsin.
+•	Her ekran açılışında gereksiz ağ isteği gönderme.
+Test et ve rapor ver.
+________________________________________
+4. AŞAMA — AKILLI KISAYOLLAR
+3.	aşama bittikten sonra Codex’e şunu gönder:
+TRENDORA 4. AŞAMA TALİMATI
+Trendora’ya metin tabanlı Akıllı Kısayollar sistemi ekle.
+Henüz sesli komut veya mikrofon ekleme.
+Örnek komutlar:
+•	Trendora bugün altın ne kadar?
+•	Dolar kaç TL?
+•	ASELSAN bugün ne yaptı?
+•	Takip ettiğim hisseleri göster.
+•	Takip listemde yükselenler hangileri?
+•	Takip listemde düşenler hangileri?
+•	Bugün önemli ekonomi haberleri neler?
+•	Bugün yağmur yağacak mı?
+•	Yeni otomobil kampanyası var mı?
+•	Bugünkü fırsatları göster.
+•	Kaydettiğim analizleri aç.
+•	Yaklaşan ödemelerimi göster.
+•	Bugün benim için önemli olanları göster.
+Merkezi komut ayrıştırma servisi oluştur.
+Komut geldiğinde:
+•	Kısa cevap göster.
+•	Kaynağı göster.
+•	Güncelleme zamanını göster.
+•	İlgili sayfayı açabilecek bağlantı sun.
+•	Bilinmeyen komutta uygulamayı çökertme.
+•	Sahte fiyat veya veri üretme.
+Ana ekrana küçük kısayollar ekle:
+•	Altın
+•	Döviz
+•	Takip Listem
+•	Hisse Ara
+•	Günün Haberleri
+•	Fırsatlar
+•	Hava
+•	Hatırlatmalarım
+•	Bugün Senin İçin
+Kullanıcı kısayol sırasını değiştirebilsin.
+Test et ve rapor ver.
+________________________________________
+5. AŞAMA — AKILLI BİLDİRİM MOTORU
+4.	aşama bittikten sonra Codex’e şunu gönder:
+TRENDORA 5. AŞAMA TALİMATI
+Kişiselleştirilmiş akıllı bildirim motoru geliştir.
+Bildirim kaynakları:
+•	Takip edilen hisseler
+•	Altın
+•	Döviz
+•	Kaydedilen analizler
+•	KAP açıklamaları
+•	Önemli şirket haberleri
+•	Kullanıcı ilgi alanları
+•	Fırsatlar
+•	Otomobil kampanyaları
+•	Hava uyarıları
+•	Dijital Hayat Asistanı hatırlatmaları
+Bildirim üretilebilecek durumlar:
+•	Belirlenen fiyat seviyesine ulaşma
+•	Belirlenen yüzde yükseliş veya düşüş
+•	Olağan dışı hacim
+•	Eğilim değişikliği
+•	KAP açıklaması
+•	Bilanço
+•	Temettü veya bölünme
+•	Yeni analiz
+•	Güven puanında belirgin değişiklik
+•	Önemli haber
+•	Yeni fırsat
+•	Yaklaşan hatırlatma
+•	Kuvvetli hava uyarısı
+Kurallar:
+•	Her küçük hareket için bildirim gönderme.
+•	Aynı bildirimi tekrar gönderme.
+•	Finansal tavsiye verme.
+•	Kullanıcı bildirimleri kapatabiliyor olmalı.
+•	Sunucu her kullanıcıyı sürekli sorgulamamalı.
+•	Bildirimler toplu ve kontrollü işlenmeli.
+•	Bildirime tıklanınca doğru sayfa açılmalı.
+Test et ve rapor ver.
+________________________________________
+6. AŞAMA — AKILLI HAVA MERKEZİ
+5.	aşama bittikten sonra Codex’e şunu gönder:
+TRENDORA 6. AŞAMA TALİMATI
+Mevcut Akıllı Hava Merkezi ekranını bozmadan geliştir.
+Konum izni varsa yaklaşık konuma göre veri getir.
+Konum izni yoksa şehir seçimi çalışmaya devam etsin.
+Şunları destekle:
+•	Yağış uyarısı
+•	Fırtına
+•	Kuvvetli rüzgâr
+•	Yüksek UV
+•	Aşırı sıcak
+•	Don
+•	Buzlanma
+•	Düşük görüş
+•	Yürüyüş için uygun saat
+•	Çocukla dışarı çıkmak için uygun zaman
+•	Araç kullanımı uyarısı
+Örnek:
+•	Saat 11.00–14.00 arasında UV yüksek.
+•	Akşam yağış bekleniyor.
+•	Saat 16.00 civarında kuvvetli rüzgâr başlayabilir.
+•	Bugün 18.00 sonrası yürüyüş için daha uygun.
+Konumu gereksiz yere saklama.
+Hava verisini önbelleğe al.
+Eski veriyi güncel gibi gösterme.
+Güncelleme zamanını göster.
+Sponsorlu öneri altyapısını hazırla ama şu anda sahte reklam gösterme.
+Test et ve rapor ver.
+________________________________________
+7. AŞAMA — GÜNLÜK KİŞİSEL ÖZET
+6.	aşama bittikten sonra Codex’e şunu gönder:
+TRENDORA 7. AŞAMA TALİMATI
+Ücretsiz sürümde yapay zekâ kullanmadan kural tabanlı Günlük Kişisel Özet oluştur.
+Özet şunları içerebilsin:
+•	Takip edilen varlıkların günlük durumu
+•	Önemli haberler
+•	Yeni fırsatlar
+•	Hava durumu ve uyarılar
+•	Yaklaşan ödemeler
+•	Hatırlatmalar
+•	Kaydedilen analizlerde önemli değişiklikler
+Kullanıcı:
+•	Özet saatini seçebilsin.
+•	Sabah veya akşam özeti seçebilsin.
+•	İçerik kategorilerini seçebilsin.
+•	Özeti kapatabilsin.
+Sahte veri gösterme.
+Verisi olmayan bölümü gösterme.
+Yapay zekâ olmadan çalışmaya devam etsin.
+Test et ve rapor ver.
+________________________________________
+8. AŞAMA — SESLİ KOMUT
+7.	aşama bittikten sonra Codex’e şunu gönder:
+TRENDORA 8. AŞAMA TALİMATI
+Dördüncü aşamada oluşturulan metin tabanlı komut sistemine sesli komut desteği ekle.
+Mevcut komut servisini yeniden yazma.
+Ses konuşmayı metne dönüştürsün ve mevcut komut servisine aktarsın.
+Kurallar:
+•	Mikrofon iznini açıkça iste.
+•	Kullanıcı başlatmadan mikrofonu açma.
+•	Arka planda sürekli dinleme.
+•	Konuşmaları gereksiz yere saklama.
+•	Mikrofon izni reddedilirse metin sistemi çalışmaya devam etsin.
+•	Sesli komutla yalnızca bilgi gösterme ve sayfa açma işlemleri yap.
+•	Satın alma, ödeme, finansal işlem veya veri silme işlemi yapma.
+Test et ve rapor ver.
+________________________________________
+9. AŞAMA — PREMIUM YAPAY ZEKÂ
+İlk sekiz aşama sağlıklı çalışmadan bu aşamaya geçme.
+TRENDORA 9. AŞAMA TALİMATI
+Premium Yapay Zekâ katmanını mevcut ücretsiz sistemlerden bağımsız şekilde geliştir.
+Yapay zekâ şunları güçlendirsin:
+•	Günlük kişisel özet
+•	Takip edilen varlıkların değerlendirilmesi
+•	Haberlerin önem sıralaması
+•	Fırsatların kullanıcı ilgisine göre yorumlanması
+•	Hava, finans, haber ve hatırlatmaların tek özette birleştirilmesi
+•	“Bugün benim için önemli olan ne?” sorusunun cevaplanması
+•	Kaydedilen analizlerin özetlenmesi
+Kurallar:
+•	Ücretsiz özellikleri kısıtlama.
+•	Yapay zekâ çalışmazsa temel sistem devam etsin.
+•	API kotası bitince uygulama çökmesin.
+•	Yapay zekâ çağrılarını backend üzerinden yap.
+•	API anahtarını Flutter içine koyma.
+•	Kullanıcı premium değilse çağrı yapma.
+•	Token kullanımını sınırla.
+•	Aynı veriyi tekrar tekrar analiz ettirme.
+•	Finansal kesinlik veya alım-satım talimatı üretme.
+Test et ve rapor ver.
+________________________________________
+10. AŞAMA — GENEL TEST VE STABİLİZASYON
+Tüm aşamalar bittikten sonra Codex’e şunu gönder:
+TRENDORA GENEL KONTROL TALİMATI
+Yeni özellik ekleme ve tasarım değiştirme.
+Yalnızca hata, güvenlik, performans ve geriye dönük uyumluluk kontrolü yap.
+Kontrol et:
+•	Uygulama açılışı
+•	Kayıt ve giriş
+•	İlgi alanları
+•	Ana sayfa
+•	Bugün Senin İçin
+•	Sana Öneriler
+•	Akıllı Kısayollar
+•	Haber Merkezi
+•	Uygulama içi haber okuma
+•	Fırsatlar Merkezi
+•	Trend Tahmini
+•	Takip listesi
+•	Kaydedilen analizler
+•	Bildirimler
+•	Hava Merkezi
+•	Dijital Hayat Asistanı
+•	Günlük özet
+•	Sesli komut
+•	Premium Yapay Zekâ
+•	Backend endpoint’leri
+•	İnternet kesintisi
+•	API hataları
+•	Veri gizliliği
+•	Sunucu yükü
+•	Önbellek
+•	Tekrarlanan istekler
+•	Eski kullanıcı verileri
+•	Flutter analiz sonucu
+•	Android release APK
+Zorunlu işlemler:
+•	flutter analyze
+•	Mevcut Flutter testleri
+•	Backend başlangıç testi
+•	Mevcut endpoint testleri
+•	Yeni endpoint testleri
+•	İnternetsiz kullanım testi
+•	API hata senaryosu
+•	AI kapalı senaryosu
+•	AI kota dolu senaryosu
+•	Release APK derleme testi
+Bir hata bulursan yalnızca en küçük ve güvenli düzeltmeyi yap.
+Sonunda yayınlanmaya hazır olup olmadığını açıkça raporla.
+

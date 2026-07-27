@@ -2,6 +2,8 @@ const express = require('express');
 const { requireAdminApiKey } = require('../middleware/security');
 const fs = require('fs');
 const path = require('path');
+const { normalizeOpportunity } = require('../services/dataModels');
+const sourceHealth = require('../services/sourceHealth');
 
 const {
   bimUrunleriniGetir
@@ -455,14 +457,18 @@ function sendItemsResponse(
   database,
   items
 ) {
+  const normalizedItems = items.map(item => normalizeOpportunity(item, {
+    updatedAt: database.updatedAt
+  }));
+  sourceHealth.success('opportunities-database', { recordCount: database.items.length });
   res.json({
     success: true,
     count: items.length,
     updatedAt: database.updatedAt,
-    opportunities: items,
-    products: items,
-    items,
-    data: items
+    opportunities: normalizedItems,
+    products: normalizedItems,
+    items: normalizedItems,
+    data: normalizedItems
   });
 }
 

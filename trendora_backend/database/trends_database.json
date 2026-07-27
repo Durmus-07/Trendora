@@ -1,8 +1,8 @@
 {
   "success": true,
   "ready": true,
-  "createdAt": 1785070201671,
-  "updatedAt": "2026-07-26T12:50:01.671Z",
+  "createdAt": 1785145465028,
+  "updatedAt": "2026-07-27T09:44:25.027Z",
   "methodology": {
     "version": "2.1.0",
     "title": "Trendora Karar Destek Motoru",
@@ -63,7 +63,7 @@
       },
       "answerTitle": "Otomobil değerlendirmesi",
       "directAnswer": "Şu anda yalnızca açık haber sinyallerine ulaşılabildiği için kesin fiyat veya güçlü karar sonucu üretmek güvenilir olmaz.",
-      "summary": "Türkiye’de ikinci el otomobil fiyatlarında genel eğilim nedir? hakkında 0 benzersiz güncel içerik incelendi. Bu yedek analiz yalnızca haber yoğunluğu ve başlık eğiliminden oluşur; piyasa ilanı, fiyat geçmişi veya alan verisi bulunmadığında sonuç sınırlıdır.",
+      "summary": "Türkiye’de ikinci el otomobil fiyatlarında genel eğilim nedir? hakkında 24 benzersiz güncel içerik incelendi. Bu yedek analiz yalnızca haber yoğunluğu ve başlık eğiliminden oluşur; piyasa ilanı, fiyat geçmişi veya alan verisi bulunmadığında sonuç sınırlıdır.",
       "dailyPrice": {
         "available": false,
         "currency": null,
@@ -113,34 +113,34 @@
       "scenarios": [
         {
           "name": "Olumlu görünüm",
-          "probability": 38,
+          "probability": 60,
           "description": "Olumlu başlık ve ilgi sinyallerinin güçlenmesi."
         },
         {
           "name": "Dengeli görünüm",
-          "probability": 32,
+          "probability": 28,
           "description": "Mevcut sinyallerin yön belirlemek için yetersiz kalması."
         },
         {
           "name": "Olumsuz görünüm",
-          "probability": 30,
+          "probability": 12,
           "description": "Risk ve zayıflama sinyallerinin öne çıkması."
         }
       ],
-      "confidence": 22,
-      "confidenceLabel": "Düşük",
+      "confidence": 58,
+      "confidenceLabel": "Orta",
       "signals": [
         {
           "type": "neutral",
           "title": "Haber hacmi",
-          "detail": "0 benzersiz içerik bulundu.",
-          "weight": 0
+          "detail": "24 benzersiz içerik bulundu.",
+          "weight": 96
         },
         {
           "type": "positive",
           "title": "Olumlu başlık sinyali",
-          "detail": "0 olumlu ifade tespit edildi.",
-          "weight": 0
+          "detail": "2 olumlu ifade tespit edildi.",
+          "weight": 20
         },
         {
           "type": "negative",
@@ -163,36 +163,145 @@
         "Karar vermeden önce gerçek fiyat, ilan veya resmi veri örneklerini kontrol et.",
         "Model, yıl, paket, konum, tarih ve bütçe gibi ayrıntıları soruya ekle."
       ],
-      "sources": [],
+      "sources": [
+        {
+          "title": "Otomobilde en çok tercih edilen renkler gri ve beyaz oldu",
+          "publisher": "AA",
+          "url": "https://www.trthaber.com/haber/ekonomi/otomobilde-en-cok-tercih-edilen-renkler-gri-ve-beyaz-oldu-952176.html",
+          "publishedAt": "2026-07-25T08:49:00.000Z",
+          "evidenceType": "news",
+          "credibility": 96,
+          "isOfficial": true
+        },
+        {
+          "title": "DENEYAP Teknoloji Atölyelerinden Türkiye genelinde proje şenliği",
+          "publisher": "AA",
+          "url": "https://www.trthaber.com/haber/bilim-teknoloji/deneyap-teknoloji-atolyelerinden-turkiye-genelinde-proje-senligi-949527.html",
+          "publishedAt": "2026-06-27T11:35:00.000Z",
+          "evidenceType": "news",
+          "credibility": 95,
+          "isOfficial": true
+        },
+        {
+          "title": "Bölgesel asgari ücret nedir? Türkiye'de yeniden uygulanacak mı?",
+          "publisher": "Nöbetçi Gazete",
+          "url": "https://news.google.com/rss/articles/CBMilAFBVV95cUxOckl6WmpDNG5PVDhtRVRPcVhOYnBPand3MUxUTTRESzU4cTAtdnFNdEQ4bGhQa0M3NXNGcHNWaU0tem01Sm14MDBlLVRuUUZIMDlJamJxeHJVZzlCSkxTTi1OTmxIeTd0SXVzajFyaVZsV2ZHOFJXeVNFWWxVTE5Fb0RUekxSX0ZES3o1dERrVTZ5OFpy?oc=5",
+          "publishedAt": "2026-07-26T08:02:00.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Türkiye'de en çok tercih edilen otomobil rengi belli oldu",
+          "publisher": "Sözcü Gazetesi",
+          "url": "https://news.google.com/rss/articles/CBMilAFBVV95cUxNYnBKcUdkN3lrQVdnZHdoaDA4alVyeFk5eTdnRUQzWTZlSUNPZmZsaHV1a3NTcEtFUUlaVDAtSjVvWjVxeDB6T3Z5NVRrTnItOWNqQ3E0Qkx4T0tNSGJ3UUR5UWFkZ2dJNWROWng5V1JDZUxiQkNxdUg1dFFNMmNzYWN1Q2RlWVlRdVRJQjdoVENNUTcz?oc=5",
+          "publishedAt": "2026-07-26T06:31:12.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "2023'te Türkiye'de En Çok Tercih Edilen Otomobil Renkleri",
+          "publisher": "SonDakika",
+          "url": "https://news.google.com/rss/articles/CBMinAFBVV95cUxOTGJJVUNJT0E5bDNXR2tRZ1Rlczg4eEM5SFZDcE9OT2ZmcFpLNFl1N2ZXOXp2NUtXRUJjMm1NLTg1MXJleE00bnF3VGJYTmxNUjg3c3dfV2t5clZta2FHdU5SZmhFWHhWYzV0OU4tQjFCR3ItWFhLNFJQTVZfV3k2Q0NzaUtpb2lSLU1PRXdNeXB1SmQxZFQxMnBQdTbSAZwBQVVfeXFMTkxiSVVDSU9BOWwzV0drUWdUZXM4OHhDOUhWQ3BPTk9mZnBaSzRZdTdmVzl6djVLV0VCYzJtTS04NTFyZXhNNG5xd1RiWE5sTVI4N3N3X1dreXJWbWthR3VOUmZoRVh4VmM1dDlOLUIxQkdyLVhYSzRSUE1WX1d5NkNDc2lLaW9pUi1NT0V3TXlwdUpkMWRUMTJwUHU2?oc=5",
+          "publishedAt": "2026-07-25T08:12:52.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Türkiye Kalkınma ve Yatırım Bankası Yılın İkinci Çeyreğinde Güçlü Finansal Performansını ve Kalkınma Odaklı Büyümesini Sürdürdü",
+          "publisher": "Haber Ege",
+          "url": "https://news.google.com/rss/articles/CBMihAJBVV95cUxPYnhGZmUyb0JjTzl4SVR4bUJSb2dNVnpJd3ZvMWpJdzJBV1NMczR4RUpjbnJKWmdmM1FuTnYxT0VyYjZ5RG92RTNfdDhkdmlBU2FJQ2FUOG82X0tDVDBtMWJwQkhSenAyZkNmbklpalRKUmhfbkp2T2IwZndocXRNN1VUQ0RrTGFJZUxnM0IyNGhGNVBsRHJqMDNOLTRoN2RZb2lOT0RMNXVqRTBWTmVTRUdVN21FdjJ4UkgwLUF5QUkxNUFXamtoRVpkeDlvLWNBa2QyZW1hQ2RtYy1uMnZWWnRUbHptOTd4TjM2ZUo3b2VnazFGR2VFdVZtTDNKdW5fbk5IRw?oc=5",
+          "publishedAt": "2026-07-25T08:00:12.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Türkiye Satranç İkinci Ligi Ana Listesi Yayınlandı",
+          "publisher": "Yalova Gazetesi",
+          "url": "https://news.google.com/rss/articles/CBMiiAFBVV95cUxNN0ZndkpidHJWSG1GYlFjYURZcjZrNjNJV0x2N2pKc0pvUmpzdC01Z0ROTEh1Yl9yOHBiVnIzUkhLWmZnYmtNa0NGakhNbjB2SUZQR3diaGwxZ1NMaXl3QmRhTjRyU0dTS29nOVpWYWdGU3lPTXVfWDBFSFFBRnlzaXp5c3plelo0?oc=5",
+          "publishedAt": "2026-07-24T21:07:00.000Z",
+          "evidenceType": "news",
+          "credibility": 82,
+          "isOfficial": false
+        },
+        {
+          "title": "Son Dakika | TBMM Başkanı Numan Kurtulmuş Terörsüz Türkiye yasası için tarih verdi! \"Genel af, şahsa özel af olmayacak\"",
+          "publisher": "Sabah",
+          "url": "https://news.google.com/rss/articles/CBMingFBVV95cUxNQm5GN1F5a2VEc2RUTHk2ZU90bnFQWktlY19CWE9zMWhHejZxZzFKRkRuckw4dFpiRW9Zd3pEaWVFWEdzZExVRTZMbjVONFpDV1hUaWFKZk96b0t2ZmI4S3Z5X3NYbFZUSV8wX3lsbC0wS0xwaUlyejEwT2FfMnJoeDUyaHcwVTBtZFZiREYwMXRtY0tYYmRUT3VDTUV3Z9IBoAFBVV95cUxOR0hDWXFZdHVQQlBHVWZreTVhOEZteXZkY3lsUk5iMXI3RTFGbm83ajZBQWt6blpZUjFTbm9WdWZ1QUE1b3NIaXU0VDU2WjdBYnNTY1ZQMkM0ZDJ4dF9WeUU3ZkJRVlZuUURWTlNFR19lNGx4YkxkTUdrb0J4SUQwdEU2X01OTFV2eDlldFZGYWVkd0tLVXg5Z1loSllXUGZ4?oc=5",
+          "publishedAt": "2026-07-22T13:15:59.000Z",
+          "evidenceType": "news",
+          "credibility": 82,
+          "isOfficial": false
+        }
+      ],
       "disclaimer": "Bu değerlendirme sınırlı açık haber sinyallerinden üretilmiştir; kesin sonuç, yatırım, alım veya satım tavsiyesi değildir.",
       "engine": {
-        "version": "5.0.0",
+        "version": "6.0.0",
         "mode": "limited-fallback",
         "usedLiveMarketData": false,
         "usedLiveWebResearch": false,
-        "usedFallbackNews": false,
+        "usedFallbackNews": true,
         "evidenceProfile": {
-          "itemCount": 0,
-          "publisherCount": 0,
-          "domainCount": 0,
+          "itemCount": 24,
+          "publisherCount": 18,
+          "domainCount": 2,
           "officialCount": 0,
-          "sentimentScore": 50,
-          "qualityScore": 0,
-          "diversityScore": 0,
-          "coverageScore": 0,
-          "newsImpact": 0,
-          "events": [],
-          "signals": [],
-          "keyFactors": []
+          "sentimentScore": 54,
+          "qualityScore": 67,
+          "diversityScore": 100,
+          "coverageScore": 100,
+          "newsImpact": 72,
+          "events": [
+            {
+              "label": "KAP / resmî açıklama",
+              "count": 1
+            }
+          ],
+          "signals": [
+            {
+              "type": "neutral",
+              "title": "Haber duyarlılığı",
+              "detail": "24 benzersiz içerikte duyarlılık puanı 54/100; 2 alan adı tarandı.",
+              "weight": 84
+            },
+            {
+              "type": "neutral",
+              "title": "KAP / resmî açıklama",
+              "detail": "1 ilgili başlık tespit edildi.",
+              "weight": 40
+            }
+          ],
+          "keyFactors": [
+            "24 güncel ve benzersiz içerik",
+            "2 farklı kaynak alan adı",
+            "Öne çıkan olay türü: KAP / resmî açıklama"
+          ]
         },
         "entityRecognition": false,
+        "ai": {
+          "enabled": false,
+          "premiumOnly": true,
+          "used": false
+        },
         "webResearchError": null,
         "sourceCoverage": {
           "planned": [],
-          "returned": [],
+          "returned": [
+            "AA",
+            "AA",
+            "Nöbetçi Gazete",
+            "Sözcü Gazetesi",
+            "SonDakika",
+            "Haber Ege",
+            "Yalova Gazetesi",
+            "Sabah"
+          ],
           "autoDiscovery": true
         },
-        "generatedAt": "2026-07-26T12:50:01.577Z",
+        "generatedAt": "2026-07-27T09:44:24.040Z",
         "cache": "miss"
       }
     },
@@ -212,7 +321,7 @@
         "subtype": "commodity",
         "market": "COMMODITY",
         "symbol": "GRAM_ALTIN",
-        "name": "Gram Altın",
+        "name": "24 Ayar Gram Altın",
         "matchedBy": "alias",
         "matchedValue": "gram",
         "confidence": 78
@@ -409,59 +518,59 @@
         }
       },
       "answerTitle": "Kısa Vade finans değerlendirmesi",
-      "directAnswer": "Gold Aug 26 güncel fiyatı 4.070,8 USD. Kısa Vade için teknik görünüm negatif; veri güveni %64, risk seviyesi orta. Olası kırılım seviyesi 4.779,4 USD, takip bölgesi 4.025 USD - 4.062,3 USD, teknik geçersizlik 3.950,3 USD.",
-      "summary": "Kısa Vade ufku; canlı fiyat serisi, RSI, EMA, SMA, MACD, ATR, hacim, destek-direnç ve erişilebilen haber sinyalleri birlikte değerlendirilerek hesaplandı. Sonuç kesin fiyat tahmini değil, olasılık bandıdır.",
+      "directAnswer": "24 Ayar Gram Altın (teorik piyasa karşılığı) güncel fiyatı 6.231,26 TRY. Kısa Vade için yükseliş rejimi; teknik görünüm negatif. Veri güveni %72, risk orta, yıllıklandırılmış oynaklık %30.0, geçmiş maksimum düşüş %20.2 ve risk/getiri 0.03x. Olası kırılım 6.253,1 TRY, takip bölgesi 6.187,7 TRY - 6.223,2 TRY. 3.943,8 TRY altında kalıcılık mevcut teknik senaryoyu geçersiz kılar.",
+      "summary": "Kısa Vade ufkunda 224 fiyat gözlemi; getiri dağılımı, tarihsel VaR, maksimum düşüş, piyasa rejimi, RSI, EMA, SMA, MACD, ATR, hacim ve destek-direnç birlikte değerlendirildi. Güven puanı veri yeterliliğiyle sınırlandı; sonuç kesin vaat değil, ölçülebilir olasılık bandıdır.",
       "dailyPrice": {
         "available": true,
-        "currency": "USD",
-        "date": "2026-07-24T04:00:00.000Z",
-        "source": "Yahoo Finance chart",
-        "current": 4070.8,
-        "open": 4053.39990234375,
-        "high": 4085.199951171875,
-        "low": 4024,
-        "average": 4058.3499755859375,
-        "vwap": 4059.766118294146,
-        "close": 4070.800048828125,
-        "previousClose": 4046.60009765625,
-        "change": 24.199902343750182,
-        "changePercent": 0.5980304887988938,
-        "volume": 112402
+        "currency": "TRY",
+        "date": "2026-07-27T04:00:00.000Z",
+        "source": "Yahoo Finance ons altın ve USD/TRY türevi",
+        "current": 6231.255679107874,
+        "open": 6234.880994836965,
+        "high": 6274.502297386543,
+        "low": 6190.766501478043,
+        "average": 6188.542168299549,
+        "vwap": null,
+        "close": 6231.255679107874,
+        "previousClose": 6155.973023475258,
+        "change": 75.2826556326163,
+        "changePercent": 1.2229204927561015,
+        "volume": 0
       },
       "yearlyPrice": {
         "available": true,
-        "currency": "USD",
-        "date": "2026-07-24T04:00:00.000Z",
-        "source": "Yahoo Finance chart",
-        "low52w": 3263.9,
-        "average52w": 4290.28758984375,
-        "high52w": 5586.2
+        "currency": "TRY",
+        "date": "2026-07-27T04:00:00.000Z",
+        "source": "Yahoo Finance ons altın ve USD/TRY türevi",
+        "low52w": 4300.697422868089,
+        "average52w": 6053.861879953299,
+        "high52w": 7480.8841953267165
       },
       "estimatedRange": {
         "available": true,
-        "currency": "USD",
-        "low": 3793.044217454326,
-        "mid": 3891.6848,
-        "high": 3990.3253825456736,
+        "currency": "TRY",
+        "low": 5814.245664034616,
+        "mid": 5957.080429227128,
+        "high": 6099.915194419639,
         "label": "Kısa Vade olası fiyat bandı",
         "basis": "ATR oynaklığı, teknik skor ve 30 günlük zaman ölçeği kullanıldı."
       },
       "technical": {
-        "rsi14": 44.04408261661364,
-        "sma20": 4067.8500244140623,
-        "sma50": 4254.9,
-        "sma200": 4478.289990234375,
-        "volumeRatio": 18.382559774964836,
-        "changePercent": 0.5980304887988938,
-        "ema20": 4091.628167948829,
-        "ema50": 4235.101866858996,
-        "ema100": 4362.5341421010835,
-        "ema200": 4271.115668620274,
-        "macd": -50.90048815831551,
-        "macdSignal": -67.77650254895453,
-        "macdHistogram": 16.876014390639014,
-        "atr14": 70.4857177734375,
-        "atrPercent": 1.7314954744383781,
+        "rsi14": 46.40578457068359,
+        "sma20": 4068.430029296875,
+        "sma50": 4242.751997070312,
+        "sma200": 4478.858489990234,
+        "volumeRatio": 16.338627522620303,
+        "changePercent": 0.6367366929377722,
+        "ema20": 4091.5307049139487,
+        "ema50": 4229.428285300187,
+        "ema100": 4357.144622736664,
+        "ema200": 4269.316825043338,
+        "macd": -45.25299952525029,
+        "macdSignal": -63.31264462583765,
+        "macdHistogram": 18.05964510058736,
+        "atr14": 67.04997907366071,
+        "atrPercent": 1.6379621124627022,
         "support1": 3962.5,
         "support2": 0,
         "resistance1": 4765.2001953125,
@@ -471,42 +580,42 @@
       },
       "statistics": {
         "trendStrength": 39,
-        "dataConfidence": 64,
-        "riskScore": 40,
-        "newsImpact": 15,
+        "dataConfidence": 72,
+        "riskScore": 38,
+        "newsImpact": 71,
         "marketInterest": 100
       },
       "technicalPlan": {
         "available": true,
-        "currency": "USD",
-        "current": 4070.8,
+        "currency": "TRY",
+        "current": 6231.3,
         "trendState": "negatif",
         "support": {
           "first": 3962.5,
-          "second": 3929.8
+          "second": 6097.2
         },
         "resistance": {
           "first": 4765.2,
           "second": 4636.7
         },
         "breakout": {
-          "level": 4779.4,
-          "confirmation": 4795.7,
+          "level": 6253.1,
+          "confirmation": 6278,
           "volumeThreshold": 1.15,
           "confirmed": false,
           "note": "Kırılım için seviye üzerindeki kapanışın hacim artışıyla teyit edilmesi beklenir."
         },
         "followZone": {
           "available": true,
-          "low": 4025,
-          "high": 4062.3
+          "low": 6187.7,
+          "high": 6223.2
         },
         "profitTaking": {
-          "first": 4765.2,
-          "second": 4876.8
+          "first": 6291.6,
+          "second": 6355.1
         },
         "invalidation": {
-          "level": 3950.3,
+          "level": 3943.8,
           "note": "Bu seviyenin altındaki kapanış teknik senaryoyu zayıflatır; otomatik al-sat emri değildir."
         },
         "forecastBands": [
@@ -514,10 +623,10 @@
             "days": 7,
             "label": "7 Gün",
             "available": true,
-            "currency": "USD",
-            "low": 3897.6,
-            "mid": 3969,
-            "high": 4040.5,
+            "currency": "TRY",
+            "low": 5966.1,
+            "mid": 6075.5,
+            "high": 6184.8,
             "probability": 74,
             "basis": "ATR oynaklığı, teknik skor ve karekök zaman ölçeğiyle kalibre edildi."
           },
@@ -525,10 +634,10 @@
             "days": 30,
             "label": "30 Gün",
             "available": true,
-            "currency": "USD",
-            "low": 3858.5,
-            "mid": 3958.9,
-            "high": 4059.2,
+            "currency": "TRY",
+            "low": 5914.6,
+            "mid": 6059.9,
+            "high": 6205.2,
             "probability": 66,
             "basis": "ATR oynaklığı, teknik skor ve karekök zaman ölçeğiyle kalibre edildi."
           },
@@ -536,21 +645,21 @@
             "days": 90,
             "label": "90 Gün",
             "available": true,
-            "currency": "USD",
-            "low": 3785.1,
-            "mid": 3958.9,
-            "high": 4132.7,
+            "currency": "TRY",
+            "low": 5808.2,
+            "mid": 6059.9,
+            "high": 6311.6,
             "probability": 55,
             "basis": "ATR oynaklığı, teknik skor ve karekök zaman ölçeğiyle kalibre edildi."
           }
         ],
         "reasons": [
           "Teknik skor 39/100",
-          "RSI(14) 44.0",
+          "RSI(14) 46.4",
           "EMA20 EMA50 altında",
-          "MACD histogramı 16.88",
-          "Hacim oranı 18.38x",
-          "ATR oynaklığı %1.73"
+          "MACD histogramı 18.06",
+          "Hacim oranı 16.34x",
+          "ATR oynaklığı %1.64"
         ],
         "disclaimer": "Seviyeler teknik karar desteğidir; kesin fiyat, doğrudan alım-satım emri veya yatırım tavsiyesi değildir."
       },
@@ -558,32 +667,62 @@
         {
           "name": "Olumlu görünüm",
           "probability": 28,
-          "description": "Teknik sinyaller güçlenirse yaklaşık 3.891,68 USD - 3.990,33 USD bandı."
+          "description": "Teknik sinyaller güçlenirse yaklaşık 5.957,08 TRY - 6.099,92 TRY bandı."
         },
         {
           "name": "Dengeli görünüm",
           "probability": 35,
-          "description": "Ana senaryoda yaklaşık 3.944,77 USD - 3.830,71 USD bandında dalgalanma."
+          "description": "Ana senaryoda yaklaşık 6.046,82 TRY - 5.855,92 TRY bandında dalgalanma."
         },
         {
           "name": "Olumsuz görünüm",
           "probability": 37,
-          "description": "Riskler öne çıkarsa yaklaşık 3.793,04 USD - 3.736,02 USD bandı."
+          "description": "Riskler öne çıkarsa yaklaşık 5.814,25 TRY - 5.718,8 TRY bandı."
         }
       ],
-      "confidence": 64,
+      "confidence": 72,
       "confidenceLabel": "Orta",
       "signals": [
         {
+          "type": "positive",
+          "title": "Piyasa rejimi",
+          "detail": "yükseliş rejimi; kısa, orta ve uzun vadeli ortalamaların konumu birlikte değerlendirildi.",
+          "weight": 82
+        },
+        {
+          "type": "neutral",
+          "title": "Yıllıklaştırılmış oynaklık",
+          "detail": "%30.0; 223 günlük getiri gözleminden hesaplandı.",
+          "weight": 78
+        },
+        {
+          "type": "neutral",
+          "title": "Maksimum düşüş",
+          "detail": "İncelenen seride zirveden en sert gerileme %20.2.",
+          "weight": 84
+        },
+        {
+          "type": "neutral",
+          "title": "Günlük aşağı yönlü risk",
+          "detail": "Tarihsel %95 VaR yaklaşık %3.08; daha kötü günler yine mümkündür.",
+          "weight": 80
+        },
+        {
+          "type": "negative",
+          "title": "Risk/getiri oranı",
+          "detail": "İlk teknik hedef ve geçersizlik seviyesine göre yaklaşık 0.03x.",
+          "weight": 86
+        },
+        {
           "type": "neutral",
           "title": "RSI (14)",
-          "detail": "RSI 44.0 seviyesinde.",
-          "weight": 12
+          "detail": "RSI 46.4 seviyesinde.",
+          "weight": 10
         },
         {
           "type": "positive",
           "title": "MACD",
-          "detail": "MACD histogramı 16.88.",
+          "detail": "MACD histogramı 18.06.",
           "weight": 85
         },
         {
@@ -595,99 +734,219 @@
         {
           "type": "positive",
           "title": "Hacim ilgisi",
-          "detail": "20 günlük ortalamaya göre hacim oranı 18.38x.",
+          "detail": "20 günlük ortalamaya göre hacim oranı 16.34x.",
           "weight": 90
         },
         {
           "type": "neutral",
           "title": "Destek ve direnç seviyeleri",
-          "detail": "Destekler 3.962,5 USD / 3.929,8 USD; dirençler 4.765,2 USD / 4.636,7 USD.",
+          "detail": "Destekler 3.962,5 TRY / 6.097,2 TRY; dirençler 4.765,2 TRY / 4.636,7 TRY.",
           "weight": 72
-        },
-        {
-          "type": "neutral",
-          "title": "Kırılım ve teyit",
-          "detail": "Kırılım 4.779,4 USD, hacimli teyit 4.795,7 USD. Kırılım için seviye üzerindeki kapanışın hacim artışıyla teyit edilmesi beklenir.",
-          "weight": 68
-        },
-        {
-          "type": "neutral",
-          "title": "Olası takip ve kâr alma bölgeleri",
-          "detail": "Takip bölgesi 4.025 USD - 4.062,3 USD; kâr alma referansları 4.765,2 USD / 4.876,8 USD.",
-          "weight": 65
-        },
-        {
-          "type": "negative",
-          "title": "Teknik geçersizlik seviyesi",
-          "detail": "3.950,3 USD altındaki kapanış teknik görünümü zayıflatır.",
-          "weight": 76
-        },
-        {
-          "type": "neutral",
-          "title": "30 günlük olası fiyat bandı",
-          "detail": "3.858,5 USD - 4.059,2 USD; merkez 3.958,9 USD, model olasılığı %66.",
-          "weight": 66
-        },
-        {
-          "type": "neutral",
-          "title": "90 günlük olası fiyat bandı",
-          "detail": "3.785,1 USD - 4.132,7 USD; merkez 3.958,9 USD, model olasılığı %55.",
-          "weight": 55
         }
       ],
       "keyFactors": [
         "Güncel içerik yoğunluğu",
         "Başlıklardaki olumlu ve olumsuz ifadeler",
         "Kaynak çeşitliliği",
+        "24 güncel ve benzersiz içerik",
+        "3 farklı kaynak alan adı",
         "Teknik skor 39/100",
-        "RSI(14) 44.0",
+        "RSI(14) 46.4",
         "EMA20 EMA50 altında",
-        "MACD histogramı 16.88",
-        "Hacim oranı 18.38x",
-        "ATR oynaklığı %1.73",
-        "Teknik skor: 39/100"
+        "MACD histogramı 18.06",
+        "Hacim oranı 16.34x"
       ],
       "missingInformation": [
-        "Sorunun alanına özel nicel ölçütler",
-        "Güncel haber ve KAP açıklamalarının tam taraması"
+        "Sorunun alanına özel nicel ölçütler"
       ],
       "nextChecks": [
-        "Karar vermeden önce gerçek fiyat, ilan veya resmi veri örneklerini kontrol et.",
-        "Model, yıl, paket, konum, tarih ve bütçe gibi ayrıntıları soruya ekle."
+        "3.943,8 TRY altında kalıcılık mevcut teknik senaryoyu geçersiz kılar.",
+        "Tahmin ufku 30 gün; süre değişirse olasılık ve fiyat bandı yeniden hesaplanmalı.",
+        "Karardan önce güncel KAP açıklamaları, bilanço ve önemli haber akışı ayrıca kontrol edilmeli."
       ],
       "sources": [
         {
-          "title": "Gold Aug 26 piyasa verisi",
-          "publisher": "Yahoo Finance",
-          "url": "https://finance.yahoo.com/quote/GC%3DF",
-          "publishedAt": "2026-07-26T12:49:55.626Z",
-          "evidenceType": "market-data",
+          "title": "India's Instagram Gen Z dents Modi's aura ahead of key state polls",
+          "publisher": "Reuters",
+          "url": "https://news.google.com/rss/articles/CBMirgFBVV95cUxQcHFySWU0aDZRdDNjdlBpUGV1N0o0enNwSTNtSmU2NXZBZGh6RERpeW5kbGM4eFQ3NE9JX1pXNUxLLU9OVUtIX1hYZGpoX0xlNHJySHFyaTRDNzBPbHB1X3dYNnR4dkJrMEhhM2R5Y1dZblRILXpmUk5zb0Z6UDRhd09PYTRTZFZhc2sxRjk1czR3XzNrVURIYlJMallscnBoa0N6UjAzZnlCMVJod1E?oc=5",
+          "publishedAt": "2026-07-25T14:57:00.000Z",
+          "evidenceType": "news",
+          "credibility": 98,
+          "isOfficial": true
+        },
+        {
+          "title": "'South Asian programmes helped us settle into our new lives'",
+          "publisher": "BBC News - Top Stories RSS",
+          "url": "https://www.bbc.co.uk/news/articles/c14y05enyd0o?at_medium=RSS&at_campaign=rss",
+          "publishedAt": "2026-07-26T23:29:39.000Z",
+          "evidenceType": "news",
+          "credibility": 97,
+          "isOfficial": true
+        },
+        {
+          "title": "Gram altın güne düşüşle başladı",
+          "publisher": "AA",
+          "url": "https://www.trthaber.com/haber/ekonomi/gram-altin-gune-dususle-basladi-952082.html",
+          "publishedAt": "2026-07-24T06:32:00.000Z",
+          "evidenceType": "news",
+          "credibility": 96,
+          "isOfficial": true
+        },
+        {
+          "title": "Gram altın güne yükselişle başladı",
+          "publisher": "AA",
+          "url": "https://www.trthaber.com/haber/ekonomi/gram-altin-gune-yukselisle-basladi-951756.html",
+          "publishedAt": "2026-07-21T06:52:00.000Z",
+          "evidenceType": "news",
+          "credibility": 96,
+          "isOfficial": true
+        },
+        {
+          "title": "Altın haftaya yükselişle başladı",
+          "publisher": "AA",
+          "url": "https://www.trthaber.com/haber/ekonomi/altin-haftaya-yukselisle-basladi-952286.html",
+          "publishedAt": "2026-07-27T06:31:00.000Z",
+          "evidenceType": "news",
+          "credibility": 96,
+          "isOfficial": true
+        },
+        {
+          "title": "Fethiye'deki orman yangını kontrol altında",
+          "publisher": "TRT Haber-AA",
+          "url": "https://www.trthaber.com/haber/turkiye/fethiyedeki-orman-yangini-kontrol-altinda-952011.html",
+          "publishedAt": "2026-07-23T11:18:00.000Z",
+          "evidenceType": "news",
+          "credibility": 96,
+          "isOfficial": true
+        },
+        {
+          "title": "AFAD ve TÜBİTAK'tan 'Ulusal Deprem Araştırmaları Programı Ortak Çağrısı'",
+          "publisher": "TRT Haber/AA",
+          "url": "https://www.trthaber.com/haber/gundem/afad-ve-tubitaktan-ulusal-deprem-arastirmalari-programi-ortak-cagrisi-952241.html",
+          "publishedAt": "2026-07-26T12:18:00.000Z",
+          "evidenceType": "news",
+          "credibility": 96,
+          "isOfficial": true
+        },
+        {
+          "title": "26 Temmuz 2026 güncel altın satış fiyatları",
+          "publisher": "Ekonomim",
+          "url": "https://news.google.com/rss/articles/CBMi5AFBVV95cUxORG5EY0JhTVhNOVROZHlCVmpCd21ULTdzeDRxaEJWdW45NTQ0UHRpWkhWZ25yVWg0dDQ3dk5lZGsxWTduYWtrYXB0ay1tOTJla0JKUGh1U0l5cGR1V3R5eklzT3VvdE15dkcyRW9zQm1MdTdTNHZXTGUtM3dENjZqRXFveTNOcV9EWkRQbHdWYXNtQ2dJZUNRZ0thRzlScm1kWEIxN3JiZ0ZGdW9QZEhKVWZPX25rczE5aEhpRWZoWXJzZjU3RU14TDZuclRMcEltc3p3UmpLYXBaQ2xPV2dLZzE2aXjSAeoBQVVfeXFMT19LdnBEVGx6aXhGeExONHJ3Z1AtTk1Ub1R0S0owZ2F4UnF6MXI4NEtMT3lsNGVWTmZMWm5DUHhQb3ZNNlkyaUd1bnlHTG54X1NPVnBjaWFVOUxyUUNxZFJBdmNJSzM4ZEZ5RnFpZlpVWTAwTkxvVnFlMVUzTUlUTjVFUkhKb1dMeTl3bV85OVlJM3kxR0llSWtsNExGZDhsUFBCaFRSVWozdDN3Wjc5NkhqS09HNEpHcnVQaTJ1dW5MNFdGdE9JUHhDS2FoTzBMc3Y3YUh1Y1FZVno2NW5OWjBYRGRCakJNZUNn?oc=5",
+          "publishedAt": "2026-07-26T04:07:00.000Z",
+          "evidenceType": "news",
+          "credibility": 89,
+          "isOfficial": false
+        },
+        {
+          "title": "24 Ayar Gram Altın teorik piyasa karşılığı",
+          "publisher": "Trendora / Yahoo Finance",
+          "url": "https://finance.yahoo.com/quote/GC=F",
+          "publishedAt": "2026-07-27T09:44:24.689Z",
+          "evidenceType": "derived-market-data",
           "credibility": 88,
+          "isOfficial": false
+        },
+        {
+          "title": "Altının hafızası vardır!",
+          "publisher": "Hürriyet",
+          "url": "https://news.google.com/rss/articles/CBMiekFVX3lxTE1QMTVWa240aFpaS3FWWmVFVkdSREJ5LVFod2lucUQ3SUFyOUUtWmRreGszNC1LUjlzTi1qcW16SkhTOXo5ZUFvQWRVeEc4OWFIUTctVnFNbUZYVGk0aHlvbHlFel9LWDd5QTl2QkdsSDE0Z1I0OUt0d3BB?oc=5",
+          "publishedAt": "2026-07-26T04:00:00.000Z",
+          "evidenceType": "news",
+          "credibility": 86,
+          "isOfficial": false
+        },
+        {
+          "title": "Para Çeker Gibi Altın Çekilecek! ATM’den Sertifikalı Gram Altın Satışı Uygulamada",
+          "publisher": "Para Analiz",
+          "url": "https://news.google.com/rss/articles/CBMitwFBVV95cUxNNlRvWkdraXh3RTJqWlY0eUV0bENVckVQa0VVaGZpemFFZ293cm5tR2tyMUN0amlSWmVpUTdYYTNYNDVmUmp3eE4wcUNTV1p3WkJ6T3NoajZWMkpvV3hpTmpLaVdtemZnUG1FMXp5U25sX3hzbWthNlFudnhaSUNYaVI3dGJGN20yWmlsSG1uZjZOZVE5eUF6bl9PLVZyT24zdG52MzFIMThaengxOWNvUDIxRjYzOTQ?oc=5",
+          "publishedAt": "2026-07-26T07:52:40.000Z",
+          "evidenceType": "news",
+          "credibility": 85,
+          "isOfficial": false
+        },
+        {
+          "title": "Bankalardan yeni altın uygulaması: ATM’lerden gram altın dönemi başladı",
+          "publisher": "İzmir’de Son Dakika",
+          "url": "https://news.google.com/rss/articles/CBMiqAFBVV95cUxNZ3BKOFc4QU5aSWxEcHJZNkZKVU40MGkxbGRqNmduV29aMk5iRWVXQkVmdDRDUlc3ekg3STdFZHJMWW5iQjZDeTdfZGZCazlZbGh2cFFRQlFWX2tIS0NCQTFyaDV5ZkVsMVR0R3VCall0QkRCR012M3lzNmZOQ3hRWnNSZHAyckxvcDVfY0pfcC03RkEzT1BvTU45OE9wM3dQaGNiZkJ4bUrSAa4BQVVfeXFMTmFBajFOZzhBZUVLU2tXZ2swNXRoM1Vfcl9UQWZYN0czZEdHVndhSXN4T1l2WG96b3VoRU5uUUhycWJDNGp6SFdicUIwMUl1MVZmZG16TV9CMktWOG1SUzZoZjhMa1R0em5CWWo3WUIzVnZGU210UEp1SVFnZ1ktb0ltTVo1RC1JRmsyRGdnSF9TbFRaVElhNExRR2NuNVVNdTQ3MEF2SC1zTlVtZEZB?oc=5",
+          "publishedAt": "2026-07-26T09:37:00.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Afyonlu Kadın Güreşçiler Türkiye Şampiyonası'na Damga Vurdu: 1 Altın, 1 Bronz Madalya",
+          "publisher": "Afyon Türkeli Gazetesi",
+          "url": "https://news.google.com/rss/articles/CBMixAFBVV95cUxPbEZIN0IwRkcxVlV0SERuMHRld2gxckJoUVlIbHctODJqMjNLZG5OZkcxWTV6bWstS3RiV3dIbHhoMXVtc0V0ZHFkc2N2T0FjQ1JDQk1jX0djcEFuWkRFTUZ2Y3NLMzFxNy1CUnE4bWMzcllqbV9VT1NjS0ktZFp0aWFlaUZUT1ctR3RKSTk2M2tpeGNETUFGVGFmb2tIWlk1N3NOYi1BSXF0WDFocmx6R1FCbGh5X1hwbXpGaDhxNTlaZGJw?oc=5",
+          "publishedAt": "2026-07-26T10:30:33.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Manisa’nın altından ‘altın kuşağı’ geçiyor!",
+          "publisher": "Manisa Kulis Haber",
+          "url": "https://news.google.com/rss/articles/CBMifEFVX3lxTE52cnRqVWxjM3ByYUc2T2RiS0NDaDlKRlVxRWtEUWtkeDhadWlQUWFMNTd6MjBuQnI2aXF4RGNWSUU4dFA3Qm04SkFSM3pXMHplSjZ2bFpYMU8takowQzJTMExNYjJIUWU2TXBwWHhGclp3eUpyXzdZYnQzY2M?oc=5",
+          "publishedAt": "2026-07-26T08:46:00.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Bankalardan altın kararı: ATM'lerde yeni dönem başladı",
+          "publisher": "Ege'de Sonsöz",
+          "url": "https://news.google.com/rss/articles/CBMihwFBVV95cUxPRUZsMUxYMWw4UHdLRTY4OFVlNlVLcm9tS29KNTF3RDJoRUlWRXZYZnNCTFo3cURoQmxRS0xmSFByQ3Q5SnY1ZnFCM21YWFZvcHhHSmd6X2oyYWJ6OUgtSTFGYVFSNHZWRG9aTGd0T1NuVEZmU3k2TXIwa2JjUHZsTV85Y1NBOUnSAYwBQVVfeXFMT0VkQmZmVnFZUThiel9PbFBONzNJY2RLeFFGVjNKajZIYkRPWnRTbVpYRXpMQlJOempWMW54QlJwS0FRUUE4WF9tQlY4M2x0QURXOWZPOU5tZXJWdXhtLUhycW40eWt0UWdkLTVzZ2dkMUJKMHMyelBaM2U4bnp1X0VlZ1FON09qYWxtbmg?oc=5",
+          "publishedAt": "2026-07-26T08:13:00.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Altın Fiyatları Güncellendi",
+          "publisher": "Gaziantep Doğuş",
+          "url": "https://news.google.com/rss/articles/CBMiakFVX3lxTE9QelFoTm1MeEdBeE84UUFodFdBa2ZKSDhZdHhIODlRSEJHbTBWRC1QemZqNXY0dkF0T2lObHBkUVFGdVN0VU9uNlhWS1pZQzJWb1FxQ3FxRUc1UmNuYzM5ODlmUUh5bFlPRnc?oc=5",
+          "publishedAt": "2026-07-26T07:39:00.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
           "isOfficial": false
         }
       ],
       "disclaimer": "Bu değerlendirme sınırlı açık haber sinyallerinden üretilmiştir; kesin sonuç, yatırım, alım veya satım tavsiyesi değildir.",
       "engine": {
-        "version": "5.0.0",
-        "mode": "market-data",
+        "version": "6.0.0",
+        "mode": "expert-statistical-market",
         "usedLiveMarketData": true,
         "usedLiveWebResearch": false,
-        "usedFallbackNews": false,
+        "usedFallbackNews": true,
         "evidenceProfile": {
-          "itemCount": 0,
-          "publisherCount": 0,
-          "domainCount": 0,
+          "itemCount": 24,
+          "publisherCount": 20,
+          "domainCount": 3,
           "officialCount": 0,
-          "sentimentScore": 50,
-          "qualityScore": 0,
-          "diversityScore": 0,
-          "coverageScore": 0,
-          "newsImpact": 0,
+          "sentimentScore": 51,
+          "qualityScore": 67,
+          "diversityScore": 100,
+          "coverageScore": 100,
+          "newsImpact": 71,
           "events": [],
-          "signals": [],
-          "keyFactors": []
+          "signals": [
+            {
+              "type": "neutral",
+              "title": "Haber duyarlılığı",
+              "detail": "24 benzersiz içerikte duyarlılık puanı 51/100; 3 alan adı tarandı.",
+              "weight": 84
+            }
+          ],
+          "keyFactors": [
+            "24 güncel ve benzersiz içerik",
+            "3 farklı kaynak alan adı"
+          ]
         },
         "entityRecognition": true,
+        "ai": {
+          "enabled": false,
+          "premiumOnly": true,
+          "used": false
+        },
         "webResearchError": null,
         "sourceCoverage": {
           "planned": [
@@ -712,11 +971,26 @@
             "BIST 30"
           ],
           "returned": [
-            "Yahoo Finance"
+            "Reuters",
+            "BBC News - Top Stories RSS",
+            "AA",
+            "AA",
+            "AA",
+            "TRT Haber-AA",
+            "TRT Haber/AA",
+            "Ekonomim",
+            "Trendora / Yahoo Finance",
+            "Hürriyet",
+            "Para Analiz",
+            "İzmir’de Son Dakika",
+            "Afyon Türkeli Gazetesi",
+            "Manisa Kulis Haber",
+            "Ege'de Sonsöz",
+            "Gaziantep Doğuş"
           ],
           "autoDiscovery": true
         },
-        "generatedAt": "2026-07-26T12:50:01.670Z",
+        "generatedAt": "2026-07-27T09:44:25.027Z",
         "cache": "miss"
       }
     },
@@ -775,7 +1049,7 @@
       },
       "answerTitle": "Gayrimenkul değerlendirmesi",
       "directAnswer": "Şu anda yalnızca açık haber sinyallerine ulaşılabildiği için kesin fiyat veya güçlü karar sonucu üretmek güvenilir olmaz.",
-      "summary": "Türkiye’de konut ve arsa piyasasının genel eğilimi nedir? hakkında 0 benzersiz güncel içerik incelendi. Bu yedek analiz yalnızca haber yoğunluğu ve başlık eğiliminden oluşur; piyasa ilanı, fiyat geçmişi veya alan verisi bulunmadığında sonuç sınırlıdır.",
+      "summary": "Türkiye’de konut ve arsa piyasasının genel eğilimi nedir? hakkında 24 benzersiz güncel içerik incelendi. Bu yedek analiz yalnızca haber yoğunluğu ve başlık eğiliminden oluşur; piyasa ilanı, fiyat geçmişi veya alan verisi bulunmadığında sonuç sınırlıdır.",
       "dailyPrice": {
         "available": false,
         "currency": null,
@@ -825,34 +1099,34 @@
       "scenarios": [
         {
           "name": "Olumlu görünüm",
-          "probability": 38,
+          "probability": 60,
           "description": "Olumlu başlık ve ilgi sinyallerinin güçlenmesi."
         },
         {
           "name": "Dengeli görünüm",
-          "probability": 32,
+          "probability": 28,
           "description": "Mevcut sinyallerin yön belirlemek için yetersiz kalması."
         },
         {
           "name": "Olumsuz görünüm",
-          "probability": 30,
+          "probability": 12,
           "description": "Risk ve zayıflama sinyallerinin öne çıkması."
         }
       ],
-      "confidence": 22,
-      "confidenceLabel": "Düşük",
+      "confidence": 58,
+      "confidenceLabel": "Orta",
       "signals": [
         {
           "type": "neutral",
           "title": "Haber hacmi",
-          "detail": "0 benzersiz içerik bulundu.",
-          "weight": 0
+          "detail": "24 benzersiz içerik bulundu.",
+          "weight": 96
         },
         {
           "type": "positive",
           "title": "Olumlu başlık sinyali",
-          "detail": "0 olumlu ifade tespit edildi.",
-          "weight": 0
+          "detail": "1 olumlu ifade tespit edildi.",
+          "weight": 10
         },
         {
           "type": "negative",
@@ -875,36 +1149,145 @@
         "Karar vermeden önce gerçek fiyat, ilan veya resmi veri örneklerini kontrol et.",
         "Model, yıl, paket, konum, tarih ve bütçe gibi ayrıntıları soruya ekle."
       ],
-      "sources": [],
+      "sources": [
+        {
+          "title": "Türkiye'de sıcak hava dalgalarının şiddeti son 75 yılın zirvesine çıktı",
+          "publisher": "AA",
+          "url": "https://www.trthaber.com/haber/turkiye/turkiyede-sicak-hava-dalgalarinin-siddeti-son-75-yilin-zirvesine-cikti-952298.html",
+          "publishedAt": "2026-07-27T08:12:00.000Z",
+          "evidenceType": "news",
+          "credibility": 96,
+          "isOfficial": true
+        },
+        {
+          "title": "Türkiye, İspanya'daki yangınlarla mücadele için 2 uçak gönderdi",
+          "publisher": "TRT Haber",
+          "url": "https://www.trthaber.com/haber/gundem/turkiye-ispanyadaki-yanginlarla-mucadele-icin-2-ucak-gonderdi-952250.html",
+          "publishedAt": "2026-07-26T14:25:00.000Z",
+          "evidenceType": "news",
+          "credibility": 96,
+          "isOfficial": true
+        },
+        {
+          "title": "Türkiye'nin Suriye'ye ihracatı yüzde 26,4 arttı",
+          "publisher": "AA",
+          "url": "https://www.trthaber.com/haber/ekonomi/turkiyenin-suriyeye-ihracati-yuzde-264-artti-952237.html",
+          "publishedAt": "2026-07-26T11:33:00.000Z",
+          "evidenceType": "news",
+          "credibility": 96,
+          "isOfficial": true
+        },
+        {
+          "title": "DENEYAP Teknoloji Atölyelerinden Türkiye genelinde proje şenliği",
+          "publisher": "AA",
+          "url": "https://www.trthaber.com/haber/bilim-teknoloji/deneyap-teknoloji-atolyelerinden-turkiye-genelinde-proje-senligi-949527.html",
+          "publishedAt": "2026-06-27T11:35:00.000Z",
+          "evidenceType": "news",
+          "credibility": 95,
+          "isOfficial": true
+        },
+        {
+          "title": "Gümüşhane'de Konut Fiyatları Türkiye Ortalamasının Üzerinde Arttı",
+          "publisher": "gumuskoza.com.tr",
+          "url": "https://news.google.com/rss/articles/CBMirAFBVV95cUxPUXVPS293ZWQ1Ui1XSzd3UldKbDI5elVUWFdXYV9YQ0QyZU5rdE1CaVl5amNVMnNzMVBWcEpzOE4wdTlkV19Ba1FuUHphOWpQYlNRaVVSTkhWT2c5T1o1VVZpRDc0aldkZF84LUJLZU1YTjZ0UGdIM25PeGtLdUdnV1lWTEtWRktPSDFSajFFcjZOOGpUUzRpSVBjbVpRQUszREVJcFhmVEVvc2NW0gGyAUFVX3lxTFB6TU1pdU1Iek5BVW5peVVIYVFUYVowSnhmbXYtUXFIUS1MQkoyZGtSSTktcFY4MFMzamRORUtfbWxub0ZLa0xHdXlKRVFwQ1NnNTd5c0xNa1pKUU5MRnRXY0dkOHAtbXduWjRRQktwMWdDMVJCck80Vk9Ed2NsUjd0c2l6Z2JuNEo1WHFUcFBUMGg0QTdyeVYzNUhDTXptcTlNN2o0RHF4THQyUjRtaUh4eXc?oc=5",
+          "publishedAt": "2026-07-26T09:20:00.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Bölgesel asgari ücret nedir? Türkiye'de yeniden uygulanacak mı?",
+          "publisher": "Nöbetçi Gazete",
+          "url": "https://news.google.com/rss/articles/CBMilAFBVV95cUxOckl6WmpDNG5PVDhtRVRPcVhOYnBPand3MUxUTTRESzU4cTAtdnFNdEQ4bGhQa0M3NXNGcHNWaU0tem01Sm14MDBlLVRuUUZIMDlJamJxeHJVZzlCSkxTTi1OTmxIeTd0SXVzajFyaVZsV2ZHOFJXeVNFWWxVTE5Fb0RUekxSX0ZES3o1dERrVTZ5OFpy?oc=5",
+          "publishedAt": "2026-07-26T08:02:00.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "YENİ Partili Karabat, Türkiye'deki 'dev faiz havuzunu' anlattı: 'Servet, finansal varlığı olan kesime akıyor'",
+          "publisher": "Cumhuriyet",
+          "url": "https://news.google.com/rss/articles/CBMi4gFBVV95cUxPNUY4M2gyU2RUYi1HSVM4MVIzZnlXbk5qMVAxREhLek9nSUNlV29MaGstR2p6T2xhS0dqUTFxU3JNZjNCUkx6cWtjSXdXamd6d1B5OW5STllyc1l4UDJZV1ZSQ0JhV1FTVVQtN0htQUctSktfMlRSTFRQQjZjM2hYTEMwd1R5MnJlMkZUUlM0MlhaRGxtbUpGZkpLNHFnVlRQQXcya0xULTJOWnZIQzYtM292ZUd4MlkxclhPMW83NGFvbms3eTRZOGVxdktfaG9pVjhOSHpNY1RlakhQRDMtVkFB?oc=5",
+          "publishedAt": "2026-07-26T10:32:00.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Son Dakika | TBMM Başkanı Numan Kurtulmuş Terörsüz Türkiye yasası için tarih verdi! \"Genel af, şahsa özel af olmayacak\"",
+          "publisher": "Sabah",
+          "url": "https://news.google.com/rss/articles/CBMingFBVV95cUxNQm5GN1F5a2VEc2RUTHk2ZU90bnFQWktlY19CWE9zMWhHejZxZzFKRkRuckw4dFpiRW9Zd3pEaWVFWEdzZExVRTZMbjVONFpDV1hUaWFKZk96b0t2ZmI4S3Z5X3NYbFZUSV8wX3lsbC0wS0xwaUlyejEwT2FfMnJoeDUyaHcwVTBtZFZiREYwMXRtY0tYYmRUT3VDTUV3Z9IBoAFBVV95cUxOR0hDWXFZdHVQQlBHVWZreTVhOEZteXZkY3lsUk5iMXI3RTFGbm83ajZBQWt6blpZUjFTbm9WdWZ1QUE1b3NIaXU0VDU2WjdBYnNTY1ZQMkM0ZDJ4dF9WeUU3ZkJRVlZuUURWTlNFR19lNGx4YkxkTUdrb0J4SUQwdEU2X01OTFV2eDlldFZGYWVkd0tLVXg5Z1loSllXUGZ4?oc=5",
+          "publishedAt": "2026-07-22T13:15:59.000Z",
+          "evidenceType": "news",
+          "credibility": 82,
+          "isOfficial": false
+        }
+      ],
       "disclaimer": "Bu değerlendirme sınırlı açık haber sinyallerinden üretilmiştir; kesin sonuç, yatırım, alım veya satım tavsiyesi değildir.",
       "engine": {
-        "version": "5.0.0",
+        "version": "6.0.0",
         "mode": "limited-fallback",
         "usedLiveMarketData": false,
         "usedLiveWebResearch": false,
-        "usedFallbackNews": false,
+        "usedFallbackNews": true,
         "evidenceProfile": {
-          "itemCount": 0,
-          "publisherCount": 0,
-          "domainCount": 0,
+          "itemCount": 24,
+          "publisherCount": 17,
+          "domainCount": 2,
           "officialCount": 0,
-          "sentimentScore": 50,
-          "qualityScore": 0,
-          "diversityScore": 0,
-          "coverageScore": 0,
-          "newsImpact": 0,
-          "events": [],
-          "signals": [],
-          "keyFactors": []
+          "sentimentScore": 57,
+          "qualityScore": 66,
+          "diversityScore": 100,
+          "coverageScore": 100,
+          "newsImpact": 74,
+          "events": [
+            {
+              "label": "KAP / resmî açıklama",
+              "count": 1
+            }
+          ],
+          "signals": [
+            {
+              "type": "neutral",
+              "title": "Haber duyarlılığı",
+              "detail": "24 benzersiz içerikte duyarlılık puanı 57/100; 2 alan adı tarandı.",
+              "weight": 83
+            },
+            {
+              "type": "neutral",
+              "title": "KAP / resmî açıklama",
+              "detail": "1 ilgili başlık tespit edildi.",
+              "weight": 40
+            }
+          ],
+          "keyFactors": [
+            "24 güncel ve benzersiz içerik",
+            "2 farklı kaynak alan adı",
+            "Öne çıkan olay türü: KAP / resmî açıklama"
+          ]
         },
         "entityRecognition": false,
+        "ai": {
+          "enabled": false,
+          "premiumOnly": true,
+          "used": false
+        },
         "webResearchError": null,
         "sourceCoverage": {
           "planned": [],
-          "returned": [],
+          "returned": [
+            "AA",
+            "TRT Haber",
+            "AA",
+            "AA",
+            "gumuskoza.com.tr",
+            "Nöbetçi Gazete",
+            "Cumhuriyet",
+            "Sabah"
+          ],
           "autoDiscovery": true
         },
-        "generatedAt": "2026-07-26T12:50:01.670Z",
+        "generatedAt": "2026-07-27T09:44:24.050Z",
         "cache": "miss"
       }
     },
@@ -963,7 +1346,7 @@
       },
       "answerTitle": "Ürün ve Fiyat değerlendirmesi",
       "directAnswer": "Şu anda yalnızca açık haber sinyallerine ulaşılabildiği için kesin fiyat veya güçlü karar sonucu üretmek güvenilir olmaz.",
-      "summary": "Teknoloji ürünlerinde fiyatların düşme olasılığı var mı? hakkında 0 benzersiz güncel içerik incelendi. Bu yedek analiz yalnızca haber yoğunluğu ve başlık eğiliminden oluşur; piyasa ilanı, fiyat geçmişi veya alan verisi bulunmadığında sonuç sınırlıdır.",
+      "summary": "Teknoloji ürünlerinde fiyatların düşme olasılığı var mı? hakkında 24 benzersiz güncel içerik incelendi. Bu yedek analiz yalnızca haber yoğunluğu ve başlık eğiliminden oluşur; piyasa ilanı, fiyat geçmişi veya alan verisi bulunmadığında sonuç sınırlıdır.",
       "dailyPrice": {
         "available": false,
         "currency": null,
@@ -1013,28 +1396,28 @@
       "scenarios": [
         {
           "name": "Olumlu görünüm",
-          "probability": 38,
+          "probability": 16,
           "description": "Olumlu başlık ve ilgi sinyallerinin güçlenmesi."
         },
         {
           "name": "Dengeli görünüm",
-          "probability": 32,
+          "probability": 36,
           "description": "Mevcut sinyallerin yön belirlemek için yetersiz kalması."
         },
         {
           "name": "Olumsuz görünüm",
-          "probability": 30,
+          "probability": 48,
           "description": "Risk ve zayıflama sinyallerinin öne çıkması."
         }
       ],
-      "confidence": 22,
-      "confidenceLabel": "Düşük",
+      "confidence": 58,
+      "confidenceLabel": "Orta",
       "signals": [
         {
           "type": "neutral",
           "title": "Haber hacmi",
-          "detail": "0 benzersiz içerik bulundu.",
-          "weight": 0
+          "detail": "24 benzersiz içerik bulundu.",
+          "weight": 96
         },
         {
           "type": "positive",
@@ -1045,8 +1428,8 @@
         {
           "type": "negative",
           "title": "Olumsuz başlık sinyali",
-          "detail": "0 risk ifadesi tespit edildi.",
-          "weight": 0
+          "detail": "1 risk ifadesi tespit edildi.",
+          "weight": 10
         }
       ],
       "keyFactors": [
@@ -1063,36 +1446,165 @@
         "Karar vermeden önce gerçek fiyat, ilan veya resmi veri örneklerini kontrol et.",
         "Model, yıl, paket, konum, tarih ve bütçe gibi ayrıntıları soruya ekle."
       ],
-      "sources": [],
+      "sources": [
+        {
+          "title": "Brent petrolün varili 86,61 dolardan işlem görüyor",
+          "publisher": "AA",
+          "url": "https://www.trthaber.com/haber/dunya/brent-petrolun-varili-8661-dolardan-islem-goruyor-952288.html",
+          "publishedAt": "2026-07-27T06:53:00.000Z",
+          "evidenceType": "news",
+          "credibility": 96,
+          "isOfficial": true
+        },
+        {
+          "title": "Kabine yarın toplanıyor. Gündemde hangi konular var?",
+          "publisher": "NTV Haber",
+          "url": "https://news.google.com/rss/articles/CBMimAFBVV95cUxPbld1M3c1VE40OTY1aVREWjZuSm9TX2VBWndLV2ZrNldTSE1PYmVxY2JERmJXemtqS3p0anotelRBT0xaaTdGWnRYdjRJTjZiWE5aNWp5dGM2WVJrZno2cDliV2ktSGdXYzF0dXFVSDFHTjNoTGotMk5EOTZGVnY2ZXVHUDg2ei1UMEVLXzNMZUNPSUpQcFg0U9IBmAFBVV95cUxPbld1M3c1VE40OTY1aVREWjZuSm9TX2VBWndLV2ZrNldTSE1PYmVxY2JERmJXemtqS3p0anotelRBT0xaaTdGWnRYdjRJTjZiWE5aNWp5dGM2WVJrZno2cDliV2ktSGdXYzF0dXFVSDFHTjNoTGotMk5EOTZGVnY2ZXVHUDg2ei1UMEVLXzNMZUNPSUpQcFg0Uw?oc=5",
+          "publishedAt": "2026-07-26T09:52:04.000Z",
+          "evidenceType": "news",
+          "credibility": 89,
+          "isOfficial": false
+        },
+        {
+          "title": "YENİ Partili Karabat, Türkiye'deki 'dev faiz havuzunu' anlattı: 'Servet, finansal varlığı olan kesime akıyor'",
+          "publisher": "Cumhuriyet",
+          "url": "https://news.google.com/rss/articles/CBMi4gFBVV95cUxPNUY4M2gyU2RUYi1HSVM4MVIzZnlXbk5qMVAxREhLek9nSUNlV29MaGstR2p6T2xhS0dqUTFxU3JNZjNCUkx6cWtjSXdXamd6d1B5OW5STllyc1l4UDJZV1ZSQ0JhV1FTVVQtN0htQUctSktfMlRSTFRQQjZjM2hYTEMwd1R5MnJlMkZUUlM0MlhaRGxtbUpGZkpLNHFnVlRQQXcya0xULTJOWnZIQzYtM292ZUd4MlkxclhPMW83NGFvbms3eTRZOGVxdktfaG9pVjhOSHpNY1RlakhQRDMtVkFB?oc=5",
+          "publishedAt": "2026-07-26T10:32:00.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Ankara’nın teknolojik gücünü itiraf ettiler! Türkler, Çinlilerden daha iyi yapıyor",
+          "publisher": "Sabah",
+          "url": "https://news.google.com/rss/articles/CBMiwAFBVV95cUxQQjdrcGYwZzZlT0h4cVdhY0F4NV9LR29XcGo2cFZzXzVycC1fdEI3STFyc3FHQ3ViTWgtM09MZEZmR3YwdGhHdGxSSjhlUUctZ01mTHc1Tkw1bDhUaURTckFZV2JDRWsySmY4UnJmb1FGNGxJc1JrTkZ0NmptTi0xeWwwdWI0a3BxaXNGaUkyLU9ieGp6Y3lXN291d1lIMnkyTEoyQlFsYjJ3TzBUcnpXT3BDZEVNYWw4dlZ2ZzRHeGbSAcMBQVVfeXFMTWdQbWlRcFM3RnlUMWdYUFU5N0p3M1JPRTFGSFhkeEQ2OThFY3o2dDI3NU5Ed2ZSLUJ6eE13dWZqZVlNSVhqWW8xZFFyNXNaeEtOODEyaERIWGlLV19fcVU5UTFON1AxTlpvS0c0dExBWkcxNlNHM0k2Q3dzNy1fUDRjNnlPMzk5MzFkb2ExWl84YUlCQTVnRDVEM2ZLellkSlFvN3BDQ3dJX0NpemF6czNhb1NhRmU5QVNDQXFJUDNSa3B3?oc=5",
+          "publishedAt": "2026-07-26T10:30:22.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Türkiye'de eşi benzeri olmayan köy: Sadece kale kapısından girişi var",
+          "publisher": "Sözcü Gazetesi",
+          "url": "https://news.google.com/rss/articles/CBMiowFBVV95cUxPU3h1NDZKWG01NDdJbEpzdm1QY0Zwcm8yaU5iRUxKMzhpa3RKckJzcGh2cHNnbDR5Vmo0VjdpUUNCbUc2ZzZlMUR6czUwZzNlX2lZMzhYcUVYMGlaV19QcUx3enpKV0xSR1dXYUlSUW96Q3pVXzV5dkdIYkZmVVJfb2Y4Q01vd29vNEpZbHpKQ1UtbFRucDZpS0lZc0l4dEp4Q0lj?oc=5",
+          "publishedAt": "2026-07-26T10:18:06.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Son dakika haberi: Antalya'da korkunç kaza! 5 can kaybı var! | Son dakika haberleri",
+          "publisher": "Habertürk",
+          "url": "https://news.google.com/rss/articles/CBMilgFBVV95cUxPZ2thOTQtNUo2LVFILUtxR3hFSDJzQ1pKaG01ZzhYaXBkRFJOUDdGX21haHQwN3RIb1N0Ykk5cmZuRFBITUNWaV85SmF2NkZIS191c3RPQURxTkRseF82MDdxMkQydDl6bnhQcXBTUXFiVkFxNFJaQUwyT01Yc0plQ2xVcUtsMzZDcHRRcE9JQUw4dGxUa1E?oc=5",
+          "publishedAt": "2026-07-26T09:58:06.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Samsung, iddiaya göre Galaxy Z TriFold’un yenisini geliştiriyor - Teknoloji haberleri",
+          "publisher": "LOG",
+          "url": "https://news.google.com/rss/articles/CBMijgFBVV95cUxQWFZINm5EQkVsSlp4MjBOV21NbHZyT1p3RjRKTHFQLUNjUkdMcFhETkxPbHhST2I4YklTc0sySVlvcFZwWVdTYThSaVVVVWNEeHlWRWNGbUVLXzBtQU9WMVd6Zkcxc2hTN3hmUFE1ZGEwejZTYUxrN2pjM09JY1gxQmF2elc5X2tIT09vcGx3?oc=5",
+          "publishedAt": "2026-07-26T09:29:16.000Z",
+          "evidenceType": "news",
+          "credibility": 84,
+          "isOfficial": false
+        },
+        {
+          "title": "Korkulan oldu: Bellek krizi otomobil fiyatlarını artırıyor",
+          "publisher": "Teknolojioku",
+          "url": "https://news.google.com/rss/articles/CBMivAFBVV95cUxPX3FqM3Q5a20yRnYyR0w3XzJ1elZqY25NUGYyaVpoRHhiZllWQUVSbWNqUFB3TmIzVjVIWDdXNC1IcF9lZGcyU09Ielk2Ml9xMjhPazlMc1AxUWFxTDRZME1UN2VkS1dKT2xaWm03MTJXSmhEQlp1RVAtdDdoVUx6RDY3ZmRMbDBVSElqZ0lUQ1JyeU1jQ0JMc05oZDdZVDFYRGlmQWU3V1pkOXBBZjF2a3pxdzhhUmN2NWpNbg?oc=5",
+          "publishedAt": "2026-07-26T08:39:00.000Z",
+          "evidenceType": "news",
+          "credibility": 82,
+          "isOfficial": false
+        }
+      ],
       "disclaimer": "Bu değerlendirme sınırlı açık haber sinyallerinden üretilmiştir; kesin sonuç, yatırım, alım veya satım tavsiyesi değildir.",
       "engine": {
-        "version": "5.0.0",
+        "version": "6.0.0",
         "mode": "limited-fallback",
         "usedLiveMarketData": false,
         "usedLiveWebResearch": false,
-        "usedFallbackNews": false,
+        "usedFallbackNews": true,
         "evidenceProfile": {
-          "itemCount": 0,
-          "publisherCount": 0,
-          "domainCount": 0,
+          "itemCount": 24,
+          "publisherCount": 16,
+          "domainCount": 2,
           "officialCount": 0,
-          "sentimentScore": 50,
-          "qualityScore": 0,
-          "diversityScore": 0,
-          "coverageScore": 0,
-          "newsImpact": 0,
-          "events": [],
-          "signals": [],
-          "keyFactors": []
+          "sentimentScore": 52,
+          "qualityScore": 65,
+          "diversityScore": 100,
+          "coverageScore": 100,
+          "newsImpact": 71,
+          "events": [
+            {
+              "label": "KAP / resmî açıklama",
+              "count": 1
+            },
+            {
+              "label": "Sözleşme ve ihale",
+              "count": 1
+            },
+            {
+              "label": "Düzenleyici ve hukuki gelişme",
+              "count": 1
+            }
+          ],
+          "signals": [
+            {
+              "type": "neutral",
+              "title": "Haber duyarlılığı",
+              "detail": "24 benzersiz içerikte duyarlılık puanı 52/100; 2 alan adı tarandı.",
+              "weight": 83
+            },
+            {
+              "type": "neutral",
+              "title": "KAP / resmî açıklama",
+              "detail": "1 ilgili başlık tespit edildi.",
+              "weight": 40
+            },
+            {
+              "type": "neutral",
+              "title": "Sözleşme ve ihale",
+              "detail": "1 ilgili başlık tespit edildi.",
+              "weight": 40
+            },
+            {
+              "type": "neutral",
+              "title": "Düzenleyici ve hukuki gelişme",
+              "detail": "1 ilgili başlık tespit edildi.",
+              "weight": 40
+            }
+          ],
+          "keyFactors": [
+            "24 güncel ve benzersiz içerik",
+            "2 farklı kaynak alan adı",
+            "Öne çıkan olay türü: KAP / resmî açıklama"
+          ]
         },
         "entityRecognition": false,
+        "ai": {
+          "enabled": false,
+          "premiumOnly": true,
+          "used": false
+        },
         "webResearchError": null,
         "sourceCoverage": {
           "planned": [],
-          "returned": [],
+          "returned": [
+            "AA",
+            "NTV Haber",
+            "Cumhuriyet",
+            "Sabah",
+            "Sözcü Gazetesi",
+            "Habertürk",
+            "LOG",
+            "Teknolojioku"
+          ],
           "autoDiscovery": true
         },
-        "generatedAt": "2026-07-26T12:50:01.671Z",
+        "generatedAt": "2026-07-27T09:44:24.053Z",
         "cache": "miss"
       }
     }

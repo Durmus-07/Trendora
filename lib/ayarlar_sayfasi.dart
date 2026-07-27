@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'core/feature_flags.dart';
+import 'bildirim_ayarlari_sayfasi.dart';
+import 'ilgi_alanlari_sayfasi.dart';
 
 class AyarlarSayfasi extends StatelessWidget {
   const AyarlarSayfasi({super.key});
@@ -27,6 +29,13 @@ class AyarlarSayfasi extends StatelessWidget {
             altBaslik: 'Yakında',
             yakinda: true,
           ),
+          _menu(
+            context,
+            ikon: Icons.interests_outlined,
+            baslik: 'İlgi Alanların',
+            altBaslik: 'Öne çıkmasını istediğin konuları seç',
+            sayfa: const IlgiAlanlariSayfasi(),
+          ),
           if (FeatureFlags.aiEnabled)
             _menu(
               context,
@@ -40,7 +49,7 @@ class AyarlarSayfasi extends StatelessWidget {
             ikon: Icons.notifications_none,
             baslik: 'Bildirimler',
             altBaslik: 'Alarm ve bildirim tercihleri',
-            yakinda: true,
+            sayfa: const BildirimAyarlariSayfasi(),
           ),
           _menu(
             context,
@@ -277,10 +286,7 @@ Yapay zekâ destekli dijital karar platformu.
         border: Border.all(color: Colors.white.withOpacity(0.06)),
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 5,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
         leading: Container(
           width: 44,
           height: 44,
@@ -288,10 +294,7 @@ Yapay zekâ destekli dijital karar platformu.
             color: const Color(0xFF58E6D9).withOpacity(0.12),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(
-            ikon,
-            color: const Color(0xFF58E6D9),
-          ),
+          child: Icon(ikon, color: const Color(0xFF58E6D9)),
         ),
         title: Text(
           baslik,
@@ -307,15 +310,9 @@ Yapay zekâ destekli dijital karar platformu.
         trailing: yakinda
             ? const Text(
                 'Yakında',
-                style: TextStyle(
-                  color: Colors.white38,
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.white38, fontSize: 12),
               )
-            : const Icon(
-                Icons.chevron_right,
-                color: Colors.white38,
-              ),
+            : const Icon(Icons.chevron_right, color: Colors.white38),
         onTap: () {
           if (yakinda) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -328,10 +325,7 @@ Yapay zekâ destekli dijital karar platformu.
           }
 
           if (sayfa != null) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => sayfa),
-            );
+            Navigator.push(context, MaterialPageRoute(builder: (_) => sayfa));
           }
         },
       ),
@@ -382,11 +376,7 @@ class BilgiSayfasi extends StatelessWidget {
                   color: const Color(0xFF58E6D9).withOpacity(0.12),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  ikon,
-                  size: 36,
-                  color: const Color(0xFF58E6D9),
-                ),
+                child: Icon(ikon, size: 36, color: const Color(0xFF58E6D9)),
               ),
               const SizedBox(height: 20),
               Text(

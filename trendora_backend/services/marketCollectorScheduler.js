@@ -11,6 +11,13 @@ const {
   migrosUrunleriniGetir
 } = require('./migrosCollector');
 
+const {
+  carrefoursaUrunleriniGetir
+} = require('./carrefoursaCollector');
+
+const sourceHealth = require('./sourceHealth');
+const { dedupe } = require('./duplicateDetector');
+
 /*
   A101 ve CarrefourSA geçici olarak devre dışıdır.
 
@@ -133,9 +140,11 @@ function replaceSourceItems(source, newItems) {
 
   const next = {
     updatedAt: new Date().toISOString(),
+    // Only dedupe the refreshed source batch. Existing data from unrelated
+    // sources must never be removed by a broad cross-source fingerprint.
     items: [
       ...untouched,
-      ...newItems
+      ...dedupe(newItems, 'opportunity')
     ]
   };
 
@@ -209,6 +218,10 @@ const collectors = [
   [
     'migros',
     migrosUrunleriniGetir
+  ],
+  [
+    'carrefoursa',
+    carrefoursaUrunleriniGetir
   ]
 ];
 
@@ -219,6 +232,13 @@ async function runOneMarket(
 ) {
   const marketState =
     state.markets[source] || {};
+
+  if (
+    marketState.nextRunAt &&
+    new Date(marketState.nextRunAt).getTime() > Date.now()
+  ) {
+    return null;
+  }
 
   const startedAt = Date.now();
 
@@ -258,8 +278,25 @@ async function runOneMarket(
         new Date().toISOString(),
       lastDurationMs:
         Date.now() - startedAt,
-      lastError: null
+      lastError: null,
+      level: Math.max(
+        0,
+        Number(marketState.level || 0) -
+          (Number(marketState.consecutiveSuccesses || 0) >= 2 ? 1 : 0)
+      ),
+      consecutiveSuccesses:
+        Number(marketState.consecutiveSuccesses || 0) + 1,
+      consecutiveFailures: 0
     };
+
+    state.markets[source].nextRunAt = new Date(
+      Date.now() + LEVELS[state.markets[source].level]
+    ).toISOString();
+
+    sourceHealth.success(`market:${source}`, {
+      recordCount: items.length,
+      responseTimeMs: Date.now() - startedAt
+    });
 
     return true;
   } catch (error) {
@@ -274,9 +311,23 @@ async function runOneMarket(
         new Date().toISOString(),
       lastDurationMs:
         Date.now() - startedAt,
-      lastError:
-        error.message
+      lastError: error.message,
+      level: Math.min(
+        LEVELS.length - 1,
+        Number(marketState.level || 0) + 1
+      ),
+      consecutiveFailures:
+        Number(marketState.consecutiveFailures || 0) + 1,
+      consecutiveSuccesses: 0
     };
+
+    state.markets[source].nextRunAt = new Date(
+      Date.now() + LEVELS[state.markets[source].level]
+    ).toISOString();
+
+    sourceHealth.failure(`market:${source}`, error, {
+      responseTimeMs: Date.now() - startedAt
+    });
 
     return false;
   } finally {
@@ -298,6 +349,7 @@ async function runMarketCollectorsNow() {
   const state = readState();
 
   let successCount = 0;
+  let attemptedCount = 0;
 
   try {
     for (
@@ -317,8 +369,11 @@ async function runMarketCollectorsNow() {
           state
         );
 
-      if (successful) {
+      if (successful === true) {
         successCount += 1;
+      }
+      if (successful !== null) {
+        attemptedCount += 1;
       }
 
       if (
@@ -331,8 +386,7 @@ async function runMarketCollectorsNow() {
       }
     }
 
-    const allSuccessful =
-      successCount === collectors.length;
+    const allSuccessful = successCount === attemptedCount;
 
     if (allSuccessful) {
       state.consecutiveFailures = 0;
@@ -376,14 +430,13 @@ async function runMarketCollectorsNow() {
     return {
       success: allSuccessful,
       successCount,
-      total: collectors.length,
+      total: attemptedCount,
       activeMarkets:
         collectors.map(
           ([source]) => source
         ),
       disabledMarkets: [
-        'a101',
-        'carrefoursa'
+        'a101'
       ],
       level: state.level,
       nextRunAt: state.nextRunAt
@@ -398,13 +451,18 @@ function scheduleNext() {
 
   const state = readState();
 
+  const sourceNextRuns = Object.values(state.markets || {})
+    .map(item => new Date(item.nextRunAt || 0).getTime())
+    .filter(value => Number.isFinite(value) && value > Date.now());
+  const independentNextRunAt = sourceNextRuns.length
+    ? Math.min(...sourceNextRuns)
+    : null;
+
   const nextRunMs =
-    state.nextRunAt
+    independentNextRunAt
       ? Math.max(
           60 * 1000,
-          new Date(
-            state.nextRunAt
-          ).getTime() - Date.now()
+          independentNextRunAt - Date.now()
         )
       : 2 * 60 * 1000;
 
@@ -461,11 +519,11 @@ function getMarketCollectorStatus() {
     running,
     activeMarkets: [
       'bim',
-      'migros'
+      'migros',
+      'carrefoursa'
     ],
     disabledMarkets: [
-      'a101',
-      'carrefoursa'
+      'a101'
     ],
     ...readState()
   };

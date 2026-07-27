@@ -1,6 +1,8 @@
 'use strict';
 
 const express = require('express');
+const { normalizeWeather } = require('../services/dataModels');
+const sourceHealth = require('../services/sourceHealth');
 const axios = require('axios');
 
 const router = express.Router();
@@ -553,6 +555,7 @@ async function fetchWeather(
 }
 
 router.get('/search', async (req, res) => {
+  const startedAt = Date.now();
   try {
     const query =
       normalizeText(req.query.q);
@@ -570,10 +573,14 @@ router.get('/search', async (req, res) => {
       'public, max-age=3600'
     );
 
-    res.json(
-      await searchLocation(query)
-    );
+    const result = await searchLocation(query);
+    sourceHealth.success('weather:geocoding', {
+      recordCount: Array.isArray(result?.results) ? result.results.length : 0,
+      responseTimeMs: Date.now() - startedAt
+    });
+    res.json(normalizeWeather(result, { source: 'Open-Meteo Geocoding' }));
   } catch (error) {
+    sourceHealth.failure('weather:geocoding', error, { responseTimeMs: Date.now() - startedAt });
     console.error(
       '[HAVA ARAMA]',
       error.message
@@ -589,6 +596,7 @@ router.get('/search', async (req, res) => {
 });
 
 router.get('/', async (req, res) => {
+  const startedAt = Date.now();
   try {
     const latitude =
       normalizeCoordinate(
@@ -625,14 +633,18 @@ router.get('/', async (req, res) => {
       'public, max-age=300, stale-while-revalidate=600'
     );
 
-    res.json(
-      await fetchWeather(
+    const result = await fetchWeather(
         latitude,
         longitude,
         locationName
-      )
-    );
+      );
+    sourceHealth.success('weather:forecast', {
+      recordCount: Array.isArray(result?.hourly) ? result.hourly.length : 1,
+      responseTimeMs: Date.now() - startedAt
+    });
+    res.json(normalizeWeather(result, { source: 'Open-Meteo Forecast' }));
   } catch (error) {
+    sourceHealth.failure('weather:forecast', error, { responseTimeMs: Date.now() - startedAt });
     console.error(
       '[HAVA]',
       error.message

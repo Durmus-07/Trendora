@@ -1,14 +1,14 @@
 {
   "running": false,
   "phase": "completed",
-  "startedAt": "2026-07-26T12:45:51.043Z",
-  "completedAt": "2026-07-26T12:47:57.486Z",
-  "durationMs": 126443,
-  "newsCount": 11080,
+  "startedAt": "2026-07-27T09:40:09.582Z",
+  "completedAt": "2026-07-27T09:42:01.853Z",
+  "durationMs": 112271,
+  "newsCount": 11392,
   "totalSources": 111,
   "activeSources": 24,
   "failedSources": 87,
   "error": null,
-  "processId": 14584,
-  "writtenAt": "2026-07-26T12:47:57.513Z"
+  "processId": 15336,
+  "writtenAt": "2026-07-27T09:42:01.856Z"
 }

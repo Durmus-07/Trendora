@@ -116,3 +116,17 @@ test('chart endpoint rejects empty queries without market provider calls', async
   assert.equal(response.status, 400);
   assert.equal(response.body.success, false);
 });
+
+test('source health endpoint is backward-compatible and observable', async () => {
+  await request('/api/news?limit=1');
+  const response = await request('/api/source-health');
+  assert.equal(response.status, 200);
+  assert.equal(response.body.success, true);
+  assert.ok(Array.isArray(response.body.sources));
+});
+
+test('weather search endpoint validates without calling its provider', async () => {
+  const response = await request('/api/weather/search?q=x');
+  assert.equal(response.status, 400);
+  assert.equal(response.body.success, false);
+});

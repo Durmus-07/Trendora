@@ -15,6 +15,8 @@ import 'trend_tahmini_sayfasi.dart';
 import 'core/weather_notification_service.dart';
 import 'core/api_client.dart';
 import 'core/api_config.dart';
+import 'widgets/personalized_recommendations_section.dart';
+import 'widgets/smart_shortcuts_section.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -374,9 +376,8 @@ class _SabitAnaMenuIcerigi extends StatelessWidget {
         builder: (context, constraints) => Center(
           child: Padding(
             padding: const EdgeInsets.all(14),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.center,
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
               child: SizedBox(
                 width: 410,
                 child: Column(
@@ -385,6 +386,22 @@ class _SabitAnaMenuIcerigi extends StatelessWidget {
                     _PremiumUstBar(onAyarlar: onAyarlar),
                     const SizedBox(height: 12),
                     const _AnaMenuHero(),
+                    const SizedBox(height: 16),
+                    PersonalizedRecommendationsSection(
+                      onOpenNews: onHaberler,
+                      onOpenOpportunities: onFirsatlar,
+                      onOpenFinance: (symbol) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TrendTahminiSayfasi(
+                              initialQuery: '$symbol güncel durumu ve olasılık analizi',
+                              autoAnalyze: true,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SmartShortcutsSection(),
                     const SizedBox(height: 14),
                     const Align(
                       alignment: Alignment.centerLeft,

@@ -1,0 +1,36 @@
+{
+  "level": 0,
+  "consecutiveFailures": 1,
+  "consecutiveSuccesses": 0,
+  "nextRunAt": "2026-07-27T12:10:00.407Z",
+  "markets": {
+    "bim": {
+      "checkedAt": "2026-07-26T12:07:44.197Z",
+      "itemCount": 16,
+      "lastSuccessAt": "2026-07-26T12:07:44.244Z",
+      "lastDurationMs": 1141,
+      "lastError": null
+    },
+    "a101": {
+      "lastFailureAt": "2026-07-26T12:08:29.515Z",
+      "lastDurationMs": 259,
+      "lastError": "Request failed with status code 403"
+    },
+    "migros": {
+      "contentHash": "4ccf36468299f284f141ca53f74dc25f4606bbac255145876d90f968aebbcae9",
+      "etag": "",
+      "lastModified": "",
+      "checkedAt": "2026-07-26T12:09:15.136Z",
+      "itemCount": 0,
+      "lastSuccessAt": "2026-07-26T12:09:15.137Z",
+      "lastDurationMs": 607,
+      "lastError": null
+    },
+    "carrefoursa": {
+      "lastFailureAt": "2026-07-26T12:10:00.404Z",
+      "lastDurationMs": 250,
+      "lastError": "Request failed with status code 403"
+    }
+  },
+  "lastRunAt": "2026-07-26T12:10:00.407Z"
+}

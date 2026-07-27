@@ -5,6 +5,8 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const environment = require('./config/environment');
+const crypto = require('crypto');
+const sourceHealth = require('./services/sourceHealth');
 const {
   createRateLimiter,
   requireAiEnabled,
@@ -44,12 +46,13 @@ app.use(cors({
 app.use(createRateLimiter());
 
 app.use((req, res, next) => {
-  console.log(`[ISTEK] ${req.method} ${req.originalUrl}`);
+  req._startedAt = Date.now();
+  req.requestId = req.get('x-request-id') || crypto.randomUUID();
+  res.set('x-request-id', req.requestId);
+  console.log(JSON.stringify({ level: 'info', event: 'request', requestId: req.requestId, method: req.method, path: req.originalUrl }));
 
   res.on('finish', () => {
-    console.log(
-      `[CEVAP] ${req.method} ${req.originalUrl} -> ${res.statusCode}`
-    );
+    console.log(JSON.stringify({ level: 'info', event: 'response', requestId: req.requestId, method: req.method, path: req.originalUrl, status: res.statusCode, durationMs: Date.now() - req._startedAt }));
   });
 
   next();
@@ -183,6 +186,28 @@ app.get('/api/features', (req, res) => {
         status: environment.aiEnabled ? 'active' : 'suspended'
       }
     }
+  });
+});
+
+app.get('/api/source-health', async (req, res) => {
+  try {
+    const newsStatus = await newsModule.getNewsStatus();
+    sourceHealth.success('news-collector', {
+      recordCount: newsStatus.newsCount,
+      responseTimeMs: 0
+    });
+    if (newsStatus.error) sourceHealth.failure('news-collector', newsStatus.error);
+  } catch (error) {
+    sourceHealth.failure('news-collector', error);
+  }
+  const sources = sourceHealth.getAll();
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    success: true,
+    status: sources.some(item => item.status === 'degraded') ? 'partial' : 'healthy',
+    count: sources.length,
+    sources,
+    updatedAt: new Date().toISOString()
   });
 });
 
@@ -480,7 +505,7 @@ app.get('/api/scan-status', async (req, res) => {
 app.use((error, req, res, next) => {
   if (res.headersSent) return next(error);
 
-  console.error('[HTTP HATA]', error?.message || error);
+  console.error(JSON.stringify({ level: 'error', event: 'http_error', requestId: req.requestId, method: req.method, path: req.originalUrl, message: error?.message || String(error) }));
 
   const corsRejected =
     error?.message === 'Bu kaynağa CORS izni verilmemiş.';

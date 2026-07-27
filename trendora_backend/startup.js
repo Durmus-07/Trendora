@@ -58,9 +58,12 @@ function startChild({
   name,
   filePath,
   enabled,
+  initialDelayMs = 0,
+  failureBackoffMs = null,
   errorRestartDelayMs = 15000,
   successfulRestartDelayMs = 15000
 }) {
+  let consecutiveFailures = 0;
   if (!enabled) {
     console.log(
       `[STARTUP] ${name} devre dışı.`
@@ -169,10 +172,16 @@ function startChild({
           code === 0 &&
           !signal;
 
+        consecutiveFailures = completedSuccessfully
+          ? 0
+          : consecutiveFailures + 1;
+
         const restartDelay =
           completedSuccessfully
             ? successfulRestartDelayMs
-            : errorRestartDelayMs;
+            : Array.isArray(failureBackoffMs) && failureBackoffMs.length > 0
+              ? failureBackoffMs[Math.min(consecutiveFailures - 1, failureBackoffMs.length - 1)]
+              : errorRestartDelayMs;
 
         scheduleRestart(
           restartDelay
@@ -181,7 +190,12 @@ function startChild({
     );
   }
 
-  launch();
+  if (initialDelayMs > 0) {
+    const timer = setTimeout(launch, initialDelayMs);
+    restartTimers.set(name, timer);
+  } else {
+    launch();
+  }
 }
 
 /*
@@ -200,6 +214,7 @@ startChild({
     'ENABLE_NEWS_COLLECTOR',
     true
   ),
+  initialDelayMs: 30 * 1000,
   errorRestartDelayMs:
     15 * 1000,
   successfulRestartDelayMs:
@@ -225,6 +240,7 @@ startChild({
     'ENABLE_TREND_COLLECTOR',
     true
   ),
+  initialDelayMs: 2 * 60 * 1000,
   errorRestartDelayMs:
     15 * 1000,
   successfulRestartDelayMs:
@@ -243,6 +259,12 @@ startChild({
     'ENABLE_TELEGRAM_COLLECTOR',
     false
   ),
+  initialDelayMs: 5 * 60 * 1000,
+  failureBackoffMs: [
+    60 * 60 * 1000,
+    6 * 60 * 60 * 1000,
+    24 * 60 * 60 * 1000
+  ],
   errorRestartDelayMs:
     15 * 1000,
   successfulRestartDelayMs:

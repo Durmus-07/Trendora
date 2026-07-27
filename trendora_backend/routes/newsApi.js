@@ -3,6 +3,8 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { normalizeNews } = require('../services/dataModels');
+const sourceHealth = require('../services/sourceHealth');
 
 const router = express.Router();
 
@@ -305,8 +307,13 @@ router.get('/', async (req, res) => {
     items = sortNews(items);
 
     const total = items.length;
-    const pageItems =
-      items.slice(offset, offset + limit);
+    const pageItems = items
+      .slice(offset, offset + limit)
+      .map(item => normalizeNews(item, { updatedAt: database.updatedAt }));
+    sourceHealth.success('news-database', {
+      recordCount: database.items.length,
+      responseTimeMs: Date.now() - Number(req._startedAt || Date.now())
+    });
 
     res.set(
       'Cache-Control',

@@ -9,6 +9,7 @@ const {
 const { classifyQuestion } = require('../services/trend/questionClassifier');
 const { BIST_ENTITIES } = require('../services/trend/entityEngine');
 const { fetchMarketData } = require('../services/marketDataService');
+const { normalizeFinancial } = require('../services/dataModels');
 
 const router = express.Router();
 const MAX_QUERY_LENGTH = 500;
@@ -211,7 +212,7 @@ router.get('/market-board', async (req, res) => {
       const data = await fetchMarketData(query, classifyQuestion(query));
       const price = data?.dailyPrice?.current ?? data?.dailyPrice?.close;
       if (!Number.isFinite(Number(price))) return null;
-      return {
+      return normalizeFinancial({
         label,
         symbol: data.symbol,
         price: Number(price),
@@ -232,8 +233,9 @@ router.get('/market-board', async (req, res) => {
           ? data.priceHistory.slice(-60).map(row => ({
               date: row.date, open: row.open, high: row.high, low: row.low, close: row.close, volume: row.volume
             })).filter(row => Number.isFinite(Number(row.close)))
-          : []
-      };
+          : [],
+        volume: data?.dailyPrice?.volume ?? null
+      }, { source: 'Yahoo Finance', updatedAt: data.updatedAt });
     }));
     const items = settled.filter(x => x.status === 'fulfilled' && x.value).map(x => x.value);
     const value = { success: true, items, updatedAt: new Date().toISOString(), cached: false };
