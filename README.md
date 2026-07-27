@@ -47,7 +47,7 @@ flutter run
 API adresi derleme sırasında değiştirilebilir:
 
 ```powershell
-flutter run --dart-define=TRENDORA_API_URL=http://10.0.2.2:3000
+flutter run
 ```
 
 Android emülatöründe `10.0.2.2`, bilgisayardaki yerel backend'i gösterir. Varsayılan değer `lib/core/api_config.dart` içindeki HTTPS üretim adresidir.
