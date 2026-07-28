@@ -5,10 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/daily_digest/daily_digest_models.dart';
 import '../core/daily_digest/daily_digest_service.dart';
+import '../core/feature_flags.dart';
+import '../core/auth/trendora_auth_service.dart';
 import '../core/personalization/personalization_preferences.dart';
 import '../core/personalization/personalization_service.dart';
 import '../core/personalization/personalization_storage.dart';
+import '../core/premium_ai/premium_ai_summary_service.dart';
 import '../theme/trendora_theme.dart';
+import 'premium_ai_digest_section.dart';
 
 class DailyDigestDependencies {
   const DailyDigestDependencies({
@@ -44,6 +48,9 @@ class DailyDigestSection extends StatefulWidget {
     required this.onOpenFinance,
     this.dependenciesBuilder,
     this.now,
+    this.premiumAiService,
+    this.premiumAiAuthService,
+    this.premiumAiEnabled = FeatureFlags.aiEnabled,
   });
 
   final VoidCallback onOpenNews;
@@ -52,6 +59,9 @@ class DailyDigestSection extends StatefulWidget {
   final ValueChanged<String> onOpenFinance;
   final Future<DailyDigestDependencies> Function()? dependenciesBuilder;
   final DateTime Function()? now;
+  final PremiumAiSummaryGateway? premiumAiService;
+  final TrendoraAuthGateway? premiumAiAuthService;
+  final bool premiumAiEnabled;
 
   @override
   State<DailyDigestSection> createState() => _DailyDigestSectionState();
@@ -298,6 +308,12 @@ class _DailyDigestSectionState extends State<DailyDigestSection> {
                 if (category != grouped.keys.last) const SizedBox(height: 10),
               ],
           ],
+          PremiumAiDigestSection(
+            snapshot: _snapshot,
+            enabled: widget.premiumAiEnabled,
+            service: widget.premiumAiService,
+            authService: widget.premiumAiAuthService,
+          ),
         ],
       ),
     );

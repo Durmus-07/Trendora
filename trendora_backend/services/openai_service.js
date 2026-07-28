@@ -30,7 +30,7 @@ async function askTrendora(message) {
 
   try {
     const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
+      model: environment.analysisModel,
       instructions:
         "Sen Trendora AI'sın. Türkçe konuş. Trendleri, haberleri, teknoloji ve piyasaları anlaşılır şekilde analiz et. Bilmediğin bilgileri uydurma.",
       input: message,
@@ -48,6 +48,72 @@ async function askTrendora(message) {
   }
 }
 
+function isOpenAiConfigured() {
+  return Boolean(openai);
+}
+
+async function createPremiumSummary({
+  instructions,
+  input,
+  schema,
+  maxOutputTokens,
+  timeoutMs
+}) {
+  if (!openai) {
+    const error = new Error('OpenAI yapılandırılmamış.');
+    error.code = 'AI_NOT_CONFIGURED';
+    throw error;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  timeout.unref?.();
+
+  try {
+    const response = await openai.responses.create({
+      model: environment.analysisModel,
+      instructions,
+      input,
+      max_output_tokens: maxOutputTokens,
+      store: false,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'trendora_premium_summary',
+          strict: true,
+          schema
+        }
+      }
+    }, {
+      signal: controller.signal
+    });
+
+    return {
+      outputText: response.output_text,
+      usage: {
+        inputTokens: Number(response.usage?.input_tokens || 0),
+        outputTokens: Number(response.usage?.output_tokens || 0)
+      }
+    };
+  } catch (error) {
+    if (controller.signal.aborted || error?.name === 'AbortError') {
+      const timeoutError = new Error('OpenAI isteği zaman aşımına uğradı.');
+      timeoutError.code = 'AI_TIMEOUT';
+      throw timeoutError;
+    }
+    if (error?.status === 429) {
+      const quotaError = new Error('OpenAI kotası kullanılamıyor.');
+      quotaError.code = 'AI_QUOTA_EXCEEDED';
+      throw quotaError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 module.exports = {
   askTrendora,
+  createPremiumSummary,
+  isOpenAiConfigured,
 };

@@ -93,6 +93,17 @@ test('premium status requires a verified Firebase token', async () => {
   assert.equal(response.body.code, 'AUTH_REQUIRED');
 });
 
+test('Premium AI summary requires a verified Firebase token', async () => {
+  const response = await request('/api/premium/ai-summary', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ digest: { items: [] } })
+  });
+
+  assert.equal(response.status, 401);
+  assert.equal(response.body.code, 'AUTH_REQUIRED');
+});
+
 test('feature policy keeps analysis public and AI suspended for premium', async () => {
   const response = await request('/api/features');
 

@@ -32,6 +32,9 @@ module.exports = {
   analysisEnabled: parseBoolean(process.env.ENABLE_ANALYSIS, true),
   aiEnabled: parseBoolean(process.env.ENABLE_AI, false),
   aiPremiumOnly: parseBoolean(process.env.AI_PREMIUM_ONLY, true),
+  analysisModel:
+    String(process.env.TRENDORA_ANALYSIS_MODEL || '').trim() ||
+    'gpt-4.1-mini',
   jsonLimit: process.env.JSON_BODY_LIMIT || '256kb',
   requestWindowMs: parsePositiveInteger(
     process.env.REQUEST_WINDOW_MS,
