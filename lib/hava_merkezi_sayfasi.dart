@@ -7,10 +7,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/api_client.dart';
 import 'core/api_config.dart';
+import 'core/weather/weather_data_policy.dart';
 import 'core/weather_notification_service.dart';
 
 class HavaMerkeziSayfasi extends StatefulWidget {
-  const HavaMerkeziSayfasi({super.key});
+  const HavaMerkeziSayfasi({super.key, this.initialWeather, this.autoLocate = true});
+
+  final Map<String, dynamic>? initialWeather;
+  final bool autoLocate;
 
   @override
   State<HavaMerkeziSayfasi> createState() => _HavaMerkeziSayfasiState();
@@ -26,10 +30,15 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialWeather != null) {
+      _hava = Map<String, dynamic>.from(widget.initialWeather!);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _bildirimlerAcik = await WeatherNotificationService.isEnabled();
       if (mounted) setState(() {});
-      await _konumuBul();
+      if (widget.autoLocate) {
+        await _konumuBul();
+      }
     });
   }
 
@@ -47,7 +56,7 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
     try {
       final searchUri = Uri.parse('${ApiConfig.baseUrl}/api/weather/search')
           .replace(queryParameters: {'q': query});
-      final searchResponse = await ApiClient.get(searchUri);
+      final searchResponse = await ApiClient.get(searchUri, cacheTtl: const Duration(hours: 1));
       final search = jsonDecode(utf8.decode(searchResponse.bodyBytes));
       final results = search is Map ? search['results'] : null;
       if (searchResponse.statusCode != 200 || results is! List || results.isEmpty) {
@@ -61,7 +70,7 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
           'name': '${place['label'] ?? place['name']}',
         },
       );
-      final response = await ApiClient.get(weatherUri);
+      final response = await ApiClient.get(weatherUri, cacheTtl: WeatherDataPolicy.cacheTtl);
       final decoded = jsonDecode(utf8.decode(response.bodyBytes));
       if (response.statusCode != 200 || decoded is! Map) {
         throw Exception('Hava verisi şu anda alınamadı.');
@@ -86,16 +95,18 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      if (WeatherDataPolicy.shouldUseCityFallback(permission)) {
         throw Exception('Konum izni verilmedi. İstersen şehir adını elle arayabilirsin.');
       }
       setState(() { _yukleniyor = true; _hata = null; });
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium, timeLimit: Duration(seconds: 15)),
       );
+      final approximateLatitude = WeatherDataPolicy.approximateCoordinate(position.latitude);
+      final approximateLongitude = WeatherDataPolicy.approximateCoordinate(position.longitude);
       var locationName = 'Konumum';
       try {
-        final places = await Geocoding().placemarkFromCoordinates(position.latitude, position.longitude);
+        final places = await Geocoding().placemarkFromCoordinates(approximateLatitude, approximateLongitude);
         if (places.isNotEmpty) {
           final place = places.first;
           locationName = <String?>[place.subAdministrativeArea, place.administrativeArea]
@@ -107,7 +118,7 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
         }
       } catch (_) {}
       _arama.text = locationName;
-      await _koordinattanGetir(position.latitude, position.longitude, locationName);
+      await _koordinattanGetir(approximateLatitude, approximateLongitude, locationName);
     } catch (error) {
       if (mounted) setState(() => _hata = error.toString().replaceFirst('Exception: ', ''));
       if (_hava == null) await _sehriGetir();
@@ -120,7 +131,7 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
     final uri = Uri.parse('${ApiConfig.baseUrl}/api/weather').replace(
       queryParameters: {'lat': '$lat', 'lon': '$lon', 'name': name},
     );
-    final response = await ApiClient.get(uri);
+    final response = await ApiClient.get(uri, cacheTtl: WeatherDataPolicy.cacheTtl);
     final decoded = jsonDecode(utf8.decode(response.bodyBytes));
     if (response.statusCode != 200 || decoded is! Map) throw Exception('Konumun hava verisi alınamadı.');
     if (mounted) setState(() => _hava = Map<String, dynamic>.from(decoded));
@@ -169,6 +180,9 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
   Map<String, dynamic> get _current => Map<String, dynamic>.from(_hava?['current'] as Map? ?? {});
   List<Map<String, dynamic>> _list(String key) => (_hava?[key] as List? ?? const [])
       .whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  Map<String, dynamic>? get _drivingWarning => _hava?['drivingWarning'] is Map
+      ? Map<String, dynamic>.from(_hava!['drivingWarning'] as Map)
+      : null;
   String _num(dynamic value, [int fraction = 0]) => value is num ? value.toStringAsFixed(fraction) : '-';
 
   IconData _icon(dynamic code) {
@@ -219,19 +233,46 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
             ],
             if (_hava != null) ...[
               const SizedBox(height: 16),
+              if (WeatherDataPolicy.isStale(_hava!)) ...[
+                _panel(child: const Row(children: [
+                  Icon(Icons.history_rounded, color: Color(0xFFFFC857)),
+                  SizedBox(width: 9),
+                  Expanded(child: Text('Bu hava verisi eski olabilir. Güncel koşullar için yenile.', style: TextStyle(color: Color(0xFFFFDDA0)))),
+                ])),
+                const SizedBox(height: 10),
+              ],
               _anaKart(),
               const SizedBox(height: 10),
-              _panel(child: SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                value: _bildirimlerAcik,
-                onChanged: _bildirimTercihiniDegistir,
-                secondary: Icon(_bildirimlerAcik ? Icons.notifications_active_rounded : Icons.notifications_off_outlined, color: const Color(0xFF7DD3FC)),
-                title: const Text('Hava değişikliği bildirimleri', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-                subtitle: const Text('İsteğe bağlıdır. Önemli değişim veya risk oluşunca bildirir.', style: TextStyle(color: Color(0xFF8097A9), fontSize: 11)),
+              _panel(child: Material(
+                type: MaterialType.transparency,
+                child: SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _bildirimlerAcik,
+                  onChanged: _bildirimTercihiniDegistir,
+                  secondary: Icon(_bildirimlerAcik ? Icons.notifications_active_rounded : Icons.notifications_off_outlined, color: const Color(0xFF7DD3FC)),
+                  title: const Text('Hava değişikliği bildirimleri', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                  subtitle: const Text('İsteğe bağlıdır. Önemli değişim veya risk oluşunca bildirir.', style: TextStyle(color: Color(0xFF8097A9), fontSize: 11)),
+                ),
               )),
               if (_list('warnings').isNotEmpty) ...[
                 const SizedBox(height: 12),
                 ..._list('warnings').map(_uyari),
+              ],
+              if (_list('insights').isNotEmpty) ...[
+                const SizedBox(height: 18),
+                _baslik('Bugünün Hava Notları', Icons.auto_awesome_rounded),
+                const SizedBox(height: 10),
+                ..._list('insights').map(_bilgi),
+              ],
+              if (_list('activities').isNotEmpty) ...[
+                const SizedBox(height: 18),
+                _baslik('Uygun Zamanlar', Icons.directions_walk_rounded),
+                const SizedBox(height: 10),
+                ..._list('activities').map(_aktivite),
+              ],
+              if (_drivingWarning != null) ...[
+                const SizedBox(height: 10),
+                _surusUyarisi(_drivingWarning!),
               ],
               const SizedBox(height: 18),
               _baslik('Önümüzdeki 24 Saat', Icons.schedule_rounded),
@@ -242,7 +283,10 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
               const SizedBox(height: 10),
               ..._list('daily').map(_gunluk),
               const SizedBox(height: 14),
-              const Text('Kaynak: Open‑Meteo • Veriler 15 dakika önbelleğe alınır.', style: TextStyle(color: Color(0xFF71879A), fontSize: 11)),
+              Text(
+                'Kaynak: ${WeatherDataPolicy.sourceName(_hava!)} • Son güncelleme: ${WeatherDataPolicy.updatedLabel(_hava!)} • ${_hava!['cached'] == true ? 'Önbellekten' : 'Canlı veri'}',
+                style: const TextStyle(color: Color(0xFF71879A), fontSize: 11),
+              ),
             ],
           ],
         ),
@@ -320,7 +364,35 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
     ),
   );
 
-  Widget _metric(IconData icon, String title, String value) => SizedBox(width: 135, child: Row(children: [Icon(icon, size: 18, color: const Color(0xFF7DD3FC)), const SizedBox(width: 7), Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: Color(0xFF829BAD), fontSize: 10)), Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800))])])) ;
-  Widget _baslik(String text, IconData icon) => Row(children: [Icon(icon, color: const Color(0xFF6EE7F9)), const SizedBox(width: 8), Text(text, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900))]);
+  Widget _bilgi(Map<String, dynamic> insight) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: _panel(child: Row(children: [
+      const Icon(Icons.info_outline_rounded, color: Color(0xFF7DD3FC)),
+      const SizedBox(width: 9),
+      Expanded(child: Text('${insight['message'] ?? ''}', style: const TextStyle(color: Color(0xFFD3E7F4)))),
+    ])),
+  );
+
+  Widget _aktivite(Map<String, dynamic> activity) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: _panel(child: Row(children: [
+      Icon(activity['type'] == 'with_children' ? Icons.family_restroom_rounded : Icons.directions_walk_rounded, color: const Color(0xFF6EE7B7)),
+      const SizedBox(width: 9),
+      Expanded(child: Text('${activity['message'] ?? ''}', style: const TextStyle(color: Color(0xFFCFF8E7)))),
+    ])),
+  );
+
+  Widget _surusUyarisi(Map<String, dynamic> warning) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(color: const Color(0xFF302416), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF7D6333))),
+    child: Row(children: [
+      const Icon(Icons.directions_car_filled_rounded, color: Color(0xFFFFC857)),
+      const SizedBox(width: 9),
+      Expanded(child: Text('${warning['message'] ?? ''}', style: const TextStyle(color: Color(0xFFFFE5B2)))),
+    ]),
+  );
+
+  Widget _metric(IconData icon, String title, String value) => SizedBox(width: 135, child: Row(children: [Icon(icon, size: 18, color: const Color(0xFF7DD3FC)), const SizedBox(width: 7), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: Color(0xFF829BAD), fontSize: 10)), Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800))]))])) ;
+  Widget _baslik(String text, IconData icon) => Row(children: [Icon(icon, color: const Color(0xFF6EE7F9)), const SizedBox(width: 8), Flexible(child: Text(text, maxLines: 2, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900)))]);
   Widget _panel({required Widget child, double? width}) => Container(width: width, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFF0A1927), borderRadius: BorderRadius.circular(15), border: Border.all(color: const Color(0xFF1B3B52))), child: child);
 }

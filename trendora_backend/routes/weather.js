@@ -3,6 +3,7 @@
 const express = require('express');
 const { normalizeWeather } = require('../services/dataModels');
 const sourceHealth = require('../services/sourceHealth');
+const { buildWeatherInsights } = require('../services/weatherInsights');
 const axios = require('axios');
 
 const router = express.Router();
@@ -37,6 +38,12 @@ function normalizeCoordinate(value, min, max) {
   }
 
   return Number(number.toFixed(4));
+}
+
+function finiteNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function cleanupCache(cache, now = Date.now()) {
@@ -146,16 +153,16 @@ function buildWarnings(current, hourly, daily) {
     ...next12Gust.map(Number)
   );
 
-  const uv = Number(
-    (daily.uv_index_max || [0])[0] || 0
+  const uv = finiteNumber(
+    (daily.uv_index_max || [])[0]
   );
 
-  const maxTemp = Number(
-    (daily.temperature_2m_max || [0])[0] || 0
+  const maxTemp = finiteNumber(
+    (daily.temperature_2m_max || [])[0]
   );
 
-  const minTemp = Number(
-    (daily.temperature_2m_min || [0])[0] || 0
+  const minTemp = finiteNumber(
+    (daily.temperature_2m_min || [])[0]
   );
 
   if (maxPrecipitation >= 75) {
@@ -190,14 +197,14 @@ function buildWarnings(current, hourly, daily) {
     });
   }
 
-  if (uv >= 8) {
+  if (uv !== null && uv >= 8) {
     warnings.push({
       level: 'high',
       type: 'uv',
       message:
         'UV seviyesi çok yüksek; doğrudan güneşten korun.'
     });
-  } else if (uv >= 6) {
+  } else if (uv !== null && uv >= 6) {
     warnings.push({
       level: 'medium',
       type: 'uv',
@@ -205,13 +212,13 @@ function buildWarnings(current, hourly, daily) {
     });
   }
 
-  if (maxTemp >= 40) {
+  if (maxTemp !== null && maxTemp >= 40) {
     warnings.push({
       level: 'high',
       type: 'heat',
       message: 'Aşırı sıcak riski var.'
     });
-  } else if (maxTemp >= 35) {
+  } else if (maxTemp !== null && maxTemp >= 35) {
     warnings.push({
       level: 'medium',
       type: 'heat',
@@ -220,13 +227,13 @@ function buildWarnings(current, hourly, daily) {
     });
   }
 
-  if (minTemp <= 0) {
+  if (minTemp !== null && minTemp <= 0) {
     warnings.push({
       level: 'high',
       type: 'freeze',
       message: 'Gece don riski bulunuyor.'
     });
-  } else if (minTemp <= 3) {
+  } else if (minTemp !== null && minTemp <= 3) {
     warnings.push({
       level: 'medium',
       type: 'freeze',
@@ -370,7 +377,8 @@ async function fetchWeather(
       'visibility',
       'wind_speed_10m',
       'wind_gusts_10m',
-      'relative_humidity_2m'
+      'relative_humidity_2m',
+      'uv_index'
     ].join(','),
 
     daily: [
@@ -440,7 +448,9 @@ async function fetchWeather(
             hourly.wind_gusts_10m?.[i],
           humidity:
             hourly
-              .relative_humidity_2m?.[i]
+              .relative_humidity_2m?.[i],
+          uvIndex:
+            hourly.uv_index?.[i]
         };
       });
 
@@ -477,6 +487,18 @@ async function fetchWeather(
       maxWindGust:
         daily.wind_gusts_10m_max?.[i]
     }));
+
+  const baseWarnings = buildWarnings(
+    current,
+    hourly,
+    daily
+  );
+  const guidance = buildWeatherInsights(
+    current,
+    hours,
+    days,
+    baseWarnings
+  );
 
   const value = {
     success: true,
@@ -526,12 +548,12 @@ async function fetchWeather(
     hourly: hours,
     daily: days,
 
-    warnings:
-      buildWarnings(
-        current,
-        hourly,
-        daily
-      ),
+    warnings: guidance.warnings,
+    insights: guidance.insights,
+    activities: guidance.activities,
+    drivingWarning: guidance.drivingWarning,
+    sponsoredRecommendations:
+      guidance.sponsoredRecommendations,
 
     source: 'Open-Meteo',
     attribution:
