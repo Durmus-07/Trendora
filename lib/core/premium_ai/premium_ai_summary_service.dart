@@ -6,6 +6,7 @@ import '../api_config.dart';
 import '../auth/premium_status_service.dart';
 import '../auth/trendora_auth_service.dart';
 import '../daily_digest/daily_digest_models.dart';
+import '../feature_flags.dart';
 
 enum PremiumAiFeatureAvailability { enabled, disabled, unavailable }
 
@@ -122,6 +123,7 @@ class PremiumAiSummaryService implements PremiumAiSummaryGateway {
     PremiumAiGetRequest? getRequest,
     PremiumAiPostRequest? postRequest,
     DateTime Function()? now,
+    bool? enabled,
   }) : _authService = authService ?? TrendoraAuthService.instance,
        _premiumStatusService = premiumStatusService ?? PremiumStatusService(),
        _getRequest = getRequest ?? http.get,
@@ -129,7 +131,8 @@ class PremiumAiSummaryService implements PremiumAiSummaryGateway {
            postRequest ??
            ((uri, {headers, body}) =>
                http.post(uri, headers: headers, body: body)),
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now,
+       _enabled = enabled ?? FeatureFlags.premiumAiSummaryEnabled;
 
   static final Uri _featuresEndpoint = Uri.parse(
     '${ApiConfig.baseUrl}/api/features',
@@ -151,6 +154,7 @@ class PremiumAiSummaryService implements PremiumAiSummaryGateway {
   final PremiumAiGetRequest _getRequest;
   final PremiumAiPostRequest _postRequest;
   final DateTime Function() _now;
+  final bool _enabled;
 
   PremiumAiFeatureAvailability? _availability;
   DateTime? _availabilityCheckedAt;
@@ -158,6 +162,9 @@ class PremiumAiSummaryService implements PremiumAiSummaryGateway {
 
   @override
   Future<PremiumAiFeatureAvailability> loadAvailability() {
+    if (!_enabled) {
+      return Future.value(PremiumAiFeatureAvailability.disabled);
+    }
     final checkedAt = _availabilityCheckedAt;
     final cached = _availability;
     if (cached != null &&
@@ -184,12 +191,15 @@ class PremiumAiSummaryService implements PremiumAiSummaryGateway {
       }
       final body = _map(response.body);
       final features = body?['features'];
-      final ai = features is Map ? features['ai'] : null;
-      if (ai is! Map || ai['enabled'] is! bool) {
+      final premiumAiSummary = features is Map
+          ? features['premiumAiSummary']
+          : null;
+      if (premiumAiSummary is! Map ||
+          premiumAiSummary['enabled'] is! bool) {
         return _remember(PremiumAiFeatureAvailability.unavailable);
       }
       return _remember(
-        ai['enabled'] == true
+        premiumAiSummary['enabled'] == true
             ? PremiumAiFeatureAvailability.enabled
             : PremiumAiFeatureAvailability.disabled,
       );
@@ -208,6 +218,12 @@ class PremiumAiSummaryService implements PremiumAiSummaryGateway {
 
   @override
   Future<PremiumAiSummaryResult> generate(DailyDigestSnapshot snapshot) async {
+    if (!_enabled) {
+      return const PremiumAiSummaryResult(
+        status: PremiumAiSummaryStatus.disabled,
+        errorCode: 'AI_DISABLED',
+      );
+    }
     final items = snapshot.items
         .where((item) => _allowedCategories.contains(item.category))
         .toList(growable: false);

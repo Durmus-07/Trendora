@@ -189,6 +189,13 @@ app.get('/api/features', (req, res) => {
         enabled: environment.aiEnabled,
         audience: environment.aiPremiumOnly ? 'premium' : 'all-users',
         status: environment.aiEnabled ? 'active' : 'suspended'
+      },
+      premiumAiSummary: {
+        enabled: environment.premiumAiSummaryEnabled,
+        audience: 'premium',
+        status: environment.premiumAiSummaryEnabled
+          ? 'active'
+          : 'suspended'
       }
     }
   });

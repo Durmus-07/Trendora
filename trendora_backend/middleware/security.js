@@ -94,9 +94,22 @@ function requireAiEnabled(req, res, next) {
   next();
 }
 
+function requirePremiumAiSummaryEnabled(req, res, next) {
+  if (!environment.premiumAiSummaryEnabled) {
+    return res.status(503).json({
+      success: false,
+      code: 'AI_DISABLED',
+      message: 'Premium Yapay Zekâ özeti şu anda kullanıma kapalı.'
+    });
+  }
+
+  next();
+}
+
 module.exports = {
   createRateLimiter,
   requireAiEnabled,
   requireAdminApiKey,
+  requirePremiumAiSummaryEnabled,
   securityHeaders
 };

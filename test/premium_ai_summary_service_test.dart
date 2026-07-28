@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:trendora_app/core/auth/premium_status_service.dart';
 import 'package:trendora_app/core/auth/trendora_auth_service.dart';
 import 'package:trendora_app/core/daily_digest/daily_digest_models.dart';
+import 'package:trendora_app/core/feature_flags.dart';
 import 'package:trendora_app/core/premium_ai/premium_ai_summary_service.dart';
 
 class _FakeAuthService implements TrendoraAuthGateway {
@@ -68,9 +69,62 @@ const _verified = PremiumVerificationResult(
 void main() {
   final now = DateTime.utc(2026, 7, 28, 12);
 
+  test('disabled Premium summary flag performs no network request', () async {
+    var getCalls = 0;
+    var postCalls = 0;
+    final premium = _FakePremiumStatus(_verified);
+    final service = PremiumAiSummaryService(
+      enabled: false,
+      authService: _FakeAuthService(),
+      premiumStatusService: premium,
+      getRequest: (uri, {headers}) async {
+        getCalls += 1;
+        return http.Response('{}', 200);
+      },
+      postRequest: (uri, {headers, body}) async {
+        postCalls += 1;
+        return http.Response('{}', 200);
+      },
+    );
+
+    expect(
+      await service.loadAvailability(),
+      PremiumAiFeatureAvailability.disabled,
+    );
+    final result = await service.generate(_snapshot(now));
+    expect(result.status, PremiumAiSummaryStatus.disabled);
+    expect(result.errorCode, 'AI_DISABLED');
+    expect(getCalls, 0);
+    expect(postCalls, 0);
+    expect(premium.calls, 0);
+  });
+
+  test('compile-time Premium summary flag controls availability', () async {
+    var getCalls = 0;
+    final service = PremiumAiSummaryService(
+      getRequest: (uri, {headers}) async {
+        getCalls += 1;
+        return http.Response(
+          '{"success":true,"features":{"premiumAiSummary":{"enabled":true}}}',
+          200,
+        );
+      },
+    );
+
+    final availability = await service.loadAvailability();
+    expect(
+      availability,
+      FeatureFlags.premiumAiSummaryEnabled
+          ? PremiumAiFeatureAvailability.enabled
+          : PremiumAiFeatureAvailability.disabled,
+    );
+    expect(getCalls, FeatureFlags.premiumAiSummaryEnabled ? 1 : 0);
+  });
+
   test('feature availability uses the backend flag and short cache', () async {
     var getCalls = 0;
     final service = PremiumAiSummaryService(
+      enabled: true,
       authService: _FakeAuthService(),
       premiumStatusService: _FakePremiumStatus(_verified),
       now: () => now,
@@ -81,7 +135,7 @@ void main() {
           'https://trendora-icj9.onrender.com/api/features',
         );
         return http.Response(
-          '{"success":true,"features":{"ai":{"enabled":false}}}',
+          '{"success":true,"features":{"premiumAiSummary":{"enabled":false}}}',
           200,
         );
       },
@@ -105,6 +159,7 @@ void main() {
     Map<String, String>? requestedHeaders;
     String? requestedBody;
     final service = PremiumAiSummaryService(
+      enabled: true,
       authService: auth,
       premiumStatusService: premium,
       now: () => now,
@@ -145,6 +200,7 @@ void main() {
     var postCalls = 0;
     final premium = _FakePremiumStatus(_verified);
     final service = PremiumAiSummaryService(
+      enabled: true,
       authService: _FakeAuthService(user: null),
       premiumStatusService: premium,
       postRequest: (uri, {headers, body}) async {
@@ -169,6 +225,7 @@ void main() {
       ),
     );
     final service = PremiumAiSummaryService(
+      enabled: true,
       authService: _FakeAuthService(),
       premiumStatusService: premium,
       postRequest: (uri, {headers, body}) async {
@@ -187,6 +244,7 @@ void main() {
     var postCalls = 0;
     final auth = _FakeAuthService(token: null);
     final service = PremiumAiSummaryService(
+      enabled: true,
       authService: auth,
       premiumStatusService: _FakePremiumStatus(_verified),
       postRequest: (uri, {headers, body}) async {
@@ -206,6 +264,7 @@ void main() {
     var postCalls = 0;
     final premium = _FakePremiumStatus(_verified);
     final service = PremiumAiSummaryService(
+      enabled: true,
       authService: _FakeAuthService(),
       premiumStatusService: premium,
       postRequest: (uri, {headers, body}) async {
@@ -250,6 +309,7 @@ void main() {
   ]) {
     test('HTTP ${testCase.$1} ${testCase.$2} maps safely', () async {
       final service = PremiumAiSummaryService(
+        enabled: true,
         authService: _FakeAuthService(),
         premiumStatusService: _FakePremiumStatus(_verified),
         postRequest: (uri, {headers, body}) async => http.Response(
@@ -268,11 +328,13 @@ void main() {
 
   test('network and malformed success responses remain safe', () async {
     final network = PremiumAiSummaryService(
+      enabled: true,
       authService: _FakeAuthService(),
       premiumStatusService: _FakePremiumStatus(_verified),
       postRequest: (uri, {headers, body}) async => throw StateError('offline'),
     );
     final malformed = PremiumAiSummaryService(
+      enabled: true,
       authService: _FakeAuthService(),
       premiumStatusService: _FakePremiumStatus(_verified),
       postRequest: (uri, {headers, body}) async =>

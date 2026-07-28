@@ -24,6 +24,8 @@ void main() {
 
     expect(find.text('GÜNLÜK KİŞİSEL ÖZET'), findsOneWidget);
     expect(find.textContaining('Özet kapalı'), findsOneWidget);
+    expect(find.text('Premium Yapay Zekâ şu anda kapalı'), findsOneWidget);
+    expect(find.text('Özet oluştur'), findsNothing);
     expect(source.callCount, 0);
     expect(tester.takeException(), isNull);
   });

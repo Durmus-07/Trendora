@@ -31,6 +31,10 @@ module.exports = {
   adminApiKey: String(process.env.ADMIN_API_KEY || '').trim(),
   analysisEnabled: parseBoolean(process.env.ENABLE_ANALYSIS, true),
   aiEnabled: parseBoolean(process.env.ENABLE_AI, false),
+  premiumAiSummaryEnabled: parseBoolean(
+    process.env.ENABLE_PREMIUM_AI_SUMMARY,
+    false
+  ),
   aiPremiumOnly: parseBoolean(process.env.AI_PREMIUM_ONLY, true),
   analysisModel:
     String(process.env.TRENDORA_ANALYSIS_MODEL || '').trim() ||

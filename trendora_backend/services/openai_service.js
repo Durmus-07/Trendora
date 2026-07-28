@@ -3,18 +3,29 @@ const environment = require('../config/environment');
 
 let openai = null;
 
+function shouldInitializeOpenAi({
+  aiEnabled = environment.aiEnabled,
+  premiumAiSummaryEnabled = environment.premiumAiSummaryEnabled,
+  apiKey = process.env.OPENAI_API_KEY
+} = {}) {
+  return Boolean(
+    (aiEnabled || premiumAiSummaryEnabled) &&
+    apiKey &&
+    String(apiKey).trim() !== ''
+  );
+}
+
 // API anahtarı varsa OpenAI'yi başlat
-if (
-  environment.aiEnabled &&
-  process.env.OPENAI_API_KEY &&
-  process.env.OPENAI_API_KEY.trim() !== ""
-) {
+if (shouldInitializeOpenAi()) {
   openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
   });
 
   console.log("✅ Trendora AI aktif.");
-} else if (environment.aiEnabled) {
+} else if (
+  environment.aiEnabled ||
+  environment.premiumAiSummaryEnabled
+) {
   console.warn("⚠️ Trendora AI devre dışı (OPENAI_API_KEY bulunamadı).");
 }
 
@@ -116,4 +127,5 @@ module.exports = {
   askTrendora,
   createPremiumSummary,
   isOpenAiConfigured,
+  shouldInitializeOpenAi,
 };

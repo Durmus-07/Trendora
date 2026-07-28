@@ -50,7 +50,7 @@ class DailyDigestSection extends StatefulWidget {
     this.now,
     this.premiumAiService,
     this.premiumAiAuthService,
-    this.premiumAiEnabled = FeatureFlags.aiEnabled,
+    this.premiumAiEnabled = FeatureFlags.premiumAiSummaryEnabled,
   });
 
   final VoidCallback onOpenNews;

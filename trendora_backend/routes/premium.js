@@ -1,5 +1,7 @@
 const express = require('express');
-const { requireAiEnabled } = require('../middleware/security');
+const {
+  requirePremiumAiSummaryEnabled
+} = require('../middleware/security');
 const {
   PremiumAiSummaryError,
   premiumAiSummaryService
@@ -16,7 +18,7 @@ router.get('/status', (req, res) => {
   });
 });
 
-router.post('/ai-summary', requireAiEnabled, async (req, res) => {
+router.post('/ai-summary', requirePremiumAiSummaryEnabled, async (req, res) => {
   res.set('Cache-Control', 'no-store');
 
   try {

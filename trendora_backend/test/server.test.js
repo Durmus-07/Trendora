@@ -5,6 +5,8 @@ const { after, before, test } = require('node:test');
 process.env.NODE_ENV = 'test';
 process.env.ALLOWED_ORIGINS = 'https://trendora.example';
 process.env.REQUEST_LIMIT = '1000';
+process.env.ENABLE_AI = 'false';
+process.env.ENABLE_PREMIUM_AI_SUMMARY = 'false';
 
 const { startServer } = require('../server');
 
@@ -114,6 +116,9 @@ test('feature policy keeps analysis public and AI suspended for premium', async 
   assert.equal(response.body.features.ai.enabled, false);
   assert.equal(response.body.features.ai.audience, 'premium');
   assert.equal(response.body.features.ai.status, 'suspended');
+  assert.equal(response.body.features.premiumAiSummary.enabled, false);
+  assert.equal(response.body.features.premiumAiSummary.audience, 'premium');
+  assert.equal(response.body.features.premiumAiSummary.status, 'suspended');
 });
 
 test('data-backed trend analysis stays available while AI is disabled', async () => {

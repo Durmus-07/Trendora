@@ -1,8 +1,20 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
+process.env.ENABLE_AI = 'false';
+process.env.ENABLE_PREMIUM_AI_SUMMARY = 'false';
+
 const environment = require('../config/environment');
-const { requireAiEnabled } = require('../middleware/security');
+const {
+  requireAiEnabled,
+  requirePremiumAiSummaryEnabled
+} = require('../middleware/security');
+const {
+  shouldInitializeOpenAi
+} = require('../services/openai_service');
+const {
+  researchWithWeb
+} = require('../services/trend/webResearchService');
 const {
   PremiumAiSummaryError,
   createPremiumAiSummaryService
@@ -70,6 +82,15 @@ async function expectCode(promise, code, statusCode) {
   });
 }
 
+function responseRecorder() {
+  return {
+    statusCode: 200,
+    body: null,
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; return this; }
+  };
+}
+
 test('AI-disabled middleware returns 503 without invoking the route', () => {
   const previous = environment.aiEnabled;
   environment.aiEnabled = false;
@@ -87,6 +108,90 @@ test('AI-disabled middleware returns 503 without invoking the route', () => {
   assert.equal(response.statusCode, 503);
   assert.equal(response.body.code, 'AI_DISABLED');
   assert.equal(nextCalled, false);
+});
+
+test('Premium AI summary disabled middleware returns safe 503', () => {
+  const previous = environment.premiumAiSummaryEnabled;
+  environment.premiumAiSummaryEnabled = false;
+  const response = responseRecorder();
+  let nextCalled = false;
+
+  try {
+    requirePremiumAiSummaryEnabled({}, response, () => {
+      nextCalled = true;
+    });
+  } finally {
+    environment.premiumAiSummaryEnabled = previous;
+  }
+
+  assert.equal(response.statusCode, 503);
+  assert.equal(response.body.code, 'AI_DISABLED');
+  assert.equal(nextCalled, false);
+});
+
+test('Premium summary flag does not enable the legacy AI route', () => {
+  const previousAi = environment.aiEnabled;
+  const previousPremiumSummary = environment.premiumAiSummaryEnabled;
+  environment.aiEnabled = false;
+  environment.premiumAiSummaryEnabled = true;
+  const aiResponse = responseRecorder();
+  const summaryResponse = responseRecorder();
+  let aiNextCalled = false;
+  let summaryNextCalled = false;
+
+  try {
+    requireAiEnabled({}, aiResponse, () => { aiNextCalled = true; });
+    requirePremiumAiSummaryEnabled({}, summaryResponse, () => {
+      summaryNextCalled = true;
+    });
+  } finally {
+    environment.aiEnabled = previousAi;
+    environment.premiumAiSummaryEnabled = previousPremiumSummary;
+  }
+
+  assert.equal(aiResponse.statusCode, 503);
+  assert.equal(aiResponse.body.code, 'AI_DISABLED');
+  assert.equal(aiNextCalled, false);
+  assert.equal(summaryResponse.statusCode, 200);
+  assert.equal(summaryNextCalled, true);
+});
+
+test('OpenAI client preparation accepts either independent flag', () => {
+  assert.equal(shouldInitializeOpenAi({
+    aiEnabled: false,
+    premiumAiSummaryEnabled: false,
+    apiKey: 'test-key'
+  }), false);
+  assert.equal(shouldInitializeOpenAi({
+    aiEnabled: false,
+    premiumAiSummaryEnabled: true,
+    apiKey: 'test-key'
+  }), true);
+  assert.equal(shouldInitializeOpenAi({
+    aiEnabled: true,
+    premiumAiSummaryEnabled: false,
+    apiKey: 'test-key'
+  }), true);
+  assert.equal(shouldInitializeOpenAi({
+    aiEnabled: true,
+    premiumAiSummaryEnabled: false,
+    apiKey: ''
+  }), false);
+});
+
+test('Premium summary flag does not enable free Trend web research', async () => {
+  const previousAi = environment.aiEnabled;
+  const previousPremiumSummary = environment.premiumAiSummaryEnabled;
+  environment.aiEnabled = false;
+  environment.premiumAiSummaryEnabled = true;
+
+  try {
+    const result = await researchWithWeb('BIST görünümü', {}, {});
+    assert.equal(result, null);
+  } finally {
+    environment.aiEnabled = previousAi;
+    environment.premiumAiSummaryEnabled = previousPremiumSummary;
+  }
 });
 
 test('missing provider configuration returns AI_NOT_CONFIGURED', async () => {
