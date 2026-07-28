@@ -1,45 +1,78 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'core/shortcuts/smart_command_service.dart';
 import 'core/shortcuts/smart_shortcut_store.dart';
+import 'core/shortcuts/speech_input_service.dart';
 import 'firsatlar_sayfasi.dart';
 import 'haberler_sayfasi.dart';
 import 'hava_merkezi_sayfasi.dart';
 import 'trend_tahmini_sayfasi.dart';
 
 class AkilliKisayollarSayfasi extends StatefulWidget {
-  const AkilliKisayollarSayfasi({super.key, this.initialCommand});
+  const AkilliKisayollarSayfasi({
+    super.key,
+    this.initialCommand,
+    this.speechInput,
+    this.runtimeBuilder,
+  });
 
   final String? initialCommand;
+  final SpeechInputService? speechInput;
+  final Future<SmartCommandRuntime> Function()? runtimeBuilder;
 
   @override
   State<AkilliKisayollarSayfasi> createState() =>
       _AkilliKisayollarSayfasiState();
 }
 
-class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi> {
+class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
+    with WidgetsBindingObserver {
   final _controller = TextEditingController();
+  late final SpeechInputService _speechInput;
   SmartCommandRuntime? _runtime;
   List<SmartShortcutDefinition> _shortcuts = const [];
   SmartCommandResult? _result;
   bool _loading = true;
   bool _executing = false;
+  bool _speechStarting = false;
+  bool _speechListening = false;
+  bool _receivedSpeechText = false;
+  String _textBeforeSpeech = '';
+  String? _speechMessage;
+
+  bool get _speechBusy =>
+      _speechStarting || _speechListening || _speechInput.isListening;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _speechInput = widget.speechInput ?? DeviceSpeechInputService();
     _initialize();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_speechInput.dispose());
     _controller.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed &&
+        (_speechListening || _speechInput.isListening)) {
+      unawaited(_cancelSpeech());
+    }
+  }
+
   Future<void> _initialize() async {
     try {
-      final runtime = await SmartCommandRuntime.create();
+      final runtime =
+          await (widget.runtimeBuilder?.call() ?? SmartCommandRuntime.create());
       final shortcuts = SmartShortcutStore(
         runtime.preferences,
       ).load(runtime.userId);
@@ -62,8 +95,11 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi> {
   Future<void> _execute([String? value]) async {
     final command = (value ?? _controller.text).trim();
     final runtime = _runtime;
-    if (command.isEmpty || runtime == null || _executing) return;
-    setState(() => _executing = true);
+    if (command.isEmpty || runtime == null || _executing || _speechBusy) return;
+    setState(() {
+      _executing = true;
+      _speechMessage = null;
+    });
     final result = await runtime.service.execute(command);
     if (!mounted) return;
     setState(() {
@@ -73,6 +109,8 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi> {
   }
 
   Future<void> _reorder() async {
+    if (_speechBusy) await _cancelSpeech();
+    if (!mounted) return;
     final draft = List<SmartShortcutDefinition>.from(_shortcuts);
     final result = await showModalBottomSheet<List<SmartShortcutDefinition>>(
       context: context,
@@ -127,7 +165,9 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi> {
     if (mounted) setState(() => _shortcuts = result);
   }
 
-  void _openTarget(SmartCommandResult result) {
+  Future<void> _openTarget(SmartCommandResult result) async {
+    if (_speechBusy) await _cancelSpeech();
+    if (!mounted) return;
     final page = switch (result.target) {
       SmartCommandTarget.news => const HaberlerSayfasi(),
       SmartCommandTarget.opportunities => const FirsatlarSayfasi(),
@@ -145,6 +185,131 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi> {
     } else if (page != null) {
       Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
     }
+  }
+
+  Future<void> _startSpeech() async {
+    if (_speechBusy || _executing) return;
+    _textBeforeSpeech = _controller.text;
+    _receivedSpeechText = false;
+    setState(() {
+      _speechStarting = true;
+      _speechMessage = 'Mikrofon izni ve konuşma hizmeti hazırlanıyor…';
+    });
+    final result = await _speechInput.start(
+      onTranscript: _handleTranscript,
+      onListeningChanged: _handleListeningChanged,
+      onFailure: _handleSpeechFailure,
+    );
+    if (!mounted) {
+      if (result == SpeechInputStartResult.started) {
+        await _speechInput.cancel();
+      }
+      return;
+    }
+    setState(() {
+      _speechStarting = false;
+      switch (result) {
+        case SpeechInputStartResult.started:
+          _speechListening = true;
+          _speechMessage = 'Dinleniyor… Konuşmayı bitirince durdurabilirsin.';
+        case SpeechInputStartResult.permissionDenied:
+          _speechListening = false;
+          _speechMessage =
+              'Mikrofon izni verilmedi. Komutunu yazarak kullanmaya devam edebilirsin.';
+        case SpeechInputStartResult.unavailable:
+          _speechListening = false;
+          _speechMessage =
+              'Bu cihazda konuşma tanıma kullanılamıyor. Metin girişi kullanılabilir.';
+        case SpeechInputStartResult.failed:
+          _speechListening = false;
+          _speechMessage =
+              'Konuşma anlaşılamadı. Metin girişiyle devam edebilirsin.';
+      }
+    });
+  }
+
+  Future<void> _stopSpeech() async {
+    if (!_speechBusy && !_speechInput.isListening) return;
+    await _speechInput.stop();
+    if (!mounted) return;
+    setState(() {
+      _speechStarting = false;
+      _speechListening = false;
+      _speechMessage = _receivedSpeechText
+          ? 'Tanınan metni düzenleyip komutu çalıştırabilirsin.'
+          : 'Konuşma algılanamadı. Metin girişiyle devam edebilirsin.';
+    });
+  }
+
+  Future<void> _cancelSpeech() async {
+    await _speechInput.cancel();
+    if (!mounted) return;
+    _controller.value = TextEditingValue(
+      text: _textBeforeSpeech,
+      selection: TextSelection.collapsed(offset: _textBeforeSpeech.length),
+    );
+    setState(() {
+      _speechStarting = false;
+      _speechListening = false;
+      _receivedSpeechText = false;
+      _speechMessage = 'Dinleme iptal edildi. Metin girişi kullanılabilir.';
+    });
+  }
+
+  void _handleTranscript(String text, bool isFinal) {
+    if (!mounted) return;
+    final recognized = text.trim();
+    if (recognized.isNotEmpty) {
+      _receivedSpeechText = true;
+      _controller.value = TextEditingValue(
+        text: recognized,
+        selection: TextSelection.collapsed(offset: recognized.length),
+      );
+    }
+    if (isFinal) {
+      if (recognized.isEmpty) {
+        _receivedSpeechText = false;
+        _controller.value = TextEditingValue(
+          text: _textBeforeSpeech,
+          selection: TextSelection.collapsed(offset: _textBeforeSpeech.length),
+        );
+      }
+      setState(() {
+        _speechStarting = false;
+        _speechListening = false;
+        _speechMessage = recognized.isEmpty
+            ? 'Konuşma algılanamadı. Hiçbir komut çalıştırılmadı.'
+            : 'Tanınan metni düzenleyip komutu çalıştırabilirsin.';
+      });
+    } else {
+      setState(() {});
+    }
+  }
+
+  void _handleListeningChanged(bool listening) {
+    if (!mounted) return;
+    setState(() {
+      _speechStarting = false;
+      _speechListening = listening;
+      if (listening) {
+        _speechMessage = 'Dinleniyor… Konuşmayı bitirince durdurabilirsin.';
+      } else if (_speechMessage?.startsWith('Dinleniyor') == true) {
+        _speechMessage = _receivedSpeechText
+            ? 'Tanınan metni düzenleyip komutu çalıştırabilirsin.'
+            : 'Konuşma algılanamadı. Hiçbir komut çalıştırılmadı.';
+      }
+    });
+  }
+
+  void _handleSpeechFailure(SpeechInputStartResult failure) {
+    if (!mounted) return;
+    setState(() {
+      _speechStarting = false;
+      _speechListening = false;
+      _speechMessage = failure == SpeechInputStartResult.permissionDenied
+          ? 'Mikrofon izni verilmedi. Komutunu yazarak kullanmaya devam edebilirsin.'
+          : 'Konuşma tanıma tamamlanamadı. Metin girişi kullanılabilir.';
+    });
   }
 
   @override
@@ -166,21 +331,106 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi> {
           TextField(
             controller: _controller,
             textInputAction: TextInputAction.search,
-            onSubmitted: _execute,
+            onSubmitted: (value) {
+              if (!_speechBusy) _execute(value);
+            },
             decoration: InputDecoration(
               hintText: 'Altın bugün ne kadar?',
               prefixIcon: const Icon(Icons.auto_awesome_rounded),
-              suffixIcon: IconButton(
-                onPressed: _executing ? null : _execute,
-                icon: _executing
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.arrow_forward_rounded),
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Semantics(
+                    button: true,
+                    label: _speechListening
+                        ? 'Sesli komutu durdur'
+                        : 'Sesli komutu başlat',
+                    child: IconButton(
+                      tooltip: _speechListening
+                          ? 'Dinlemeyi durdur'
+                          : 'Sesli komut',
+                      onPressed: _executing || _speechStarting
+                          ? null
+                          : _speechListening
+                          ? _stopSpeech
+                          : _startSpeech,
+                      icon: Icon(
+                        _speechListening
+                            ? Icons.stop_circle_outlined
+                            : Icons.mic_none_rounded,
+                        color: _speechListening ? Colors.redAccent : null,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Komutu çalıştır',
+                    onPressed: _executing || _speechBusy ? null : _execute,
+                    icon: _executing
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.arrow_forward_rounded),
+                  ),
+                ],
               ),
             ),
           ),
+          if (_speechMessage != null) ...[
+            const SizedBox(height: 10),
+            Semantics(
+              liveRegion: true,
+              label: _speechMessage,
+              child: Container(
+                key: const ValueKey('speech-status'),
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF101D2E),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: _speechListening
+                        ? Colors.redAccent.withValues(alpha: 0.45)
+                        : Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Icon(
+                      _speechListening
+                          ? Icons.mic_rounded
+                          : Icons.info_outline_rounded,
+                      color: _speechListening
+                          ? Colors.redAccent
+                          : Colors.white70,
+                      size: 19,
+                    ),
+                    Text(
+                      _speechMessage!,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (_speechListening) ...[
+                      OutlinedButton.icon(
+                        onPressed: _stopSpeech,
+                        icon: const Icon(Icons.stop_rounded, size: 17),
+                        label: const Text('Durdur'),
+                      ),
+                      TextButton(
+                        onPressed: _cancelSpeech,
+                        child: const Text('İptal'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           Wrap(
             spacing: 8,
@@ -189,17 +439,24 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi> {
                 .map(
                   (item) => ActionChip(
                     label: Text(item.label),
-                    onPressed: () {
-                      _controller.text = item.command;
-                      _execute(item.command);
-                    },
+                    onPressed: _speechBusy
+                        ? null
+                        : () {
+                            _controller.text = item.command;
+                            _execute(item.command);
+                          },
                   ),
                 )
                 .toList(),
           ),
           if (_result != null) ...[
             const SizedBox(height: 20),
-            _ResultCard(result: _result!, onOpen: () => _openTarget(_result!)),
+            _ResultCard(
+              result: _result!,
+              onOpen: () {
+                _openTarget(_result!);
+              },
+            ),
           ],
         ],
       ),
