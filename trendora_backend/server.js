@@ -13,6 +13,10 @@ const {
   requireAdminApiKey,
   securityHeaders
 } = require('./middleware/security');
+const {
+  requireFirebaseUser,
+  requirePremiumUser
+} = require('./middleware/firebaseAuth');
 
 const opportunitiesRoutes = require('./routes/opportunities');
 const newsModule = require('./routes/newsApi');
@@ -24,6 +28,7 @@ const newsRoutes =
 const trendsRoutes = require('./routes/trends');
 const weatherRoutes = require('./routes/weather');
 const aiRoutes = require('./routes/ai');
+const premiumRoutes = require('./routes/premium');
 const app = express();
 const PORT = environment.port;
 
@@ -296,7 +301,16 @@ app.use(
 app.use(
   '/api/ai',
   requireAiEnabled,
+  requireFirebaseUser,
+  requirePremiumUser,
   aiRoutes
+);
+
+app.use(
+  '/api/premium',
+  requireFirebaseUser,
+  requirePremiumUser,
+  premiumRoutes
 );
 
 app.use(

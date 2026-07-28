@@ -1,4 +1,4 @@
-package com.example.trendora_app
+package com.durmus.trendora
 
 import io.flutter.embedding.android.FlutterActivity
 

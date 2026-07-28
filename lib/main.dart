@@ -13,6 +13,7 @@ import 'hava_merkezi_sayfasi.dart';
 import 'theme/trendora_theme.dart';
 import 'trend_tahmini_sayfasi.dart';
 import 'core/weather_notification_service.dart';
+import 'core/auth/trendora_auth_service.dart';
 import 'core/api_client.dart';
 import 'core/api_config.dart';
 import 'widgets/daily_digest_section.dart';
@@ -21,6 +22,7 @@ import 'widgets/smart_shortcuts_section.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await TrendoraAuthService.instance.initialize();
   await WeatherNotificationService.initialize();
   runApp(const TrendoraApp());
 }

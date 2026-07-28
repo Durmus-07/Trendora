@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'core/feature_flags.dart';
 import 'bildirim_ayarlari_sayfasi.dart';
+import 'hesabim_sayfasi.dart';
 import 'ilgi_alanlari_sayfasi.dart';
 
 class AyarlarSayfasi extends StatelessWidget {
@@ -26,8 +27,8 @@ class AyarlarSayfasi extends StatelessWidget {
             context,
             ikon: Icons.person_outline,
             baslik: 'Hesabım',
-            altBaslik: 'Yakında',
-            yakinda: true,
+            altBaslik: 'Giriş yap veya misafir olarak devam et',
+            sayfa: const HesabimSayfasi(),
           ),
           _menu(
             context,

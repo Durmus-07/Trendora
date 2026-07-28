@@ -86,6 +86,13 @@ test('AI chat is disabled by default', async () => {
   assert.equal(response.body.code, 'AI_DISABLED');
 });
 
+test('premium status requires a verified Firebase token', async () => {
+  const response = await request('/api/premium/status');
+
+  assert.equal(response.status, 401);
+  assert.equal(response.body.code, 'AUTH_REQUIRED');
+});
+
 test('feature policy keeps analysis public and AI suspended for premium', async () => {
   const response = await request('/api/features');
 

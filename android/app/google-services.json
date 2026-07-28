@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "673425065956",
+    "project_id": "trendora-6f904",
+    "storage_bucket": "trendora-6f904.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:673425065956:android:7faf972b2392d6cccae9f1",
+        "android_client_info": {
+          "package_name": "com.durmus.trendora"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBEao63pXmHSKUhc1098J_g9mUiPqePi_U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

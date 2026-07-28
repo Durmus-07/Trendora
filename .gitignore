@@ -48,3 +48,11 @@ node_modules/
 .env.*
 !.env.example
 android/.kotlin/
+
+# Firebase Admin credentials are server secrets. The Android client config
+# at android/app/google-services.json is intentionally not matched here.
+**/firebase-service-account*.json
+**/*firebase-adminsdk*.json
+**/service-account-key*.json
+**/*service-account*.json
+**/serviceAccountKey*.json
