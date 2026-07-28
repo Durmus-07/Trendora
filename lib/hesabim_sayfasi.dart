@@ -2,12 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'core/auth/premium_status_service.dart';
 import 'core/auth/trendora_auth_service.dart';
 
 class HesabimSayfasi extends StatefulWidget {
-  const HesabimSayfasi({super.key, this.authService});
+  const HesabimSayfasi({
+    super.key,
+    this.authService,
+    this.premiumStatusService,
+  });
 
   final TrendoraAuthGateway? authService;
+  final PremiumStatusGateway? premiumStatusService;
 
   @override
   State<HesabimSayfasi> createState() => _HesabimSayfasiState();
@@ -19,8 +25,14 @@ class _HesabimSayfasiState extends State<HesabimSayfasi> {
   final _formKey = GlobalKey<FormState>();
 
   late final TrendoraAuthGateway _authService;
+  late final PremiumStatusGateway _premiumStatusService;
   StreamSubscription<TrendoraAuthUser?>? _authSubscription;
   TrendoraAuthUser? _user;
+  PremiumVerificationResult _premiumStatus = const PremiumVerificationResult(
+    status: PremiumVerificationStatus.idle,
+  );
+  String? _premiumCheckedUid;
+  int _premiumRequestId = 0;
   bool _busy = false;
   bool _hidePassword = true;
   String? _message;
@@ -29,15 +41,29 @@ class _HesabimSayfasiState extends State<HesabimSayfasi> {
   void initState() {
     super.initState();
     _authService = widget.authService ?? TrendoraAuthService.instance;
+    _premiumStatusService =
+        widget.premiumStatusService ?? PremiumStatusService();
     _user = _authService.currentUser;
+    final initialUser = _user;
+    if (initialUser != null) {
+      _premiumCheckedUid = initialUser.uid;
+      _premiumStatus = const PremiumVerificationResult(
+        status: PremiumVerificationStatus.checking,
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _user?.uid == initialUser.uid) {
+          unawaited(_refreshPremiumStatus(showLoading: false));
+        }
+      });
+    }
     _authSubscription = _authService.authStateChanges().listen((user) {
-      if (!mounted) return;
-      setState(() => _user = user);
+      _handleAuthStateChanged(user);
     });
   }
 
   @override
   void dispose() {
+    _premiumRequestId += 1;
     _authSubscription?.cancel();
     _emailController.dispose();
     _passwordController.dispose();
@@ -59,7 +85,7 @@ class _HesabimSayfasiState extends State<HesabimSayfasi> {
       );
       if (!mounted) return;
       _passwordController.clear();
-      setState(() => _user = user);
+      _handleAuthStateChanged(user);
     } on TrendoraAuthFailure catch (error) {
       if (mounted) setState(() => _message = error.message);
     } catch (_) {
@@ -80,7 +106,7 @@ class _HesabimSayfasiState extends State<HesabimSayfasi> {
 
     try {
       await _authService.signOut();
-      if (mounted) setState(() => _user = null);
+      _handleAuthStateChanged(null);
     } on TrendoraAuthFailure catch (error) {
       if (mounted) setState(() => _message = error.message);
     } catch (_) {
@@ -90,6 +116,90 @@ class _HesabimSayfasiState extends State<HesabimSayfasi> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _handleAuthStateChanged(TrendoraAuthUser? user) {
+    if (!mounted) return;
+    final shouldCheck = user != null && _premiumCheckedUid != user.uid;
+
+    setState(() {
+      _user = user;
+      if (user == null) {
+        _premiumRequestId += 1;
+        _premiumCheckedUid = null;
+        _premiumStatus = const PremiumVerificationResult(
+          status: PremiumVerificationStatus.idle,
+        );
+      } else if (shouldCheck) {
+        _premiumCheckedUid = user.uid;
+        _premiumStatus = const PremiumVerificationResult(
+          status: PremiumVerificationStatus.checking,
+        );
+      }
+    });
+
+    if (shouldCheck) {
+      unawaited(_refreshPremiumStatus(showLoading: false));
+    }
+  }
+
+  Future<void> _refreshPremiumStatus({bool showLoading = true}) async {
+    final user = _user;
+    if (user == null) return;
+
+    final requestId = ++_premiumRequestId;
+    if (showLoading && mounted) {
+      setState(() {
+        _premiumStatus = const PremiumVerificationResult(
+          status: PremiumVerificationStatus.checking,
+        );
+      });
+    }
+
+    final result = await _premiumStatusService.verify(_authService);
+    if (!mounted || requestId != _premiumRequestId || _user?.uid != user.uid) {
+      return;
+    }
+    setState(() => _premiumStatus = result);
+  }
+
+  String get _premiumStatusMessage {
+    return switch (_premiumStatus.status) {
+      PremiumVerificationStatus.checking => 'Premium yetkisi kontrol ediliyor',
+      PremiumVerificationStatus.verified => 'Premium yetkisi doğrulandı',
+      PremiumVerificationStatus.notPremium => 'Premium yetkisi bulunmuyor',
+      PremiumVerificationStatus.unauthorized => 'Oturum doğrulanamadı',
+      PremiumVerificationStatus.tokenUnavailable => 'Oturum doğrulanamadı',
+      PremiumVerificationStatus.networkError =>
+        'Premium durumu şu anda doğrulanamadı',
+      PremiumVerificationStatus.invalidResponse =>
+        'Premium durumu şu anda doğrulanamadı',
+      PremiumVerificationStatus.idle => 'Premium durumu henüz kontrol edilmedi',
+    };
+  }
+
+  String? get _premiumDiagnosticMessage {
+    final code = _premiumStatus.errorCode;
+    final codeSuffix = code == null ? '' : ' ($code)';
+    return switch (_premiumStatus.status) {
+      PremiumVerificationStatus.checking => 'Premium kontrolü başlatıldı',
+      PremiumVerificationStatus.verified => 'Sunucu 200 döndürdü',
+      PremiumVerificationStatus.notPremium => 'Sunucu 403 döndürdü$codeSuffix',
+      PremiumVerificationStatus.unauthorized
+          when _premiumStatus.httpStatus == 401 =>
+        'Sunucu 401 döndürdü$codeSuffix',
+      PremiumVerificationStatus.unauthorized => 'Oturum tokenı alınamadı',
+      PremiumVerificationStatus.tokenUnavailable => 'Oturum tokenı alınamadı',
+      PremiumVerificationStatus.networkError
+          when _premiumStatus.httpStatus != null =>
+        'Sunucu ${_premiumStatus.httpStatus} döndürdü',
+      PremiumVerificationStatus.networkError => 'Ağ hatası',
+      PremiumVerificationStatus.invalidResponse
+          when _premiumStatus.httpStatus != null =>
+        'Geçersiz cevap (HTTP ${_premiumStatus.httpStatus})',
+      PremiumVerificationStatus.invalidResponse => 'Geçersiz cevap',
+      PremiumVerificationStatus.idle => null,
+    };
   }
 
   @override
@@ -245,8 +355,25 @@ class _HesabimSayfasiState extends State<HesabimSayfasi> {
               : email,
         ),
         const SizedBox(height: 16),
-        _messageCard(
-          'Premium yetkisi yalnızca sunucu tarafından doğrulanır. Premium Yapay Zekâ bu aşamada kapalıdır.',
+        _messageCard(_premiumStatusMessage, detail: _premiumDiagnosticMessage),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: _premiumStatus.status == PremiumVerificationStatus.checking
+              ? null
+              : _refreshPremiumStatus,
+          icon: _premiumStatus.status == PremiumVerificationStatus.checking
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.refresh_rounded),
+          label: const Text('Premium durumunu yenile'),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Premium Yapay Zekâ bu aşamada kapalıdır.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white54, fontSize: 12),
         ),
         if (_message != null) ...[
           const SizedBox(height: 12),
@@ -319,7 +446,7 @@ class _HesabimSayfasiState extends State<HesabimSayfasi> {
     );
   }
 
-  Widget _messageCard(String message) {
+  Widget _messageCard(String message, {String? detail}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -330,9 +457,25 @@ class _HesabimSayfasiState extends State<HesabimSayfasi> {
           color: const Color(0xFF58E6D9).withValues(alpha: 0.18),
         ),
       ),
-      child: Text(
-        message,
-        style: const TextStyle(color: Colors.white70, height: 1.4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            message,
+            style: const TextStyle(color: Colors.white70, height: 1.4),
+          ),
+          if (detail != null) ...[
+            const SizedBox(height: 5),
+            Text(
+              detail,
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 11,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
