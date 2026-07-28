@@ -1,3 +1,4 @@
+import '../daily_digest/daily_digest_models.dart';
 import 'interest_catalog.dart';
 
 class PersonalizationPreferences {
@@ -15,6 +16,8 @@ class PersonalizationPreferences {
     required this.notificationCategories,
     required this.dailyDigestEnabled,
     required this.digestTime,
+    required this.digestPeriod,
+    required this.digestCategories,
     required this.language,
     required this.updatedAt,
     required this.modelVersion,
@@ -35,6 +38,8 @@ class PersonalizationPreferences {
   final Set<String> notificationCategories;
   final bool dailyDigestEnabled;
   final String digestTime;
+  final DailyDigestPeriod digestPeriod;
+  final Set<DailyDigestCategory> digestCategories;
   final String language;
   final DateTime updatedAt;
   final int modelVersion;
@@ -59,6 +64,8 @@ class PersonalizationPreferences {
       notificationCategories: const {},
       dailyDigestEnabled: false,
       digestTime: '09:00',
+      digestPeriod: DailyDigestPeriod.morning,
+      digestCategories: Set.unmodifiable(DailyDigestCategory.values),
       language: 'tr',
       updatedAt: (now ?? DateTime.now()).toUtc(),
       modelVersion: currentModelVersion,
@@ -99,6 +106,13 @@ class PersonalizationPreferences {
       ),
       dailyDigestEnabled: json['dailyDigestEnabled'] == true,
       digestTime: _validTime(json['digestTime']?.toString()),
+      digestPeriod: dailyDigestPeriodFromName(
+        json['digestPeriod']?.toString(),
+        fallback: _periodForTime(_validTime(json['digestTime']?.toString())),
+      ),
+      digestCategories: dailyDigestCategoriesFromNames(
+        json['digestCategories'],
+      ),
       language: _nonEmpty(json['language']?.toString(), 'tr'),
       updatedAt:
           DateTime.tryParse(json['updatedAt']?.toString() ?? '')?.toUtc() ??
@@ -122,6 +136,9 @@ class PersonalizationPreferences {
     'notificationCategories': notificationCategories.toList()..sort(),
     'dailyDigestEnabled': dailyDigestEnabled,
     'digestTime': digestTime,
+    'digestPeriod': digestPeriod.name,
+    'digestCategories': digestCategories.map((item) => item.name).toList()
+      ..sort(),
     'language': language,
     'updatedAt': updatedAt.toUtc().toIso8601String(),
     'modelVersion': modelVersion,
@@ -140,6 +157,8 @@ class PersonalizationPreferences {
     Set<String>? notificationCategories,
     bool? dailyDigestEnabled,
     String? digestTime,
+    DailyDigestPeriod? digestPeriod,
+    Set<DailyDigestCategory>? digestCategories,
     String? language,
     DateTime? updatedAt,
   }) {
@@ -172,6 +191,10 @@ class PersonalizationPreferences {
       ),
       dailyDigestEnabled: dailyDigestEnabled ?? this.dailyDigestEnabled,
       digestTime: digestTime == null ? this.digestTime : _validTime(digestTime),
+      digestPeriod: digestPeriod ?? this.digestPeriod,
+      digestCategories: Set.unmodifiable(
+        digestCategories ?? this.digestCategories,
+      ),
       language: language == null ? this.language : _nonEmpty(language, 'tr'),
       updatedAt: (updatedAt ?? DateTime.now()).toUtc(),
       modelVersion: currentModelVersion,
@@ -195,6 +218,13 @@ class PersonalizationPreferences {
     return RegExp(r'^(?:[01]\d|2[0-3]):[0-5]\d$').hasMatch(candidate)
         ? candidate
         : '09:00';
+  }
+
+  static DailyDigestPeriod _periodForTime(String value) {
+    final hour = int.tryParse(value.split(':').first) ?? 9;
+    return hour >= 15
+        ? DailyDigestPeriod.evening
+        : DailyDigestPeriod.morning;
   }
 
   static String _nonEmpty(String? value, String fallback) {

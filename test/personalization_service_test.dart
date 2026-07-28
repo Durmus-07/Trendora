@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:trendora_app/core/daily_digest/daily_digest_models.dart';
 import 'package:trendora_app/core/personalization/interest_catalog.dart';
 import 'package:trendora_app/core/personalization/personalization_preferences.dart';
 import 'package:trendora_app/core/personalization/personalization_service.dart';
@@ -28,10 +29,45 @@ void main() {
       expect(preferences.personalizationEnabled, isFalse);
       expect(preferences.interests, {'technology'});
       expect(preferences.digestTime, '09:00');
+      expect(preferences.digestPeriod, DailyDigestPeriod.morning);
+      expect(
+        preferences.digestCategories,
+        containsAll(DailyDigestCategory.values),
+      );
       expect(
         preferences.modelVersion,
         PersonalizationPreferences.currentModelVersion,
       );
+    });
+
+    test('daily digest additions round-trip without changing legacy fields', () {
+      final original = PersonalizationPreferences.defaults(
+        userId: 'guest:digest',
+      ).copyWith(
+        dailyDigestEnabled: true,
+        digestPeriod: DailyDigestPeriod.evening,
+        digestTime: '19:30',
+        digestCategories: {
+          DailyDigestCategory.news,
+          DailyDigestCategory.weather,
+        },
+        interests: {'technology'},
+      );
+
+      final restored = PersonalizationPreferences.fromJson(
+        original.toJson(),
+        fallbackUserId: 'guest:fallback',
+      );
+
+      expect(restored.userId, 'guest:digest');
+      expect(restored.dailyDigestEnabled, isTrue);
+      expect(restored.digestPeriod, DailyDigestPeriod.evening);
+      expect(restored.digestTime, '19:30');
+      expect(
+        restored.digestCategories,
+        {DailyDigestCategory.news, DailyDigestCategory.weather},
+      );
+      expect(restored.interests, {'technology'});
     });
   });
 

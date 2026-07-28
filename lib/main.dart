@@ -15,6 +15,7 @@ import 'trend_tahmini_sayfasi.dart';
 import 'core/weather_notification_service.dart';
 import 'core/api_client.dart';
 import 'core/api_config.dart';
+import 'widgets/daily_digest_section.dart';
 import 'widgets/personalized_recommendations_section.dart';
 import 'widgets/smart_shortcuts_section.dart';
 
@@ -395,6 +396,22 @@ class _SabitAnaMenuIcerigi extends StatelessWidget {
                           MaterialPageRoute(
                             builder: (_) => TrendTahminiSayfasi(
                               initialQuery: '$symbol güncel durumu ve olasılık analizi',
+                              autoAnalyze: true,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    DailyDigestSection(
+                      onOpenNews: onHaberler,
+                      onOpenOpportunities: onFirsatlar,
+                      onOpenWeather: onHava,
+                      onOpenFinance: (query) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TrendTahminiSayfasi(
+                              initialQuery:
+                                  '$query güncel durumu ve olasılık analizi',
                               autoAnalyze: true,
                             ),
                           ),
