@@ -121,7 +121,7 @@ void main() {
     final service = _FakePremiumAiService(
       result: PremiumAiSummaryResult(
         status: PremiumAiSummaryStatus.success,
-        summary: _summary(now),
+        summary: _summary(now, disclaimer: null),
         httpStatus: 200,
       ),
     );
@@ -147,7 +147,8 @@ void main() {
 
     expect(service.generateCalls, 1);
     expect(find.text('Günün Premium özeti'), findsOneWidget);
-    expect(find.text('Yapay zekâ yorumu'), findsOneWidget);
+    expect(find.text('AI tarafından oluşturuldu'), findsOneWidget);
+    expect(find.text('Yatırım tavsiyesi değildir.'), findsOneWidget);
     expect(find.textContaining('Kaynaklar: Haber Kaynağı'), findsOneWidget);
     expect(find.textContaining('Önbellek'), findsOneWidget);
   });
@@ -295,7 +296,10 @@ DailyDigestSnapshot _snapshot(DateTime now) {
   );
 }
 
-PremiumAiSummary _summary(DateTime now) {
+PremiumAiSummary _summary(
+  DateTime now, {
+  String? disclaimer = 'Yatırım tavsiyesi değildir.',
+}) {
   return PremiumAiSummary(
     title: 'Günün Premium özeti',
     summary: 'Doğrulanmış veriler kısa ve tarafsız biçimde yorumlandı.',
@@ -306,6 +310,6 @@ PremiumAiSummary _summary(DateTime now) {
     dataUpdatedAt: now.subtract(const Duration(minutes: 10)),
     cached: true,
     aiGenerated: true,
-    disclaimer: 'Yatırım tavsiyesi değildir.',
+    disclaimer: disclaimer,
   );
 }

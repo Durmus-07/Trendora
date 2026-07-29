@@ -13,6 +13,24 @@ class WeatherDataPolicy {
       permission == LocationPermission.denied ||
       permission == LocationPermission.deniedForever;
 
+  static List<String> citySearchCandidates(String value) {
+    final query = value.trim();
+    if (query.length < 2) return const [];
+
+    final candidates = <String>[query];
+    for (final part in query.split(',')) {
+      final candidate = part.trim();
+      if (candidate.length < 2 ||
+          candidates.any(
+            (existing) => existing.toLowerCase() == candidate.toLowerCase(),
+          )) {
+        continue;
+      }
+      candidates.add(candidate);
+    }
+    return List.unmodifiable(candidates);
+  }
+
   static DateTime? updatedAt(Map<String, dynamic> data) {
     final raw = data['dataTime'] ?? data['updatedAt'];
     return raw == null ? null : DateTime.tryParse('$raw')?.toLocal();

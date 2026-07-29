@@ -54,15 +54,27 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() { _yukleniyor = true; _hata = null; });
     try {
-      final searchUri = Uri.parse('${ApiConfig.baseUrl}/api/weather/search')
-          .replace(queryParameters: {'q': query});
-      final searchResponse = await ApiClient.get(searchUri, cacheTtl: const Duration(hours: 1));
-      final search = jsonDecode(utf8.decode(searchResponse.bodyBytes));
-      final results = search is Map ? search['results'] : null;
-      if (searchResponse.statusCode != 200 || results is! List || results.isEmpty) {
+      Map<String, dynamic>? place;
+      for (final candidate in WeatherDataPolicy.citySearchCandidates(query)) {
+        final searchUri = Uri.parse('${ApiConfig.baseUrl}/api/weather/search')
+            .replace(queryParameters: {'q': candidate});
+        final searchResponse = await ApiClient.get(
+          searchUri,
+          cacheTtl: const Duration(hours: 1),
+        );
+        final search = jsonDecode(utf8.decode(searchResponse.bodyBytes));
+        final results = search is Map ? search['results'] : null;
+        if (searchResponse.statusCode != 200) {
+          throw Exception('Hava araması şu anda kullanılamıyor.');
+        }
+        if (results is List && results.isNotEmpty && results.first is Map) {
+          place = Map<String, dynamic>.from(results.first as Map);
+          break;
+        }
+      }
+      if (place == null) {
         throw Exception('Şehir bulunamadı. İl veya ilçe adını kontrol et.');
       }
-      final place = Map<String, dynamic>.from(results.first as Map);
       final weatherUri = Uri.parse('${ApiConfig.baseUrl}/api/weather').replace(
         queryParameters: {
           'lat': '${place['latitude']}',

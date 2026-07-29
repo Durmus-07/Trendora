@@ -23,6 +23,21 @@ void main() {
     );
   });
 
+  test('compound location labels use bounded city search fallbacks', () {
+    expect(
+      WeatherDataPolicy.citySearchCandidates(
+        'Kahramanmaraş Merkez, Kahramanmaraş',
+      ),
+      [
+        'Kahramanmaraş Merkez, Kahramanmaraş',
+        'Kahramanmaraş Merkez',
+        'Kahramanmaraş',
+      ],
+    );
+    expect(WeatherDataPolicy.citySearchCandidates(' Ankara '), ['Ankara']);
+    expect(WeatherDataPolicy.citySearchCandidates('a'), isEmpty);
+  });
+
   test('old and missing timestamps are never treated as current', () {
     final now = DateTime.parse('2026-07-28T12:00:00Z').toLocal();
 

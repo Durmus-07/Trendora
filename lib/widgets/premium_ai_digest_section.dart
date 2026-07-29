@@ -212,7 +212,7 @@ class _PremiumAiDigestSectionState extends State<PremiumAiDigestSection> {
             ),
             const SizedBox(height: 5),
             const Text(
-              'Yapay zekâ yorumu',
+              'AI tarafından oluşturuldu',
               style: TextStyle(
                 color: TrendoraColors.secondary,
                 fontSize: 9,
@@ -248,17 +248,15 @@ class _PremiumAiDigestSectionState extends State<PremiumAiDigestSection> {
               '${summary.cached ? ' • Önbellek' : ''}',
               style: const TextStyle(color: Colors.white38, fontSize: 8.5),
             ),
-            if (summary.disclaimer != null) ...[
-              const SizedBox(height: 7),
-              Text(
-                summary.disclaimer!,
-                style: const TextStyle(
-                  color: TrendoraColors.accent,
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w800,
-                ),
+            const SizedBox(height: 7),
+            Text(
+              summary.disclaimer ?? 'Yatırım tavsiyesi değildir.',
+              style: const TextStyle(
+                color: TrendoraColors.accent,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w800,
               ),
-            ],
+            ),
           ],
         ],
       ),
