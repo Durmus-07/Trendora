@@ -30,6 +30,55 @@ const TRENDS_STATUS_FILE = path.join(
   'trends_status.json'
 );
 
+function mojibakeScore(value) {
+  const matches = String(value || '').match(/[ÃÅÄÂâ]/g);
+  return matches ? matches.length : 0;
+}
+
+function repairMojibakeString(value) {
+  let current = String(value || '');
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const currentScore = mojibakeScore(current);
+    if (currentScore === 0) break;
+
+    const repaired = Buffer
+      .from(current, 'latin1')
+      .toString('utf8');
+
+    if (
+      repaired.includes('\uFFFD') ||
+      mojibakeScore(repaired) >= currentScore
+    ) {
+      break;
+    }
+
+    current = repaired;
+  }
+
+  return current;
+}
+
+function repairMojibake(value) {
+  if (typeof value === 'string') {
+    return repairMojibakeString(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(repairMojibake);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(
+        ([key, item]) => [key, repairMojibake(item)]
+      )
+    );
+  }
+
+  return value;
+}
+
 function readJsonFile(filePath, fallbackValue) {
   try {
     if (!fs.existsSync(filePath)) {
@@ -294,12 +343,18 @@ router.post('/analyze', async (req, res) => {
       ).trim().toLowerCase()
     );
 
-    const analysis = await analyzeQuery(
+    const rawAnalysis = await analyzeQuery(
       query,
       { forceRefresh }
     );
 
+    // Backend'in eski kayıtlarında oluşmuş UTF-8/Latin-1
+    // karakter bozulmalarını yalnızca API cevabında güvenle düzeltir.
+    // Analiz motoruna, cache'e veya kayıt dosyalarına müdahale etmez.
+    const analysis = repairMojibake(rawAnalysis);
+
     res.set('Cache-Control', 'no-store');
+    res.set('Content-Type', 'application/json; charset=utf-8');
 
     return res.json({
       success: true,
