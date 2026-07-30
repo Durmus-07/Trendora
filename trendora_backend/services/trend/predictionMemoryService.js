@@ -1,0 +1,285 @@
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const databasePath = path.join(
+  __dirname,
+  '..',
+  '..',
+  'database',
+  'prediction_memory.json'
+);
+
+function ensureDatabaseDirectory() {
+  fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+}
+
+function createEmptyDatabase() {
+  return {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    predictions: []
+  };
+}
+
+function readDatabase() {
+  ensureDatabaseDirectory();
+
+  if (!fs.existsSync(databasePath)) {
+    return createEmptyDatabase();
+  }
+
+  try {
+    const raw = fs.readFileSync(databasePath, 'utf8').replace(/^\uFEFF/, '');
+    const parsed = JSON.parse(raw);
+
+    return {
+      version: Number(parsed.version) || 1,
+      updatedAt: parsed.updatedAt || null,
+      predictions: Array.isArray(parsed.predictions)
+        ? parsed.predictions
+        : []
+    };
+  } catch (error) {
+    console.error(
+      'Tahmin hafızası okunamadı, boş veritabanı kullanılacak:',
+      error.message
+    );
+
+    return createEmptyDatabase();
+  }
+}
+
+function writeDatabase(database) {
+  ensureDatabaseDirectory();
+
+  const nextDatabase = {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    predictions: Array.isArray(database.predictions)
+      ? database.predictions
+      : []
+  };
+
+  const temporaryPath = `${databasePath}.tmp`;
+
+  fs.writeFileSync(
+    temporaryPath,
+    JSON.stringify(nextDatabase, null, 2),
+    'utf8'
+  );
+
+  fs.renameSync(temporaryPath, databasePath);
+
+  return nextDatabase;
+}
+
+function createPredictionId() {
+  return `prediction_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+}
+
+function savePrediction(prediction) {
+  const database = readDatabase();
+
+  const record = {
+    id: createPredictionId(),
+    createdAt: new Date().toISOString(),
+    status: 'pending',
+    evaluatedAt: null,
+    outcome: null,
+    ...prediction
+  };
+
+  database.predictions.push(record);
+  writeDatabase(database);
+
+  return record;
+}
+
+function getPredictions() {
+  return readDatabase().predictions;
+}
+
+function getPendingPredictions() {
+  return getPredictions().filter(
+    prediction => prediction.status === 'pending'
+  );
+}
+
+function getDuePredictions(referenceTime = new Date()) {
+  const now = referenceTime instanceof Date
+    ? referenceTime
+    : new Date(referenceTime);
+
+  if (Number.isNaN(now.getTime())) {
+    throw new Error('Geçersiz referans zamanı.');
+  }
+
+  return getPendingPredictions().filter(prediction => {
+    const dueAt = new Date(prediction.dueAt);
+
+    return !Number.isNaN(dueAt.getTime())
+      && dueAt.getTime() <= now.getTime();
+  });
+}
+
+function finiteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function firstValidPrice(...values) {
+  for (const value of values) {
+    const number = finiteNumber(value);
+
+    if (number != null && number > 0) {
+      return number;
+    }
+  }
+
+  return null;
+}
+
+function determineDirection(analysis) {
+  const technicalScore = finiteNumber(analysis?.technical?.score);
+
+  if (technicalScore != null) {
+    if (technicalScore >= 58) return 'rising';
+    if (technicalScore <= 42) return 'falling';
+    return 'stable';
+  }
+
+  const scenarios = Array.isArray(analysis?.scenarios)
+    ? analysis.scenarios
+    : [];
+
+  const positive = scenarios.find(item =>
+    /olumlu|pozitif|yükseliş/i.test(String(item?.name || ''))
+  );
+
+  const negative = scenarios.find(item =>
+    /olumsuz|negatif|düşüş/i.test(String(item?.name || ''))
+  );
+
+  const positiveProbability = finiteNumber(positive?.probability) || 0;
+  const negativeProbability = finiteNumber(negative?.probability) || 0;
+
+  if (positiveProbability > negativeProbability + 5) return 'rising';
+  if (negativeProbability > positiveProbability + 5) return 'falling';
+
+  return 'stable';
+}
+
+function buildPredictionFromAnalysis(analysis) {
+  if (!analysis || analysis.domain !== 'finance') {
+    return null;
+  }
+
+  const entity = analysis.entity || {};
+  const assetName = String(entity.name || '').trim();
+  const assetSymbol = String(entity.symbol || '').trim();
+
+  if (!assetName && !assetSymbol) {
+    return null;
+  }
+
+  const currentPrice = firstValidPrice(
+    analysis.dailyPrice?.current,
+    analysis.dailyPrice?.close,
+    analysis.dailyPrice?.open
+  );
+
+  if (currentPrice == null) {
+    return null;
+  }
+
+  const horizonDays = Math.max(
+    1,
+    Math.round(finiteNumber(analysis.period?.days) || 90)
+  );
+
+  const createdAt = new Date();
+  const dueAt = new Date(
+    createdAt.getTime() + horizonDays * 24 * 60 * 60 * 1000
+  );
+
+  return {
+    query: String(analysis.query || '').trim(),
+    asset: {
+      name: assetName || assetSymbol,
+      symbol: assetSymbol || null,
+      subtype: entity.subtype || null
+    },
+    horizonDays,
+    dueAt: dueAt.toISOString(),
+    prediction: {
+      direction: determineDirection(analysis),
+      confidence: Math.round(
+        Math.max(0, Math.min(100, finiteNumber(analysis.confidence) || 0))
+      ),
+      currentPrice,
+      estimatedLow: finiteNumber(analysis.estimatedRange?.low),
+      estimatedMid: finiteNumber(analysis.estimatedRange?.mid),
+      estimatedHigh: finiteNumber(analysis.estimatedRange?.high),
+      currency: analysis.estimatedRange?.currency || null
+    },
+    technicalSnapshot: {
+      score: finiteNumber(analysis.technical?.score),
+      rsi14: finiteNumber(analysis.technical?.rsi14),
+      macd: finiteNumber(analysis.technical?.macd),
+      macdSignal: finiteNumber(analysis.technical?.macdSignal),
+      macdHistogram: finiteNumber(analysis.technical?.macdHistogram),
+      ema20: finiteNumber(analysis.technical?.ema20),
+      ema50: finiteNumber(analysis.technical?.ema50),
+      sma20: finiteNumber(analysis.technical?.sma20),
+      sma50: finiteNumber(analysis.technical?.sma50),
+      atrPercent: finiteNumber(analysis.technical?.atrPercent),
+      volumeRatio: finiteNumber(analysis.technical?.volumeRatio)
+    },
+    statisticsSnapshot: {
+      trendStrength: finiteNumber(analysis.statistics?.trendStrength),
+      dataConfidence: finiteNumber(analysis.statistics?.dataConfidence),
+      riskScore: finiteNumber(analysis.statistics?.riskScore),
+      newsImpact: finiteNumber(analysis.statistics?.newsImpact),
+      marketInterest: finiteNumber(analysis.statistics?.marketInterest)
+    },
+    scenarios: Array.isArray(analysis.scenarios)
+      ? analysis.scenarios.slice(0, 3)
+      : [],
+    sourceUrls: Array.isArray(analysis.sources)
+      ? analysis.sources
+          .map(source => source?.url)
+          .filter(url => typeof url === 'string' && /^https?:\/\//i.test(url))
+          .slice(0, 10)
+      : []
+  };
+}
+
+function updatePredictionOutcome(predictionId, outcome) {
+  const database = readDatabase();
+
+  const prediction = database.predictions.find(
+    item => item.id === predictionId
+  );
+
+  if (!prediction) {
+    return null;
+  }
+
+  prediction.status = 'evaluated';
+  prediction.evaluatedAt = new Date().toISOString();
+  prediction.outcome = outcome || null;
+
+  writeDatabase(database);
+
+  return prediction;
+}
+
+module.exports = {
+  buildPredictionFromAnalysis,
+  savePrediction,
+  getPredictions,
+  getPendingPredictions,
+  getDuePredictions,
+  updatePredictionOutcome
+};
