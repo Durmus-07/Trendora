@@ -1,10 +1,16 @@
-const axios = require('axios');
+const { fetchMarketChart } = require('./marketProviders/marketProviderRegistry');
+const {
+  sanitizePriceLevels,
+  validateMarketRows
+} = require('./marketDataQuality');
 
 const MARKET_CACHE_TTL_MS = Number(
   process.env.TRENDORA_MARKET_CACHE_TTL_MS || 5 * 60 * 1000
 );
 const marketCache = new Map();
 const marketRequests = new Map();
+const MAX_TECHNICAL_ROWS = 260;
+const MIN_TECHNICAL_ROWS = 35;
 
 function cloneMarketData(value) {
   return value ? JSON.parse(JSON.stringify(value)) : value;
@@ -191,9 +197,30 @@ function rsi(values, period = 14) {
     if (change >= 0) gains += change;
     else losses += Math.abs(change);
   }
+  if (gains === 0 && losses === 0) return 50;
   if (losses === 0) return 100;
+  if (gains === 0) return 0;
   const rs = (gains / period) / (losses / period);
   return 100 - (100 / (1 + rs));
+}
+
+function bollingerBands(values, period = 20, deviationMultiplier = 2) {
+  if (!Array.isArray(values) || values.length < period) {
+    return { upper: null, middle: null, lower: null };
+  }
+  const window = values.slice(-period).filter(Number.isFinite);
+  if (window.length < period) return { upper: null, middle: null, lower: null };
+  const middle = average(window);
+  const variance = average(window.map((value) => (value - middle) ** 2));
+  const deviation = variance == null ? null : Math.sqrt(Math.max(0, variance));
+  if (middle == null || deviation == null) {
+    return { upper: null, middle: null, lower: null };
+  }
+  return {
+    upper: middle + deviationMultiplier * deviation,
+    middle,
+    lower: middle - deviationMultiplier * deviation
+  };
 }
 
 function calculateVwap(high, low, close, volume) {
@@ -249,14 +276,15 @@ function calculateSupportResistance(rows, lookback = 60) {
   const sortedLows = [...lows].sort((a, b) => a - b);
   const sortedHighs = [...highs].sort((a, b) => b - a);
   const current = closes[closes.length - 1];
+  const distanceBase = Math.max(Math.abs(current), Number.EPSILON);
 
   const supports = sortedLows
     .filter((value) => value <= current)
-    .filter((value, index, list) => index === 0 || Math.abs(value - list[index - 1]) / current > 0.01);
+    .filter((value, index, list) => index === 0 || Math.abs(value - list[index - 1]) / distanceBase > 0.01);
 
   const resistances = sortedHighs
     .filter((value) => value >= current)
-    .filter((value, index, list) => index === 0 || Math.abs(value - list[index - 1]) / current > 0.01);
+    .filter((value, index, list) => index === 0 || Math.abs(value - list[index - 1]) / distanceBase > 0.01);
 
   return {
     support1: finite(supports[0]),
@@ -266,20 +294,261 @@ function calculateSupportResistance(rows, lookback = 60) {
   };
 }
 
-function buildTechnicalScore({ current, sma20, sma50, sma200, rsi14, volumeRatio, changePercent }) {
+function comparisonSignal(left, right, tolerance = 0.002) {
+  if (left == null || right == null) return null;
+  const base = Math.max(Math.abs(right), Number.EPSILON);
+  const difference = (left - right) / base;
+  if (Math.abs(difference) <= tolerance) return 0;
+  return difference > 0 ? 1 : -1;
+}
+
+function buildTechnicalScore(indicators) {
+  const contributions = {};
+  const add = (name, value) => {
+    const safe = finite(value) ?? 0;
+    contributions[name] = safe;
+    return safe;
+  };
+  const {
+    current, sma20, sma50, sma200, ema20, ema50, ema200, rsi14,
+    macd, macdSignal, bollingerUpper, bollingerMiddle, bollingerLower,
+    support1, resistance1, atrPercent, volumeRatio, changePercent
+  } = indicators;
+
   let score = 50;
-  if (current != null && sma20 != null) score += current >= sma20 ? 8 : -8;
-  if (current != null && sma50 != null) score += current >= sma50 ? 8 : -8;
-  if (current != null && sma200 != null) score += current >= sma200 ? 10 : -10;
-  if (sma20 != null && sma50 != null) score += sma20 >= sma50 ? 7 : -7;
+  const averageSignals = [sma20, sma50, sma200, ema20, ema50, ema200]
+    .map((value) => comparisonSignal(current, value))
+    .filter(Number.isFinite);
+  score += add(
+    'movingAverages',
+    averageSignals.reduce((sum, value) => sum + value * 3, 0)
+  );
+  score += add('averageAlignment', (comparisonSignal(ema20, ema50) ?? 0) * 5);
+
+  let rsiContribution = 0;
   if (rsi14 != null) {
-    if (rsi14 >= 50 && rsi14 <= 70) score += 7;
-    else if (rsi14 > 75) score -= 7;
-    else if (rsi14 < 35) score -= 6;
+    if (rsi14 >= 50 && rsi14 <= 68) rsiContribution = 7;
+    else if (rsi14 > 75) rsiContribution = -5;
+    else if (rsi14 < 30) rsiContribution = -7;
+    else if (rsi14 < 45) rsiContribution = -3;
   }
-  if (volumeRatio != null) score += volumeRatio >= 1.2 ? 5 : volumeRatio < 0.7 ? -3 : 0;
-  if (changePercent != null) score += Math.max(-7, Math.min(7, changePercent * 1.5));
-  return Math.max(0, Math.min(100, Math.round(score)));
+  score += add('rsi', rsiContribution);
+  score += add('macd', (comparisonSignal(macd, macdSignal, 0) ?? 0) * 9);
+
+  let bollingerContribution = 0;
+  if (current != null && bollingerMiddle != null) {
+    bollingerContribution = (comparisonSignal(current, bollingerMiddle) ?? 0) * 5;
+    if (bollingerUpper != null && current > bollingerUpper) bollingerContribution += 2;
+    if (bollingerLower != null && current < bollingerLower) bollingerContribution -= 2;
+  }
+  score += add('bollingerPosition', bollingerContribution);
+
+  let levelContribution = 0;
+  if (current != null && current > 0) {
+    const supportDistance = support1 != null && support1 <= current
+      ? (current - support1) / current
+      : null;
+    const resistanceDistance = resistance1 != null && resistance1 >= current
+      ? (resistance1 - current) / current
+      : null;
+    if (supportDistance != null && resistanceDistance != null) {
+      levelContribution = supportDistance <= resistanceDistance ? 4 : -4;
+    } else if (supportDistance != null) levelContribution = 2;
+    else if (resistanceDistance != null) levelContribution = -2;
+  }
+  score += add('supportResistance', levelContribution);
+
+  let volatilityContribution = 0;
+  if (atrPercent != null) {
+    if (atrPercent <= 2) volatilityContribution = 3;
+    else if (atrPercent > 8) volatilityContribution = -7;
+    else if (atrPercent > 5) volatilityContribution = -4;
+  }
+  score += add('atrVolatility', volatilityContribution);
+  score += add('volume', volumeRatio == null ? 0 : volumeRatio >= 1.2 ? 3 : volumeRatio < 0.7 ? -2 : 0);
+  score += add('dailyChange', changePercent == null ? 0 : Math.max(-5, Math.min(5, changePercent)));
+
+  return {
+    score: Math.max(0, Math.min(100, Math.round(score))),
+    contributions
+  };
+}
+
+function trendLabel(signals) {
+  const clean = signals.filter(Number.isFinite);
+  if (clean.length < 2) return 'Veri Yetersiz';
+  const strength = clean.reduce((sum, value) => sum + value, 0) / clean.length;
+  if (strength >= 0.6) return 'Güçlü Yükseliş';
+  if (strength >= 0.18) return 'Yükseliş';
+  if (strength <= -0.6) return 'Güçlü Düşüş';
+  if (strength <= -0.18) return 'Düşüş';
+  return 'Yatay';
+}
+
+function resolveDataTime(value) {
+  if (value == null) return null;
+  const number = finite(value);
+  const date = number != null
+    ? new Date(number < 1e12 ? number * 1000 : number)
+    : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function buildConfidence({ dataPointCount, indicators, dataTime, trends }) {
+  const requiredIndicators = [
+    'rsi14', 'macd', 'macdSignal', 'ema20', 'ema50', 'ema100', 'ema200',
+    'sma20', 'sma50', 'sma200', 'bollingerMiddle', 'atr14'
+  ];
+  const availableCount = requiredIndicators
+    .filter((key) => indicators[key] != null)
+    .length;
+  const missingIndicators = requiredIndicators
+    .filter((key) => indicators[key] == null);
+  const dataScore = dataPointCount >= 220 ? 45
+    : dataPointCount >= 120 ? 35
+      : dataPointCount >= 60 ? 25
+        : dataPointCount >= MIN_TECHNICAL_ROWS ? 18 : 8;
+  const completenessScore = Math.round((availableCount / requiredIndicators.length) * 25);
+  const trendValues = trends.filter((value) => value !== 'Veri Yetersiz');
+  const counts = trendValues.reduce((result, value) => {
+    result[value] = (result[value] || 0) + 1;
+    return result;
+  }, {});
+  const agreement = trendValues.length
+    ? Math.max(...Object.values(counts)) / trendValues.length
+    : 0;
+  const agreementScore = Math.round(agreement * 20);
+  const parsedTime = dataTime ? new Date(dataTime) : null;
+  const ageDays = parsedTime && !Number.isNaN(parsedTime.getTime())
+    ? Math.max(0, (Date.now() - parsedTime.getTime()) / 86400000)
+    : null;
+  const freshnessScore = ageDays == null ? 0 : ageDays <= 3 ? 10 : ageDays <= 7 ? 7 : ageDays <= 30 ? 3 : 0;
+  const score = Math.max(0, Math.min(100, dataScore + completenessScore + agreementScore + freshnessScore));
+  const label = dataPointCount < MIN_TECHNICAL_ROWS
+    ? 'Veri Yetersiz'
+    : score >= 85 ? 'Çok Yüksek'
+      : score >= 70 ? 'Yüksek'
+        : score >= 50 ? 'Orta' : 'Düşük';
+  return { score, label, missingIndicators };
+}
+
+function analyzeTechnicalData(inputRows, options = {}) {
+  const rows = (Array.isArray(inputRows) ? inputRows : [])
+    .slice(-MAX_TECHNICAL_ROWS)
+    .map((row) => ({
+      timestamp: row?.timestamp ?? row?.date ?? null,
+      open: finite(row?.open), high: finite(row?.high), low: finite(row?.low),
+      close: finite(row?.close), volume: finite(row?.volume)
+    }))
+    .filter((row) => row.close != null);
+  const dataPointCount = rows.length;
+  const latest = rows.at(-1) || null;
+  const previous = rows.length > 1 ? rows.at(-2) : null;
+  const closes = rows.map((row) => row.close);
+  const current = finite(options.current) ?? latest?.close ?? null;
+  const dataTime = resolveDataTime(options.updatedAt ?? latest?.timestamp);
+  const recentVolumes = rows.slice(-20).map((row) => row.volume).filter(Number.isFinite);
+  const averageVolume20 = average(recentVolumes);
+  const volumeRatio = latest?.volume != null && averageVolume20 > 0
+    ? latest.volume / averageVolume20
+    : null;
+  const computedChange = current != null && previous?.close != null && previous.close !== 0
+    ? ((current - previous.close) / previous.close) * 100
+    : null;
+  const changePercent = finite(options.changePercent) ?? computedChange;
+  const macdValues = macd(closes);
+  const bands = bollingerBands(closes);
+  const supportResistance = calculateSupportResistance(rows);
+  const atr14 = atr(rows, 14);
+
+  const indicators = {
+    rsi14: rsi(closes, 14),
+    sma: sma(closes, 20),
+    sma20: sma(closes, 20),
+    sma50: sma(closes, 50),
+    sma100: sma(closes, 100),
+    sma200: sma(closes, 200),
+    ema20: ema(closes, 20),
+    ema50: ema(closes, 50),
+    ema100: ema(closes, 100),
+    ema200: ema(closes, 200),
+    macd: macdValues.macd,
+    macdSignal: macdValues.signal,
+    macdHistogram: macdValues.histogram,
+    bollingerUpper: bands.upper,
+    bollingerMiddle: bands.middle,
+    bollingerLower: bands.lower,
+    atr14,
+    atrPercent: atr14 != null && current != null && current > 0
+      ? (atr14 / current) * 100
+      : null,
+    volumeRatio,
+    changePercent,
+    ...supportResistance
+  };
+  const shortTermTrend = trendLabel([
+    comparisonSignal(current, indicators.ema20),
+    comparisonSignal(current, indicators.sma20),
+    comparisonSignal(indicators.ema20, indicators.ema50),
+    comparisonSignal(indicators.macd, indicators.macdSignal, 0)
+  ]);
+  const mediumTermTrend = trendLabel([
+    comparisonSignal(current, indicators.ema50),
+    comparisonSignal(current, indicators.sma50),
+    comparisonSignal(indicators.ema20, indicators.ema50),
+    comparisonSignal(indicators.sma20, indicators.sma50)
+  ]);
+  const longTermTrend = trendLabel([
+    comparisonSignal(current, indicators.ema200),
+    comparisonSignal(current, indicators.sma200),
+    comparisonSignal(indicators.ema50, indicators.ema200),
+    comparisonSignal(indicators.sma50, indicators.sma200)
+  ]);
+  const scoreResult = buildTechnicalScore({ current, ...indicators });
+  const confidence = buildConfidence({
+    dataPointCount,
+    indicators,
+    dataTime,
+    trends: [shortTermTrend, mediumTermTrend, longTermTrend]
+  });
+  const dataStatus = dataPointCount < MIN_TECHNICAL_ROWS
+    ? 'insufficient'
+    : confidence.missingIndicators.length <= 1 ? 'sufficient' : 'partial';
+  const supportLevels = [supportResistance.support1, supportResistance.support2]
+    .filter(Number.isFinite);
+  const resistanceLevels = [supportResistance.resistance1, supportResistance.resistance2]
+    .filter(Number.isFinite);
+
+  return {
+    assetSymbol: options.symbol || null,
+    currentPrice: current,
+    dataTime,
+    ...indicators,
+    supportLevels,
+    resistanceLevels,
+    shortTermTrend,
+    mediumTermTrend,
+    longTermTrend,
+    technicalScore: scoreResult.score,
+    score: scoreResult.score,
+    scoreContributions: scoreResult.contributions,
+    direction: signalFromScore(scoreResult.score),
+    confidenceScore: confidence.score,
+    confidenceLevel: confidence.label,
+    dataPointCount,
+    dataSufficiency: {
+      status: dataStatus,
+      label: dataStatus === 'sufficient' ? 'Yeterli' : dataStatus === 'partial' ? 'Kısmi' : 'Yetersiz',
+      available: dataPointCount,
+      required: 200,
+      missingIndicators: confidence.missingIndicators
+    },
+    integration: {
+      technicalSnapshotId: `${options.symbol || 'unknown'}|${dataTime || 'unknown'}|${dataPointCount}`,
+      newsImpactReady: true,
+      newsImpactIncluded: false
+    }
+  };
 }
 
 
@@ -335,23 +604,13 @@ async function fetchMarketData(query, classification, options = {}) {
   }
 
   const request = (async () => {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`;
-  const response = await axios.get(url, {
-    params: {
-      range: '1y',
-      interval: '1d',
-      includePrePost: false,
-      events: 'div,splits'
-    },
-    timeout: 12000,
-    headers: {
-      'User-Agent': 'Mozilla/5.0 Trendora/1.0',
-      Accept: 'application/json'
-    }
+  const providerResponse = await fetchMarketChart(symbol, {
+    range: '1y',
+    interval: '1d'
   });
-
-  const result = response?.data?.chart?.result?.[0];
-  if (!result) return null;
+  const result = providerResponse.result;
+  const providerName = providerResponse.providerName;
+  const providerUrl = providerResponse.providerUrl;
 
   const meta = result.meta || {};
   const quote = result.indicators?.quote?.[0] || {};
@@ -372,8 +631,6 @@ async function fetchMarketData(query, classification, options = {}) {
   const closes = rows.map((row) => row.close).filter(Number.isFinite);
   const highs = rows.map((row) => row.high).filter(Number.isFinite);
   const lows = rows.map((row) => row.low).filter(Number.isFinite);
-  const volumes = rows.map((row) => row.volume).filter(Number.isFinite);
-  const recent20Volumes = volumes.slice(-20);
 
   const current = finite(meta.regularMarketPrice) ?? latest.close;
   // Yahoo'nun chartPreviousClose alanı bazı BIST yanıtlarında dönem başlangıcı
@@ -408,35 +665,15 @@ async function fetchMarketData(query, classification, options = {}) {
     rows.slice(-20).map((row) => row.close),
     rows.slice(-20).map((row) => row.volume)
   );
-  const averageVolume20 = average(recent20Volumes);
-  const volumeRatio = latest.volume != null && averageVolume20
-    ? latest.volume / averageVolume20
-    : null;
-
-  const macdValues = macd(closes);
-  const supportResistance = calculateSupportResistance(rows);
-  const atr14 = atr(rows, 14);
-
-  const indicators = {
-    rsi14: rsi(closes, 14),
-    sma20: sma(closes, 20),
-    sma50: sma(closes, 50),
-    sma200: sma(closes, 200),
-    volumeRatio,
-    changePercent,
-    ema20: ema(closes, 20),
-    ema50: ema(closes, 50),
-    ema100: ema(closes, 100),
-    ema200: ema(closes, 200),
-    macd: macdValues.macd,
-    macdSignal: macdValues.signal,
-    macdHistogram: macdValues.histogram,
-    atr14,
-    atrPercent: atr14 != null && current ? (atr14 / current) * 100 : null,
-    ...supportResistance
-  };
-
-  const technicalScore = buildTechnicalScore({ current, ...indicators });
+  const updatedAt = meta.regularMarketTime
+    ? new Date(meta.regularMarketTime * 1000).toISOString()
+    : new Date(latest.timestamp * 1000).toISOString();
+  const technical = analyzeTechnicalData(rows, {
+    symbol,
+    current,
+    updatedAt,
+    changePercent
+  });
   const yearlyLow = finite(meta.fiftyTwoWeekLow) ?? (lows.length ? Math.min(...lows) : null);
   const yearlyHigh = finite(meta.fiftyTwoWeekHigh) ?? (highs.length ? Math.max(...highs) : null);
 
@@ -446,14 +683,17 @@ async function fetchMarketData(query, classification, options = {}) {
     exchange: meta.exchangeName || meta.fullExchangeName || null,
     currency: meta.currency || (symbol.endsWith('.IS') ? 'TRY' : null),
     marketState: meta.marketState || null,
-    updatedAt: meta.regularMarketTime
-      ? new Date(meta.regularMarketTime * 1000).toISOString()
-      : new Date(latest.timestamp * 1000).toISOString(),
+    updatedAt,
+    provider: {
+      id: providerResponse.providerId,
+      name: providerName,
+      fallbackAttempts: providerResponse.providerAttempts || []
+    },
     dailyPrice: {
       available: true,
       currency: meta.currency || (symbol.endsWith('.IS') ? 'TRY' : null),
       date: new Date(latest.timestamp * 1000).toISOString(),
-      source: 'Yahoo Finance chart',
+      source: `${providerName} chart`,
       open: latest.open,
       high: latest.high,
       low: latest.low,
@@ -470,7 +710,7 @@ async function fetchMarketData(query, classification, options = {}) {
       available: yearlyLow != null || yearlyHigh != null,
       currency: meta.currency || (symbol.endsWith('.IS') ? 'TRY' : null),
       date: new Date(latest.timestamp * 1000).toISOString(),
-      source: 'Yahoo Finance chart',
+      source: `${providerName} chart`,
       low52w: yearlyLow,
       average52w: average(closes),
       high52w: yearlyHigh
@@ -483,15 +723,11 @@ async function fetchMarketData(query, classification, options = {}) {
       close: row.close,
       volume: row.volume
     })),
-    technical: {
-      ...indicators,
-      score: technicalScore,
-      direction: signalFromScore(technicalScore)
-    },
+    technical,
     source: {
       title: `${meta.shortName || symbol} piyasa verisi`,
-      publisher: 'Yahoo Finance',
-      url: `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`,
+      publisher: providerName,
+      url: providerUrl,
       publishedAt: new Date().toISOString(),
       evidenceType: 'market-data'
     }
@@ -547,6 +783,12 @@ async function fetchDerivedGoldMarketData(goldType, options = {}) {
   const change = current != null && previousClose != null ? current - previousClose : null;
   const changePercent = change != null && previousClose ? change / previousClose * 100 : null;
   const closes = priceHistory.map(row => row.close).filter(Number.isFinite);
+  const technical = analyzeTechnicalData(priceHistory, {
+    symbol: goldType.name,
+    current,
+    updatedAt: ounce.updatedAt,
+    changePercent
+  });
 
   return {
     symbol: goldType.name,
@@ -569,7 +811,7 @@ async function fetchDerivedGoldMarketData(goldType, options = {}) {
       average52w: average(closes), high52w: closes.length ? Math.max(...closes) : null
     },
     priceHistory,
-    technical: ounce.technical,
+    technical,
     source: {
       title: `${goldType.name} teorik piyasa karşılığı`, publisher: 'Trendora / Yahoo Finance',
       url: 'https://finance.yahoo.com/quote/GC=F', publishedAt: new Date().toISOString(),
@@ -579,6 +821,7 @@ async function fetchDerivedGoldMarketData(goldType, options = {}) {
 }
 
 module.exports = {
+  analyzeTechnicalData,
   fetchMarketData,
   resolveYahooSymbol
 };
