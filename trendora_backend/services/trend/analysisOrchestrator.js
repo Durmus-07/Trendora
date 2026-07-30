@@ -36,7 +36,7 @@ function cleanText(value) {
 function withTimeout(promise, timeoutMs, label) {
   let timer;
   const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} ${timeoutMs} ms iÃ§inde tamamlanamadÄ±.`)), timeoutMs);
+    timer = setTimeout(() => reject(new Error(`${label} ${timeoutMs} ms içinde tamamlanamadı.`)), timeoutMs);
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
@@ -45,7 +45,7 @@ function cleanRange(range) {
   const mid = positivePrice(range?.mid);
   const high = positivePrice(range?.high);
   const available = Boolean(range?.available) && [low, mid, high].some(v => v != null);
-  return { available, currency: available ? String(range?.currency || 'TRY') : null, low: available ? low : null, mid: available ? mid : null, high: available ? high : null, label: String(range?.label || (available ? 'Tahmini aralÄ±k' : 'AralÄ±k hesaplanamadÄ±')), basis: String(range?.basis || '') };
+  return { available, currency: available ? String(range?.currency || 'TRY') : null, low: available ? low : null, mid: available ? mid : null, high: available ? high : null, label: String(range?.label || (available ? 'Tahmini aralık' : 'Aralık hesaplanamadı')), basis: String(range?.basis || '') };
 }
 function cleanPriceBlock(raw, keys, priceKeys = []) {
   const result = { available: false, currency: null, date: raw?.date || null, source: raw?.source ? String(raw.source) : null };
@@ -70,11 +70,11 @@ function cleanTechnical(raw) {
   result.direction = ['positive','negative','neutral'].includes(raw?.direction) ? raw.direction : 'neutral';
   result.assetSymbol = raw?.assetSymbol ? String(raw.assetSymbol) : null;
   result.dataTime = raw?.dataTime ? String(raw.dataTime) : null;
-  const trendLabels = ['GÃ¼Ã§lÃ¼ YÃ¼kseliÅŸ','YÃ¼kseliÅŸ','Yatay','DÃ¼ÅŸÃ¼ÅŸ','GÃ¼Ã§lÃ¼ DÃ¼ÅŸÃ¼ÅŸ','Veri Yetersiz'];
+  const trendLabels = ['Güçlü Yükseliş','Yükseliş','Yatay','Düşüş','Güçlü Düşüş','Veri Yetersiz'];
   for (const key of ['shortTermTrend','mediumTermTrend','longTermTrend']) {
     result[key] = trendLabels.includes(raw?.[key]) ? raw[key] : 'Veri Yetersiz';
   }
-  const confidenceLabels = ['Ã‡ok YÃ¼ksek','YÃ¼ksek','Orta','DÃ¼ÅŸÃ¼k','Veri Yetersiz'];
+  const confidenceLabels = ['Çok Yüksek','Yüksek','Orta','Düşük','Veri Yetersiz'];
   result.confidenceLevel = confidenceLabels.includes(raw?.confidenceLevel)
     ? raw.confidenceLevel
     : 'Veri Yetersiz';
@@ -149,7 +149,7 @@ function normalizeAnalysis(raw, query, classification, sourcePlan) {
     missingInformation: Array.isArray(raw?.missingInformation) ? raw.missingInformation.map(cleanText).filter(Boolean).slice(0,10) : [],
     nextChecks: Array.isArray(raw?.nextChecks) ? raw.nextChecks.map(cleanText).filter(Boolean).slice(0,10) : [],
     sources: cleanSources(raw?.sources),
-    disclaimer: cleanText(raw?.disclaimer || 'Bu sonuÃ§ mevcut aÃ§Ä±k verilerden Ã¼retilmiÅŸ olasÄ±lÄ±k analizidir. YatÄ±rÄ±m tavsiyesi deÄŸildir.')
+    disclaimer: cleanText(raw?.disclaimer || 'Bu sonuç mevcut açık verilerden üretilmiş olasılık analizidir. Yatırım tavsiyesi değildir.')
   };
 }
 function firstValidPrice(...values) {
@@ -180,30 +180,30 @@ function buildMarketScenarios(marketData, classification) {
   const neutral = 100 - pos - neg;
   const currency = marketData.currency || 'TRY';
   return {
-    estimatedRange: { available: true, currency, low, mid: center, high, label: `${classification.period?.label || '3 Ay'} olasÄ± fiyat bandÄ±`, basis: `ATR oynaklÄ±ÄŸÄ±, teknik skor ve ${days} gÃ¼nlÃ¼k zaman Ã¶lÃ§eÄŸi kullanÄ±ldÄ±.` },
+    estimatedRange: { available: true, currency, low, mid: center, high, label: `${classification.period?.label || '3 Ay'} olası fiyat bandı`, basis: `ATR oynaklığı, teknik skor ve ${days} günlük zaman ölçeği kullanıldı.` },
     scenarios: normalizeScenarios([
-      { name: 'Olumlu gÃ¶rÃ¼nÃ¼m', probability: pos, description: `Teknik sinyaller gÃ¼Ã§lenirse yaklaÅŸÄ±k ${fmt(center, currency)} - ${fmt(high, currency)} bandÄ±.` },
-      { name: 'Dengeli gÃ¶rÃ¼nÃ¼m', probability: neutral, description: `Ana senaryoda yaklaÅŸÄ±k ${fmt(low * 1.04, currency)} - ${fmt(high * 0.96, currency)} bandÄ±nda dalgalanma.` },
-      { name: 'Olumsuz gÃ¶rÃ¼nÃ¼m', probability: neg, description: `Riskler Ã¶ne Ã§Ä±karsa yaklaÅŸÄ±k ${fmt(low, currency)} - ${fmt(center * 0.96, currency)} bandÄ±.` }
+      { name: 'Olumlu görünüm', probability: pos, description: `Teknik sinyaller güçlenirse yaklaşık ${fmt(center, currency)} - ${fmt(high, currency)} bandı.` },
+      { name: 'Dengeli görünüm', probability: neutral, description: `Ana senaryoda yaklaşık ${fmt(low * 1.04, currency)} - ${fmt(high * 0.96, currency)} bandında dalgalanma.` },
+      { name: 'Olumsuz görünüm', probability: neg, description: `Riskler öne çıkarsa yaklaşık ${fmt(low, currency)} - ${fmt(center * 0.96, currency)} bandı.` }
     ])
   };
 }
 function buildTechnicalSignals(t) {
   const out = [];
   if (t.rsi14 != null) out.push({ type: t.rsi14 > 70 ? 'negative' : t.rsi14 < 35 ? 'neutral' : t.rsi14 >= 50 ? 'positive' : 'neutral', title: 'RSI (14)', detail: `RSI ${t.rsi14.toFixed(1)} seviyesinde.`, weight: Math.round(clamp(Math.abs(t.rsi14 - 50) * 2, 10, 90)) });
-  if (t.macdHistogram != null) out.push({ type: t.macdHistogram > 0 ? 'positive' : t.macdHistogram < 0 ? 'negative' : 'neutral', title: 'MACD', detail: `MACD histogramÄ± ${t.macdHistogram.toFixed(2)}.`, weight: Math.round(clamp(45 + Math.abs(t.macdHistogram) * 5, 20, 85)) });
-  if (t.ema20 != null && t.ema50 != null) out.push({ type: t.ema20 >= t.ema50 ? 'positive' : 'negative', title: 'EMA eÄŸilimi', detail: `EMA20 ${t.ema20 >= t.ema50 ? 'EMA50 Ã¼zerinde' : 'EMA50 altÄ±nda'}.`, weight: 65 });
-  if (t.volumeRatio != null) out.push({ type: t.volumeRatio >= 1.15 ? 'positive' : t.volumeRatio < 0.75 ? 'neutral' : 'neutral', title: 'Hacim ilgisi', detail: `20 gÃ¼nlÃ¼k ortalamaya gÃ¶re hacim oranÄ± ${t.volumeRatio.toFixed(2)}x.`, weight: Math.round(clamp(t.volumeRatio * 45, 15, 90)) });
+  if (t.macdHistogram != null) out.push({ type: t.macdHistogram > 0 ? 'positive' : t.macdHistogram < 0 ? 'negative' : 'neutral', title: 'MACD', detail: `MACD histogramı ${t.macdHistogram.toFixed(2)}.`, weight: Math.round(clamp(45 + Math.abs(t.macdHistogram) * 5, 20, 85)) });
+  if (t.ema20 != null && t.ema50 != null) out.push({ type: t.ema20 >= t.ema50 ? 'positive' : 'negative', title: 'EMA eğilimi', detail: `EMA20 ${t.ema20 >= t.ema50 ? 'EMA50 üzerinde' : 'EMA50 altında'}.`, weight: 65 });
+  if (t.volumeRatio != null) out.push({ type: t.volumeRatio >= 1.15 ? 'positive' : t.volumeRatio < 0.75 ? 'neutral' : 'neutral', title: 'Hacim ilgisi', detail: `20 günlük ortalamaya göre hacim oranı ${t.volumeRatio.toFixed(2)}x.`, weight: Math.round(clamp(t.volumeRatio * 45, 15, 90)) });
   return out;
 }
 
 function detectScanMode(query) {
   const value = String(query || '').toLocaleLowerCase('tr-TR');
-  const isStockScan = /(hisse|hisseler|borsa|bist).*(sÄ±rala|listele|bul|tara|hangileri|hangisi|yÃ¼kselebilir|yÃ¼kselecek|yÃ¼kseliÅŸe|dÃ¼ÅŸebilir|dÃ¼ÅŸecek|gerileyebilir|stabil|yatay)/i.test(value)
-    || /(yÃ¼kselebilecek|yÃ¼kseliÅŸe geÃ§ebilecek|dÃ¼ÅŸebilecek|gerileyebilecek|stabil kalabilecek).*(hisse|hisseler)/i.test(value);
+  const isStockScan = /(hisse|hisseler|borsa|bist).*(sırala|listele|bul|tara|hangileri|hangisi|yükselebilir|yükselecek|yükselişe|düşebilir|düşecek|gerileyebilir|stabil|yatay)/i.test(value)
+    || /(yükselebilecek|yükselişe geçebilecek|düşebilecek|gerileyebilecek|stabil kalabilecek).*(hisse|hisseler)/i.test(value);
   if (!isStockScan) return null;
-  if (/(dÃ¼ÅŸ|gerile|zayÄ±f|satÄ±ÅŸ baskÄ±sÄ±)/i.test(value)) return 'falling';
-  if (/(stabil|yatay|dengeli|oynaklÄ±ÄŸÄ± dÃ¼ÅŸÃ¼k)/i.test(value)) return 'stable';
+  if (/(düş|gerile|zayıf|satış baskısı)/i.test(value)) return 'falling';
+  if (/(stabil|yatay|dengeli|oynaklığı düşük)/i.test(value)) return 'stable';
   return 'rising';
 }
 
@@ -223,11 +223,11 @@ function calibratedRiskScore(marketData, classification) {
 }
 
 function riskLabel(score) {
-  if (score >= 68) return 'yÃ¼ksek';
-  if (score >= 52) return 'orta-yÃ¼ksek';
+  if (score >= 68) return 'yüksek';
+  if (score >= 52) return 'orta-yüksek';
   if (score >= 35) return 'orta';
-  if (score >= 22) return 'dÃ¼ÅŸÃ¼k';
-  return 'Ã§ok dÃ¼ÅŸÃ¼k';
+  if (score >= 22) return 'düşük';
+  return 'çok düşük';
 }
 
 function buildExpertProfile(marketData, classification) {
@@ -262,10 +262,10 @@ function buildExpertProfile(marketData, classification) {
   const above50 = current != null && finiteNumber(t.ema50) != null ? current >= t.ema50 : null;
   const above200 = current != null && finiteNumber(t.ema200) != null ? current >= t.ema200 : null;
   const regime = above20 === true && above50 === true && (above200 == null || above200 === true)
-    ? 'yÃ¼kseliÅŸ rejimi'
+    ? 'yükseliş rejimi'
     : above20 === false && above50 === false && (above200 == null || above200 === false)
-      ? 'dÃ¼ÅŸÃ¼ÅŸ rejimi'
-      : 'geÃ§iÅŸ/yatay rejim';
+      ? 'düşüş rejimi'
+      : 'geçiş/yatay rejim';
 
   const plan = buildTechnicalPlan(marketData);
   const invalidation = positivePrice(plan?.invalidation?.level);
@@ -292,22 +292,22 @@ function buildExpertProfile(marketData, classification) {
     dataQuality,
     plan,
     signals: [
-      { type: regime === 'yÃ¼kseliÅŸ rejimi' ? 'positive' : regime === 'dÃ¼ÅŸÃ¼ÅŸ rejimi' ? 'negative' : 'neutral', title: 'Piyasa rejimi', detail: `${regime}; kÄ±sa, orta ve uzun vadeli ortalamalarÄ±n konumu birlikte deÄŸerlendirildi.`, weight: 82 },
-      annualizedVolatility != null ? { type: annualizedVolatility >= 45 ? 'negative' : annualizedVolatility >= 25 ? 'neutral' : 'positive', title: 'YÄ±llÄ±klaÅŸtÄ±rÄ±lmÄ±ÅŸ oynaklÄ±k', detail: `%${annualizedVolatility.toFixed(1)}; ${returns.length} gÃ¼nlÃ¼k getiri gÃ¶zleminden hesaplandÄ±.`, weight: 78 } : null,
-      closes.length > 1 ? { type: maxDrawdownPct >= 30 ? 'negative' : maxDrawdownPct >= 15 ? 'neutral' : 'positive', title: 'Maksimum dÃ¼ÅŸÃ¼ÅŸ', detail: `Ä°ncelenen seride zirveden en sert gerileme %${maxDrawdownPct.toFixed(1)}.`, weight: 84 } : null,
-      var95 != null ? { type: var95 >= 4 ? 'negative' : var95 >= 2 ? 'neutral' : 'positive', title: 'GÃ¼nlÃ¼k aÅŸaÄŸÄ± yÃ¶nlÃ¼ risk', detail: `Tarihsel %95 VaR yaklaÅŸÄ±k %${var95.toFixed(2)}; daha kÃ¶tÃ¼ gÃ¼nler yine mÃ¼mkÃ¼ndÃ¼r.`, weight: 80 } : null,
-      riskReward != null ? { type: riskReward >= 2 ? 'positive' : riskReward >= 1 ? 'neutral' : 'negative', title: 'Risk/getiri oranÄ±', detail: `Ä°lk teknik hedef ve geÃ§ersizlik seviyesine gÃ¶re yaklaÅŸÄ±k ${riskReward.toFixed(2)}x.`, weight: 86 } : null
+      { type: regime === 'yükseliş rejimi' ? 'positive' : regime === 'düşüş rejimi' ? 'negative' : 'neutral', title: 'Piyasa rejimi', detail: `${regime}; kısa, orta ve uzun vadeli ortalamaların konumu birlikte değerlendirildi.`, weight: 82 },
+      annualizedVolatility != null ? { type: annualizedVolatility >= 45 ? 'negative' : annualizedVolatility >= 25 ? 'neutral' : 'positive', title: 'Yıllıklaştırılmış oynaklık', detail: `%${annualizedVolatility.toFixed(1)}; ${returns.length} günlük getiri gözleminden hesaplandı.`, weight: 78 } : null,
+      closes.length > 1 ? { type: maxDrawdownPct >= 30 ? 'negative' : maxDrawdownPct >= 15 ? 'neutral' : 'positive', title: 'Maksimum düşüş', detail: `İncelenen seride zirveden en sert gerileme %${maxDrawdownPct.toFixed(1)}.`, weight: 84 } : null,
+      var95 != null ? { type: var95 >= 4 ? 'negative' : var95 >= 2 ? 'neutral' : 'positive', title: 'Günlük aşağı yönlü risk', detail: `Tarihsel %95 VaR yaklaşık %${var95.toFixed(2)}; daha kötü günler yine mümkündür.`, weight: 80 } : null,
+      riskReward != null ? { type: riskReward >= 2 ? 'positive' : riskReward >= 1 ? 'neutral' : 'negative', title: 'Risk/getiri oranı', detail: `İlk teknik hedef ve geçersizlik seviyesine göre yaklaşık ${riskReward.toFixed(2)}x.`, weight: 86 } : null
     ].filter(Boolean),
     factors: [
-      `${closes.length} doÄŸrulanmÄ±ÅŸ fiyat gÃ¶zlemi`,
+      `${closes.length} doğrulanmış fiyat gözlemi`,
       `Piyasa rejimi: ${regime}`,
-      annualizedVolatility != null ? `YÄ±llÄ±klaÅŸtÄ±rÄ±lmÄ±ÅŸ oynaklÄ±k: %${annualizedVolatility.toFixed(1)}` : null,
-      closes.length > 1 ? `Maksimum dÃ¼ÅŸÃ¼ÅŸ: %${maxDrawdownPct.toFixed(1)}` : null,
+      annualizedVolatility != null ? `Yıllıklaştırılmış oynaklık: %${annualizedVolatility.toFixed(1)}` : null,
+      closes.length > 1 ? `Maksimum düşüş: %${maxDrawdownPct.toFixed(1)}` : null,
       riskReward != null ? `Risk/getiri: ${riskReward.toFixed(2)}x` : null
     ].filter(Boolean),
     invalidationText: invalidation != null
-      ? `${fmt(invalidation, marketData.currency)} altÄ±nda kalÄ±cÄ±lÄ±k mevcut teknik senaryoyu geÃ§ersiz kÄ±lar.`
-      : 'GeÃ§ersizlik seviyesi iÃ§in yeterli destek verisi oluÅŸmadÄ±.'
+      ? `${fmt(invalidation, marketData.currency)} altında kalıcılık mevcut teknik senaryoyu geçersiz kılar.`
+      : 'Geçersizlik seviyesi için yeterli destek verisi oluşmadı.'
   };
 }
 
@@ -330,8 +330,8 @@ async function runBistScanner(query, classification, sourcePlan, mode) {
   const universe = await getUniverse({ market: 'BIST' });
   console.log('[Scanner] Universe size:', universe.length);
   const results = [];
-  // TÃ¼m istekler paralel baÅŸlar; bÃ¶ylece Render isteÄŸi seri 12 saniyelik
-  // beklemeler yÃ¼zÃ¼nden uzamaz. BaÅŸarÄ±sÄ±z semboller diÄŸerlerini durdurmaz.
+  // Tüm istekler paralel başlar; böylece Render isteği seri 12 saniyelik
+  // beklemeler yüzünden uzamaz. Başarısız semboller diğerlerini durdurmaz.
   const scannerLimit = pLimit(Number(process.env.TRENDORA_SCANNER_CONCURRENCY || 10));
   const settled = await Promise.allSettled(universe.map(item => scannerLimit(() => fetchMarketData(item.symbol, {
     domain: 'finance', label: 'Finans', intent: 'scan', period: classification.period,
@@ -351,7 +351,7 @@ async function runBistScanner(query, classification, sourcePlan, mode) {
     .sort((a, b) => b.scanScore - a.scanScore)
     .slice(0, 10)
     .map(item => ({ ...item, technicalPlan: buildTechnicalPlan(item.data) }));
-  const labels = { rising: 'yÃ¼kseliÅŸ eÄŸilimi', falling: 'zayÄ±flama eÄŸilimi', stable: 'dengeli/yatay eÄŸilim' };
+  const labels = { rising: 'yükseliş eğilimi', falling: 'zayıflama eğilimi', stable: 'dengeli/yatay eğilim' };
   const headline = labels[mode] || labels.rising;
   const confidence = Math.round(clamp(58 + Math.min(22, ranked.length * 2), 58, 82));
   const avgTrend = ranked.length ? Math.round(ranked.reduce((s, x) => s + x.scanScore, 0) / ranked.length) : 0;
@@ -361,24 +361,24 @@ async function runBistScanner(query, classification, sourcePlan, mode) {
     const type = mode === 'falling' ? 'negative' : mode === 'stable' ? 'neutral' : 'positive';
     return {
       type,
-      title: `#${idx + 1} ${item.symbol} â€” ${item.scanScore}/100`,
-      detail: `${item.name}; fiyat ${fmt(current, item.data.currency)}. RSI ${finiteNumber(t.rsi14)?.toFixed(1) || '-'}, EMA20 ${t.ema20 != null && t.ema50 != null ? (t.ema20 >= t.ema50 ? 'EMA50 Ã¼zerinde' : 'EMA50 altÄ±nda') : 'Ã¶lÃ§Ã¼lemedi'}, hacim ${finiteNumber(t.volumeRatio)?.toFixed(2) || '-'}x, risk ${riskLabel(item.riskScore)}. KÄ±rÄ±lÄ±m ${fmt(item.technicalPlan?.breakout?.level, item.data.currency)}, takip ${fmt(item.technicalPlan?.followZone?.low, item.data.currency)} - ${fmt(item.technicalPlan?.followZone?.high, item.data.currency)}, kÃ¢r alma ${fmt(item.technicalPlan?.profitTaking?.first, item.data.currency)} / ${fmt(item.technicalPlan?.profitTaking?.second, item.data.currency)}, geÃ§ersizlik ${fmt(item.technicalPlan?.invalidation?.level, item.data.currency)}.`,
+      title: `#${idx + 1} ${item.symbol} — ${item.scanScore}/100`,
+      detail: `${item.name}; fiyat ${fmt(current, item.data.currency)}. RSI ${finiteNumber(t.rsi14)?.toFixed(1) || '-'}, EMA20 ${t.ema20 != null && t.ema50 != null ? (t.ema20 >= t.ema50 ? 'EMA50 üzerinde' : 'EMA50 altında') : 'ölçülemedi'}, hacim ${finiteNumber(t.volumeRatio)?.toFixed(2) || '-'}x, risk ${riskLabel(item.riskScore)}. Kırılım ${fmt(item.technicalPlan?.breakout?.level, item.data.currency)}, takip ${fmt(item.technicalPlan?.followZone?.low, item.data.currency)} - ${fmt(item.technicalPlan?.followZone?.high, item.data.currency)}, kâr alma ${fmt(item.technicalPlan?.profitTaking?.first, item.data.currency)} / ${fmt(item.technicalPlan?.profitTaking?.second, item.data.currency)}, geçersizlik ${fmt(item.technicalPlan?.invalidation?.level, item.data.currency)}.`,
       weight: item.scanScore
     };
   });
   const topText = ranked.slice(0, 5).map((x, i) => `${i + 1}. ${x.symbol} (${x.scanScore})`).join(', ');
   const raw = {
-    answerTitle: `BIST piyasa taramasÄ± â€” ${headline}`,
-    directAnswer: ranked.length ? `CanlÄ± teknik taramada Ã¶ne Ã§Ä±kan ilk hisseler: ${topText}. Bu sÄ±ralama fiyat serisi, RSI, EMA, MACD, hacim ve oynaklÄ±k Ã¶lÃ§Ã¼mlerine dayanÄ±r.` : 'Tarama sÄ±rasÄ±nda yeterli canlÄ± piyasa verisi alÄ±namadÄ±.',
-    summary: `Trendora, BIST evrenindeki ${results.length} hisseden canlÄ± verisi alÄ±nabilenleri karÅŸÄ±laÅŸtÄ±rdÄ± ve ${headline} aÃ§Ä±sÄ±ndan puanladÄ±. Liste kesin getiri vaadi deÄŸildir; tarama sonucu ve Ã¶nceliklendirmedir.`,
+    answerTitle: `BIST piyasa taraması — ${headline}`,
+    directAnswer: ranked.length ? `Canlı teknik taramada öne çıkan ilk hisseler: ${topText}. Bu sıralama fiyat serisi, RSI, EMA, MACD, hacim ve oynaklık ölçümlerine dayanır.` : 'Tarama sırasında yeterli canlı piyasa verisi alınamadı.',
+    summary: `Trendora, BIST evrenindeki ${results.length} hisseden canlı verisi alınabilenleri karşılaştırdı ve ${headline} açısından puanladı. Liste kesin getiri vaadi değildir; tarama sonucu ve önceliklendirmedir.`,
     confidence,
     statistics: { trendStrength: avgTrend, dataConfidence: confidence, riskScore: ranked.length ? Math.round(ranked.reduce((s,x)=>s+x.riskScore,0)/ranked.length) : 50, newsImpact: 20, marketInterest: 55 },
     signals,
-    keyFactors: ['CanlÄ± gÃ¼nlÃ¼k fiyat serisi', 'RSI ve EMA eÄŸilimi', 'MACD yÃ¶nÃ¼', '20 gÃ¼nlÃ¼k hacim oranÄ±', 'ATR tabanlÄ± oynaklÄ±k', `${results.length} hisse karÅŸÄ±laÅŸtÄ±rÄ±ldÄ±`],
-    missingInformation: ['Tarama bilanÃ§o ve KAP verilerini tÃ¼m hisselerde aynÄ± anda tam kapsamla doÄŸrulamaz'],
-    nextChecks: ['Listelenen her hisseyi tek tek aÃ§arak KAP, bilanÃ§o ve haber analiziyle doÄŸrula', 'Zaman ufkunu gÃ¼n/hafta/ay olarak ayrÄ±ca belirt'],
+    keyFactors: ['Canlı günlük fiyat serisi', 'RSI ve EMA eğilimi', 'MACD yönü', '20 günlük hacim oranı', 'ATR tabanlı oynaklık', `${results.length} hisse karşılaştırıldı`],
+    missingInformation: ['Tarama bilanço ve KAP verilerini tüm hisselerde aynı anda tam kapsamla doğrulamaz'],
+    nextChecks: ['Listelenen her hisseyi tek tek açarak KAP, bilanço ve haber analiziyle doğrula', 'Zaman ufkunu gün/hafta/ay olarak ayrıca belirt'],
     sources: ranked.map(x => x.data.source).filter(Boolean),
-    disclaimer: 'Bu liste yatÄ±rÄ±m tavsiyesi deÄŸildir. Teknik tarama, olasÄ±lÄ±k ve Ã¶nceliklendirme amacÄ± taÅŸÄ±r.'
+    disclaimer: 'Bu liste yatırım tavsiyesi değildir. Teknik tarama, olasılık ve önceliklendirme amacı taşır.'
   };
   const normalized = normalizeAnalysis(raw, query, classification, sourcePlan);
   try {
@@ -403,13 +403,13 @@ async function runBistScanner(query, classification, sourcePlan, mode) {
 
 function removeFalseMissing(items, marketData) {
   if (!marketData) return items;
-  const banned = /doÄŸrudan piyasa|geÃ§miÅŸ fiyat|fiyat serisi|piyasa verisi/i;
+  const banned = /doğrudan piyasa|geçmiş fiyat|fiyat serisi|piyasa verisi/i;
   return (items || []).filter(x => !banned.test(String(x)));
 }
 
 async function analyzeQuestion(query) {
   const cleanedQuery = String(query || '').trim();
-  if (cleanedQuery.length < 2) { const e = new Error('Analiz iÃ§in en az 2 karakterlik bir soru yazmalÄ±sÄ±n.'); e.statusCode = 400; throw e; }
+  if (cleanedQuery.length < 2) { const e = new Error('Analiz için en az 2 karakterlik bir soru yazmalısın.'); e.statusCode = 400; throw e; }
   const classification = classifyQuestion(cleanedQuery);
   const sourcePlan = buildSourcePlan(classification);
   const scanMode = detectScanMode(cleanedQuery);
@@ -426,17 +426,17 @@ async function analyzeQuestion(query) {
     ? withTimeout(
         researchWithWeb(cleanedQuery, classification, sourcePlan),
         WEB_TIMEOUT_MS,
-        'Web araÅŸtÄ±rmasÄ±'
+        'Web araştırması'
       )
     : Promise.resolve(null);
   const evidenceTask = withTimeout(
     collectNewsEvidence(evidenceQuery, 24),
     FALLBACK_NEWS_TIMEOUT_MS,
-    'Yedek haber taramasÄ±'
+    'Yedek haber taraması'
   );
 
-  // Piyasa, web ve haber katmanlarÄ± paralel Ã§alÄ±ÅŸÄ±r. Bir kaynak yavaÅŸlarsa
-  // diÄŸer sonuÃ§lar bekletilmez.
+  // Piyasa, web ve haber katmanları paralel çalışır. Bir kaynak yavaşlarsa
+  // diğer sonuçlar bekletilmez.
   const [marketResult, webResultSettled, evidenceResult] = await Promise.allSettled([
     marketTask,
     webTask,
@@ -449,8 +449,8 @@ async function analyzeQuestion(query) {
     ? evidenceResult.value
     : [];
   const evidenceProfile = analyzeEvidence(evidence);
-  if (marketResult.status === 'rejected') console.error('CanlÄ± piyasa verisi alÄ±namadÄ±:', marketResult.reason?.message || marketResult.reason);
-  if (webError) console.error('Trendora web araÅŸtÄ±rmasÄ±:', webError.message || webError);
+  if (marketResult.status === 'rejected') console.error('Canlı piyasa verisi alınamadı:', marketResult.reason?.message || marketResult.reason);
+  if (webError) console.error('Trendora web araştırması:', webError.message || webError);
 
   let base = webResult ? { ...webResult, dailyPrice:{...(webResult.dailyPrice||{})}, yearlyPrice:{...(webResult.yearlyPrice||{})}, estimatedRange:{...(webResult.estimatedRange||{})}, technical:{...(webResult.technical||{})}, statistics:{...(webResult.statistics||{})}, sources:[...(webResult.sources||[])] } : buildFallbackAnalysis(cleanedQuery, classification, evidence);
 
@@ -479,7 +479,7 @@ async function analyzeQuestion(query) {
       ...buildTechnicalSignals(marketData.technical || {}),
       ...buildPlanSignals(technicalPlan),
       ...evidenceProfile.signals,
-      ...(base.signals || []).filter(s => !/haber hacmi|olumlu baÅŸlÄ±k|olumsuz baÅŸlÄ±k/i.test(String(s?.title)))
+      ...(base.signals || []).filter(s => !/haber hacmi|olumlu başlık|olumsuz başlık/i.test(String(s?.title)))
     ].slice(0,14);
     base.keyFactors = [...new Set([
       ...(base.keyFactors || []),
@@ -487,29 +487,29 @@ async function analyzeQuestion(query) {
       ...(technicalPlan.reasons || []),
       ...expert.factors,
       `Teknik skor: ${technicalScore}/100`,
-      marketData.technical?.volumeRatio != null ? `Hacim oranÄ±: ${Number(marketData.technical.volumeRatio).toFixed(2)}x` : null
+      marketData.technical?.volumeRatio != null ? `Hacim oranı: ${Number(marketData.technical.volumeRatio).toFixed(2)}x` : null
     ].filter(Boolean))].slice(0, 10);
     base.sources = [marketData.source, ...(base.sources || []), ...evidence].filter(Boolean);
     base.missingInformation = removeFalseMissing(base.missingInformation, marketData);
-    if (!hasWeb) base.missingInformation = [...new Set([...(base.missingInformation || []), 'GÃ¼ncel haber ve KAP aÃ§Ä±klamalarÄ±nÄ±n tam taramasÄ±'])];
+    if (!hasWeb) base.missingInformation = [...new Set([...(base.missingInformation || []), 'Güncel haber ve KAP açıklamalarının tam taraması'])];
     const periodLabel = classification.period?.label || '3 Ay';
     const priceText = fmt(current, marketData.currency);
-    const direction = technicalScore >= 65 ? 'pozitif' : technicalScore <= 42 ? 'negatif' : 'temkinli-nÃ¶tr';
-    base.answerTitle = `${periodLabel} finans deÄŸerlendirmesi`;
+    const direction = technicalScore >= 65 ? 'pozitif' : technicalScore <= 42 ? 'negatif' : 'temkinli-nötr';
+    base.answerTitle = `${periodLabel} finans değerlendirmesi`;
     const financeChecks = (base.nextChecks || []).filter(item =>
-      !/(ilan|model, yÄ±l|paket|konum|metrekare|ekspertiz)/i.test(String(item))
+      !/(ilan|model, yıl|paket|konum|metrekare|ekspertiz)/i.test(String(item))
     );
     base.nextChecks = [...new Set([
       expert.invalidationText,
-      `Tahmin ufku ${expert.horizon} gÃ¼n; sÃ¼re deÄŸiÅŸirse olasÄ±lÄ±k ve fiyat bandÄ± yeniden hesaplanmalÄ±.`,
-      'Karardan Ã¶nce gÃ¼ncel KAP aÃ§Ä±klamalarÄ±, bilanÃ§o ve Ã¶nemli haber akÄ±ÅŸÄ± ayrÄ±ca kontrol edilmeli.',
+      `Tahmin ufku ${expert.horizon} gün; süre değişirse olasılık ve fiyat bandı yeniden hesaplanmalı.`,
+      'Karardan önce güncel KAP açıklamaları, bilanço ve önemli haber akışı ayrıca kontrol edilmeli.',
       ...financeChecks
     ])].slice(0, 10);
-    const volatilityText = expert.annualizedVolatility != null ? `yÄ±llÄ±klandÄ±rÄ±lmÄ±ÅŸ oynaklÄ±k %${expert.annualizedVolatility.toFixed(1)}` : 'oynaklÄ±k Ã¶lÃ§Ã¼mÃ¼ sÄ±nÄ±rlÄ±';
-    const drawdownText = Number.isFinite(expert.maxDrawdown) ? `geÃ§miÅŸ maksimum dÃ¼ÅŸÃ¼ÅŸ %${expert.maxDrawdown.toFixed(1)}` : 'maksimum dÃ¼ÅŸÃ¼ÅŸ Ã¶lÃ§Ã¼lemedi';
-    const rrText = expert.riskReward != null ? `risk/getiri ${expert.riskReward.toFixed(2)}x` : 'risk/getiri Ã¶lÃ§Ã¼lemedi';
-    base.directAnswer = `${marketData.displayName} gÃ¼ncel fiyatÄ± ${priceText}. ${periodLabel} iÃ§in ${expert.regime}; teknik gÃ¶rÃ¼nÃ¼m ${direction}. Veri gÃ¼veni %${confidence}, risk ${riskLabel(riskScore)}, ${volatilityText}, ${drawdownText} ve ${rrText}. OlasÄ± kÄ±rÄ±lÄ±m ${fmt(technicalPlan.breakout?.level, marketData.currency)}, takip bÃ¶lgesi ${fmt(technicalPlan.followZone?.low, marketData.currency)} - ${fmt(technicalPlan.followZone?.high, marketData.currency)}. ${expert.invalidationText}`;
-    base.summary = `${periodLabel} ufkunda ${expert.observations} fiyat gÃ¶zlemi; getiri daÄŸÄ±lÄ±mÄ±, tarihsel VaR, maksimum dÃ¼ÅŸÃ¼ÅŸ, piyasa rejimi, RSI, EMA, SMA, MACD, ATR, hacim ve destek-direnÃ§ birlikte deÄŸerlendirildi. GÃ¼ven puanÄ± veri yeterliliÄŸiyle sÄ±nÄ±rlandÄ±; sonuÃ§ kesin vaat deÄŸil, Ã¶lÃ§Ã¼lebilir olasÄ±lÄ±k bandÄ±dÄ±r.`;
+    const volatilityText = expert.annualizedVolatility != null ? `yıllıklandırılmış oynaklık %${expert.annualizedVolatility.toFixed(1)}` : 'oynaklık ölçümü sınırlı';
+    const drawdownText = Number.isFinite(expert.maxDrawdown) ? `geçmiş maksimum düşüş %${expert.maxDrawdown.toFixed(1)}` : 'maksimum düşüş ölçülemedi';
+    const rrText = expert.riskReward != null ? `risk/getiri ${expert.riskReward.toFixed(2)}x` : 'risk/getiri ölçülemedi';
+    base.directAnswer = `${marketData.displayName} güncel fiyatı ${priceText}. ${periodLabel} için ${expert.regime}; teknik görünüm ${direction}. Veri güveni %${confidence}, risk ${riskLabel(riskScore)}, ${volatilityText}, ${drawdownText} ve ${rrText}. Olası kırılım ${fmt(technicalPlan.breakout?.level, marketData.currency)}, takip bölgesi ${fmt(technicalPlan.followZone?.low, marketData.currency)} - ${fmt(technicalPlan.followZone?.high, marketData.currency)}. ${expert.invalidationText}`;
+    base.summary = `${periodLabel} ufkunda ${expert.observations} fiyat gözlemi; getiri dağılımı, tarihsel VaR, maksimum düşüş, piyasa rejimi, RSI, EMA, SMA, MACD, ATR, hacim ve destek-direnç birlikte değerlendirildi. Güven puanı veri yeterliliğiyle sınırlandı; sonuç kesin vaat değil, ölçülebilir olasılık bandıdır.`;
   }
 
   const normalized = normalizeAnalysis(base, cleanedQuery, classification, sourcePlan);

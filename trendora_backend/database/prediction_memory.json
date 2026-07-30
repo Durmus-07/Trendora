@@ -1,0 +1,152 @@
+{
+  "version": 1,
+  "updatedAt": "2026-07-30T19:36:10.144Z",
+  "predictions": [
+    {
+      "id": "prediction_1785439263108_8e7e7723",
+      "createdAt": "2026-07-30T19:21:03.114Z",
+      "status": "pending",
+      "evaluatedAt": null,
+      "outcome": null,
+      "query": "Gram altının kısa vadeli görünümü nasıl?",
+      "asset": {
+        "name": "24 Ayar Gram Altın",
+        "symbol": "GRAM_ALTIN",
+        "subtype": "commodity"
+      },
+      "horizonDays": 30,
+      "dueAt": "2026-08-29T19:21:03.072Z",
+      "prediction": {
+        "direction": "rising",
+        "confidence": 73,
+        "currentPrice": 6347.512861970466,
+        "estimatedLow": 5895.585020214441,
+        "estimatedMid": 6677.58353079293,
+        "estimatedHigh": 7459.582041371419,
+        "currency": "TRY"
+      },
+      "technicalSnapshot": {
+        "score": 63,
+        "rsi14": 50.37996431399488,
+        "macd": -410.4642325765217,
+        "macdSignal": -217.82918806913798,
+        "macdHistogram": -192.6350445073837,
+        "ema20": 5670.513300906141,
+        "ema50": 6099.932092035244,
+        "sma20": 5848.104903200576,
+        "sma50": 6250.988025512219,
+        "atrPercent": 8.815488712984722,
+        "volumeRatio": 0
+      },
+      "statisticsSnapshot": {
+        "trendStrength": 63,
+        "dataConfidence": 73,
+        "riskScore": 56,
+        "newsImpact": 73,
+        "marketInterest": 50
+      },
+      "scenarios": [
+        {
+          "name": "Olumlu görünüm",
+          "probability": 39,
+          "description": "Teknik sinyaller güçlenirse yaklaşık 6.677,58 TRY - 7.459,58 TRY bandı."
+        },
+        {
+          "name": "Dengeli görünüm",
+          "probability": 33,
+          "description": "Ana senaryoda yaklaşık 6.131,41 TRY - 7.161,2 TRY bandında dalgalanma."
+        },
+        {
+          "name": "Olumsuz görünüm",
+          "probability": 28,
+          "description": "Riskler öne çıkarsa yaklaşık 5.895,59 TRY - 6.410,48 TRY bandı."
+        }
+      ],
+      "sourceUrls": [
+        "https://news.google.com/rss/articles/CBMipgFBVV95cUxNSEZ2VDJGWGo2MnhlQTJoemV0UU1aWXJzNDRhSnpEZ3VZREw2RTUxMjZKRTB0eVJKQ0RQX3ZORnBjd0xIT0hIX3V2T2NDMmJaUWVOb2FrdEFzSnVPZmNVbTBuV3BEQXk2dlVtT29GWUVjVkJFeGo5ampxcFBuUGpCVUZMWHowSjFrSVFsSU83alEwS3RVNWVsUUREUXVicnIzeTkwRE5n?oc=5",
+        "https://www.trthaber.com/haber/ekonomi/altin-gune-nasil-basladi-952570.html",
+        "https://www.trthaber.com/haber/ekonomi/altin-haftaya-yukselisle-basladi-952286.html",
+        "https://www.trthaber.com/haber/gundem/cem-kucuk-gozaltina-alindi-952649.html",
+        "https://news.google.com/rss/articles/CBMixAFBVV95cUxOQWZiUXRaRDVlT2wwNmx5b09FeDdYaGc1TWt0MmFmMzhaRm5fWUdaS2hmUTRnT2dMd1JKV19Ic1QybDhYSlhWakItSURxb05tWmNQcW5idVU4X05yQ2tEaXU2dUhfd29EVFdaVHVrRFp6Q3BjY3hVZE51ZXhlNTU0dlZTamwxTnhlR2lHTWZMSWREUkpGNGpxdnN6OGlUZzFheHkwaUlIbmN6cmpZTGRqWTIzTjhUcVRFSTZOaFRNd3k4Sl9a?oc=5",
+        "https://www.france24.com/en/technology/20260730-ai-before-ai-forgotten-soviet-programme",
+        "https://news.google.com/rss/articles/CBMilgFBVV95cUxObk9PRVo3NEhxaDl5TUQyV0FxVVVQZ2NCTVFHV1h3RHVEX2ZiYjFZVWdja0ZVQWNRaHVlaTlPbzJxVUROTDU4UTduOWNsVjFUeFRsMDFaMERSaGstaE1IaFVMUzRjNG10MmR1aWEyMzB2VzBJVDNwZW5tUTZFOUNVUkJJU28zWDBSamhiTVh1aHFTMXkwcXc?oc=5",
+        "https://news.google.com/rss/articles/CBMisgFBVV95cUxNc2FMeHlfUzhZd1dlUjJuaDBOVzJ5TkNYSU4yWFZxWG5FVnhtaFVaVkpfRldXVlVEZzJxRENZem5rU1lOSklGRU5sdllyVzZ1SWZHYzVaUzVKdUQ5NFJDaXBMeG9aeE1WVzNLMVg5c0ZDemtsN25vLWhDMUVPUGprdlhyMnpNQ1NsSi1qaEJ0cWEtN3UwZkwzNlZtSGlIRHAwVkF0bnN1SjBGck1sWUVWczJn?oc=5",
+        "https://finance.yahoo.com/quote/GC=F",
+        "https://news.google.com/rss/articles/CBMimwFBVV95cUxPaG41eGZqUmJfOHRBZDBYVDJUY044eVpraTJMZGMycjZfYTVjSjlSQW1qNzJkMjFqaE9lSGZHYXc2NUJYS3Vld2lQLTkwRW1mWE4wN0dyR09ZSmRYeGY4eU9hMmNOUnJ3WW56VDVZLTlOWFVORFo4ZmxyWFZoODNrbGlYb0VTY0R1REVFeEVabGtpNXlYS2FjYmlSWQ?oc=5"
+      ]
+    },
+    {
+      "id": "prediction_1785440170142_6dc75db7",
+      "createdAt": "2026-07-30T19:36:10.143Z",
+      "status": "pending",
+      "evaluatedAt": null,
+      "outcome": null,
+      "query": "Gram altının kısa vadeli görünümü nasıl?",
+      "asset": {
+        "name": "24 Ayar Gram Altın",
+        "symbol": "GRAM_ALTIN",
+        "subtype": "commodity"
+      },
+      "horizonDays": 30,
+      "dueAt": "2026-08-29T19:36:10.139Z",
+      "prediction": {
+        "direction": "rising",
+        "confidence": 73,
+        "currentPrice": 6358.38041585113,
+        "estimatedLow": 5905.6788300669705,
+        "estimatedMid": 6689.016197475389,
+        "estimatedHigh": 7472.353564883807,
+        "currency": "TRY"
+      },
+      "technicalSnapshot": {
+        "score": 63,
+        "rsi14": 50.419581082775,
+        "macd": -409.5973487100955,
+        "macdSignal": -217.65581129585274,
+        "macdHistogram": -191.94153741424276,
+        "ema20": 5671.548254093609,
+        "ema50": 6100.358249230084,
+        "sma20": 5848.648253623997,
+        "sma50": 6251.205365681588,
+        "atrPercent": 8.800421542996917,
+        "volumeRatio": 0
+      },
+      "statisticsSnapshot": {
+        "trendStrength": 63,
+        "dataConfidence": 73,
+        "riskScore": 56,
+        "newsImpact": 73,
+        "marketInterest": 50
+      },
+      "scenarios": [
+        {
+          "name": "Olumlu görünüm",
+          "probability": 39,
+          "description": "Teknik sinyaller güçlenirse yaklaşık 6.689,02 TRY - 7.472,35 TRY bandı."
+        },
+        {
+          "name": "Dengeli görünüm",
+          "probability": 33,
+          "description": "Ana senaryoda yaklaşık 6.141,91 TRY - 7.173,46 TRY bandında dalgalanma."
+        },
+        {
+          "name": "Olumsuz görünüm",
+          "probability": 28,
+          "description": "Riskler öne çıkarsa yaklaşık 5.905,68 TRY - 6.421,46 TRY bandı."
+        }
+      ],
+      "sourceUrls": [
+        "https://news.google.com/rss/articles/CBMipgFBVV95cUxNSEZ2VDJGWGo2MnhlQTJoemV0UU1aWXJzNDRhSnpEZ3VZREw2RTUxMjZKRTB0eVJKQ0RQX3ZORnBjd0xIT0hIX3V2T2NDMmJaUWVOb2FrdEFzSnVPZmNVbTBuV3BEQXk2dlVtT29GWUVjVkJFeGo5ampxcFBuUGpCVUZMWHowSjFrSVFsSU83alEwS3RVNWVsUUREUXVicnIzeTkwRE5n?oc=5",
+        "https://www.trthaber.com/haber/ekonomi/altin-gune-nasil-basladi-952570.html",
+        "https://www.trthaber.com/haber/ekonomi/altin-haftaya-yukselisle-basladi-952286.html",
+        "https://www.trthaber.com/haber/gundem/cem-kucuk-gozaltina-alindi-952649.html",
+        "https://news.google.com/rss/articles/CBMixAFBVV95cUxOQWZiUXRaRDVlT2wwNmx5b09FeDdYaGc1TWt0MmFmMzhaRm5fWUdaS2hmUTRnT2dMd1JKV19Ic1QybDhYSlhWakItSURxb05tWmNQcW5idVU4X05yQ2tEaXU2dUhfd29EVFdaVHVrRFp6Q3BjY3hVZE51ZXhlNTU0dlZTamwxTnhlR2lHTWZMSWREUkpGNGpxdnN6OGlUZzFheHkwaUlIbmN6cmpZTGRqWTIzTjhUcVRFSTZOaFRNd3k4Sl9a?oc=5",
+        "https://www.france24.com/en/technology/20260730-ai-before-ai-forgotten-soviet-programme",
+        "https://news.google.com/rss/articles/CBMilgFBVV95cUxObk9PRVo3NEhxaDl5TUQyV0FxVVVQZ2NCTVFHV1h3RHVEX2ZiYjFZVWdja0ZVQWNRaHVlaTlPbzJxVUROTDU4UTduOWNsVjFUeFRsMDFaMERSaGstaE1IaFVMUzRjNG10MmR1aWEyMzB2VzBJVDNwZW5tUTZFOUNVUkJJU28zWDBSamhiTVh1aHFTMXkwcXc?oc=5",
+        "https://news.google.com/rss/articles/CBMiiwFBVV95cUxQRjNVRzluRmdhMlpBZkFsYXBIVzRkNVZNdVFRSFNtVDJ2WGk2V1p4enBCMkdNVEJhT0p5Qm5fT1BSMVhvNEhLb2ZpUlFGX2h4TGxWQ2s0Y3BNVktXdVRNMkpJb2FBTW1HRWtudGNXaF95N1I1Q0xwMzdYVHVaUkFtbWJINHZPNjBLMVVV0gGQAUFVX3lxTE52R0hBWHVsdWFUSXhWekdtZWhlakZnQ1BWTXVldTZ4c2pRbnVwMVA3RXJoNW5IMGFPZ3hSWDRWOUhpaExiOVVJam5TM0VxUVhCaFZzeHI5eHhTQjh6M3NFczJKRU1LM1lPSURiNnBreFhneW1IbmkyLVI4UUFsWjk3QS04dzR6NUNPTENzQzBaSQ?oc=5",
+        "https://finance.yahoo.com/quote/GC=F",
+        "https://news.google.com/rss/articles/CBMimwFBVV95cUxPaG41eGZqUmJfOHRBZDBYVDJUY044eVpraTJMZGMycjZfYTVjSjlSQW1qNzJkMjFqaE9lSGZHYXc2NUJYS3Vld2lQLTkwRW1mWE4wN0dyR09ZSmRYeGY4eU9hMmNOUnJ3WW56VDVZLTlOWFVORFo4ZmxyWFZoODNrbGlYb0VTY0R1REVFeEVabGtpNXlYS2FjYmlSWQ?oc=5"
+      ]
+    }
+  ]
+}
