@@ -333,6 +333,11 @@ router.post('/analyze', async (req, res) => {
       });
     }
 
+    console.log('[TRENDS ANALYZE] Request received:', {
+      query,
+      receivedAt: new Date().toISOString()
+    });
+
     const forceRefresh = [
       '1',
       'true',

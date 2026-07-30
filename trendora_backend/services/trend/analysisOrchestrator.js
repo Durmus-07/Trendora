@@ -389,8 +389,41 @@ async function runBistScanner(query, classification, sourcePlan, mode) {
 });  
   const prediction = buildPredictionFromAnalysis(normalized);
 
+  
   if (prediction) {
-    savePrediction(prediction);
+  
+    const savedPrediction = savePrediction(prediction);
+  
+    console.log('[PREDICTION MEMORY] Saved:', {
+  
+      id: savedPrediction.id,
+  
+      symbol: savedPrediction.asset?.symbol || null,
+  
+      name: savedPrediction.asset?.name || null,
+  
+      currentPrice: savedPrediction.prediction?.currentPrice ?? null,
+  
+      horizonDays: savedPrediction.horizonDays,
+  
+      dueAt: savedPrediction.dueAt
+  
+    });
+  
+  } else {
+  
+    console.log('[PREDICTION MEMORY] Skipped:', {
+  
+      reason: 'Analysis did not contain a finance entity and valid current price.',
+  
+      domain: normalized.domain,
+  
+      entity: normalized.entity,
+  
+      dailyPrice: normalized.dailyPrice
+  
+    });
+  
   }
 } catch (error) {
   console.error(
@@ -523,8 +556,59 @@ async function analyzeQuestion(query) {
 
     const prediction = buildPredictionFromAnalysis(normalized);
 
+
+
     if (prediction) {
-      savePrediction(prediction);
+
+
+      const savedPrediction = savePrediction(prediction);
+
+
+      console.log('[PREDICTION MEMORY] Saved:', {
+
+
+        id: savedPrediction.id,
+
+
+        symbol: savedPrediction.asset?.symbol || null,
+
+
+        name: savedPrediction.asset?.name || null,
+
+
+        currentPrice: savedPrediction.prediction?.currentPrice ?? null,
+
+
+        horizonDays: savedPrediction.horizonDays,
+
+
+        dueAt: savedPrediction.dueAt
+
+
+      });
+
+
+    } else {
+
+
+      console.log('[PREDICTION MEMORY] Skipped:', {
+
+
+        reason: 'Analysis did not contain a finance entity and valid current price.',
+
+
+        domain: normalized.domain,
+
+
+        entity: normalized.entity,
+
+
+        dailyPrice: normalized.dailyPrice
+
+
+      });
+
+
     }
   } catch (error) {
     console.error(

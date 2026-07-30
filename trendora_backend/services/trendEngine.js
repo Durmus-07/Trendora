@@ -63,6 +63,7 @@ async function analyzeQuery(query, options = {}) {
   if (!forceRefresh) {
     const cached = analysisCache.get(key);
     if (isFresh(cached, ANALYSIS_CACHE_TTL_MS)) {
+      console.log('[TREND ENGINE] Cache hit:', { query: cleanedQuery });
       return {
         ...cached.value,
         engine: {
@@ -73,9 +74,15 @@ async function analyzeQuery(query, options = {}) {
     }
 
     if (inFlightAnalyses.has(key)) {
+      console.log('[TREND ENGINE] Existing analysis awaited:', { query: cleanedQuery });
       return inFlightAnalyses.get(key);
     }
   }
+
+  console.log('[TREND ENGINE] Fresh analysis started:', {
+    query: cleanedQuery,
+    forceRefresh
+  });
 
   const task = analyzeQuestion(cleanedQuery)
     .then(result => {
