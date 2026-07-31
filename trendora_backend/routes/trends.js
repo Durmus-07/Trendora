@@ -10,6 +10,7 @@ const { classifyQuestion } = require('../services/trend/questionClassifier');
 const { BIST_ENTITIES } = require('../services/trend/entityEngine');
 const { fetchMarketData } = require('../services/marketDataService');
 const { normalizeFinancial } = require('../services/dataModels');
+const { getPredictions } = require('../services/trend/predictionMemoryService');
 
 const router = express.Router();
 const MAX_QUERY_LENGTH = 500;
@@ -233,6 +234,82 @@ router.get('/chart', async (req, res) => {
     return res.status(502).json({
       success: false,
       message: 'Piyasa veri kaynağına şu anda ulaşılamıyor.'
+    });
+  }
+});
+
+
+router.get('/predictions', (req, res) => {
+  try {
+    const requestedLimit = Number.parseInt(String(req.query?.limit || '20'), 10);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(50, requestedLimit))
+      : 20;
+    const requestedStatus = String(req.query?.status || 'all').trim().toLowerCase();
+    const allowedStatuses = new Set(['all', 'pending', 'evaluated']);
+    const status = allowedStatuses.has(requestedStatus)
+      ? requestedStatus
+      : 'all';
+
+    const predictions = getPredictions()
+      .filter(item => item && typeof item === 'object')
+      .filter(item => status === 'all' || item.status === status)
+      .sort((a, b) => {
+        const aTime = new Date(a.createdAt || 0).getTime();
+        const bTime = new Date(b.createdAt || 0).getTime();
+        return bTime - aTime;
+      });
+
+    // Akışta aynı varlığın birden fazla eski kaydı yerine en güncel
+    // Trendora öngörüsü gösterilir. Tahmin belleğinin kendisi değiştirilmez.
+    const latestByAsset = new Map();
+
+    for (const item of predictions) {
+      const asset = item.asset || {};
+      const identity = String(
+        asset.internalAssetId ||
+        asset.canonicalSymbol ||
+        asset.symbol ||
+        asset.name ||
+        item.query ||
+        item.id ||
+        ''
+      ).trim().toLocaleLowerCase('tr-TR');
+
+      if (!identity || latestByAsset.has(identity)) continue;
+      latestByAsset.set(identity, item);
+      if (latestByAsset.size >= limit) break;
+    }
+
+    const items = [...latestByAsset.values()].map(item => ({
+      id: item.id,
+      createdAt: item.createdAt,
+      dueAt: item.dueAt,
+      status: item.status,
+      evaluatedAt: item.evaluatedAt || null,
+      query: item.query,
+      horizonDays: item.horizonDays,
+      asset: item.asset || null,
+      prediction: item.prediction || null,
+      technicalSnapshot: item.technicalSnapshot || null,
+      statisticsSnapshot: item.statisticsSnapshot || null,
+      scenarios: Array.isArray(item.scenarios) ? item.scenarios : [],
+      outcome: item.outcome || null
+    }));
+
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      success: true,
+      count: items.length,
+      status,
+      items,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Tahmin akışı okunamadı:', error?.message || error);
+    return res.status(500).json({
+      success: false,
+      message: 'Trendora öngörü akışı şu anda okunamadı.'
     });
   }
 });
