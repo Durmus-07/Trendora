@@ -177,10 +177,36 @@ function savePrediction(prediction) {
   };
 
   const identityKey = predictionIdentityKey(record);
-  const existingIndex = database.predictions.findIndex(item =>
-    item?.status === 'pending' &&
-    predictionIdentityKey(item) === identityKey
+  const horizonDays = Math.max(
+    1,
+    Math.round(finiteNumber(record.horizonDays) || 1)
   );
+  const duplicateWindowMs = 5 * 60 * 1000;
+  const recordCreatedAtMs = new Date(record.createdAt).getTime();
+
+  const existingIndex = database.predictions.findIndex(item => {
+    if (
+      item?.status !== 'pending' ||
+      predictionIdentityKey(item) !== identityKey
+    ) {
+      return false;
+    }
+
+    const itemHorizonDays = Math.max(
+      1,
+      Math.round(finiteNumber(item.horizonDays) || 1)
+    );
+
+    if (itemHorizonDays !== horizonDays) {
+      return false;
+    }
+
+    const itemCreatedAtMs = new Date(item.createdAt).getTime();
+
+    return Number.isFinite(itemCreatedAtMs) &&
+      Number.isFinite(recordCreatedAtMs) &&
+      Math.abs(recordCreatedAtMs - itemCreatedAtMs) <= duplicateWindowMs;
+  });
 
   if (identityKey && existingIndex >= 0) {
     const existing = database.predictions[existingIndex];
