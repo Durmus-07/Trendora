@@ -8,7 +8,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'core/api_client.dart';
 import 'core/api_config.dart';
 import 'core/saved_analysis_store.dart';
+import 'core/trend_technical_analysis.dart';
 import 'profesyonel_grafik_sayfasi.dart';
+import 'widgets/trendora_technical_view_card.dart';
 
 class TrendTahminiSayfasi extends StatefulWidget {
   final String? initialQuery;
@@ -288,6 +290,10 @@ class _TrendTahminiSayfasiState extends State<TrendTahminiSayfasi>
                   (trend.dailyPrice.available || trend.yearlyPrice.available)) ...[
                 const SizedBox(height: 12),
                 _canliFiyatOzetiKarti(trend),
+              ],
+              if (trend.domain == 'finance' && trend.technical.hasAny) ...[
+                const SizedBox(height: 12),
+                TrendoraTechnicalViewCard(analysis: trend.technical),
               ],
               if (trend.domain == 'finance') ...[
                 const SizedBox(height: 12),
@@ -2734,6 +2740,7 @@ class TrendAnalizi {
   final TahminiAralik estimatedRange;
   final GunlukFiyat dailyPrice;
   final YillikFiyat yearlyPrice;
+  final TrendTeknikAnalizi technical;
   final TrendIstatistikleri statistics;
   final List<TrendSenaryosu> scenarios;
   final int confidence;
@@ -2756,6 +2763,7 @@ class TrendAnalizi {
     required this.estimatedRange,
     required this.dailyPrice,
     required this.yearlyPrice,
+    this.technical = const TrendTeknikAnalizi.empty(),
     required this.statistics,
     required this.scenarios,
     required this.confidence,
@@ -2826,6 +2834,7 @@ class TrendAnalizi {
       estimatedRange: estimatedRange,
       dailyPrice: dailyPrice,
       yearlyPrice: yearlyPrice,
+      technical: TrendTeknikAnalizi.fromJson(_toMap(j['technical'])),
       statistics: statistics,
       scenarios: scenarios,
       confidence: confidence,

@@ -1,4 +1,6 @@
 const { fetchMarketChart } = require('./marketProviders/marketProviderRegistry');
+const { matchAsset } = require('./assets/assetMatcher');
+const { resolveProviderSymbol } = require('./assets/providerSymbolResolver');
 const {
   sanitizePriceLevels,
   validateMarketRows
@@ -67,6 +69,30 @@ function normalizeTurkish(value) {
 }
 
 function resolveYahooSymbol(query, classification) {
+  // Önce Sprint 3 merkezi varlık kataloğunu kullan.
+  // Herhangi bir hata, eşleşmeme veya belirsizlik durumunda aşağıdaki
+  // mevcut alias/fallback davranışı aynen çalışmaya devam eder.
+  const centralCandidates = [
+    classification?.entity?.internalAssetId,
+    classification?.entity?.canonicalSymbol,
+    classification?.entity?.providerSymbols?.yahoo,
+    classification?.entity?.symbol,
+    classification?.entity?.name,
+    query
+  ].filter(Boolean);
+
+  for (const candidate of centralCandidates) {
+    try {
+      const match = matchAsset(candidate);
+      if (!match?.matched || !match.asset) continue;
+
+      const providerSymbol = resolveProviderSymbol(match.asset, 'yahoo');
+      if (providerSymbol) return providerSymbol;
+    } catch (_) {
+      // Merkezi katalog entegrasyonu eski piyasa veri akışını durdurmamalı.
+    }
+  }
+
   const entitySymbol = normalizeTurkish(classification?.entity?.symbol);
   const entityName = normalizeTurkish(classification?.entity?.name);
   const cleanedQuery = normalizeTurkish(query);

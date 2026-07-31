@@ -165,6 +165,7 @@ const SOURCE_CONCURRENCY = Math.max(1, Number(process.env.NEWS_SOURCE_CONCURRENC
 const SOURCE_TIMEOUT_MS = Math.max(5000, Number(process.env.NEWS_SOURCE_TIMEOUT_MS || 10000));
 const SCAN_TIMEOUT_MS = Math.max(60000, Number(process.env.NEWS_SCAN_TIMEOUT_MS || 180000));
 const MAX_ITEMS_PER_SOURCE = 100;
+const MAX_FULL_TEXT_LENGTH = 30000;
 const MAX_ARCHIVE_ITEMS = 50000;
 const ARCHIVE_RETENTION_MS = 370 * 24 * 60 * 60 * 1000;
 const ARCHIVE_FILE = path.join(__dirname, '..', 'database', 'news_archive.json');
@@ -207,6 +208,12 @@ function cleanText(value) {
     .replace(/&gt;/gi, '>')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function cleanFullText(value) {
+  const cleaned = cleanText(value);
+  if (cleaned.length <= MAX_FULL_TEXT_LENGTH) return cleaned;
+  return cleaned.slice(0, MAX_FULL_TEXT_LENGTH).trimEnd();
 }
 
 function normalizeText(value) {
@@ -335,6 +342,8 @@ function normalizeItem(item, source) {
   const title = isGoogle ? removeGoogleNewsPublisher(rawTitle) : rawTitle;
   const publisher = isGoogle ? getGoogleNewsPublisher(rawTitle) : '';
   const description = cleanText(item?.contentSnippet || item?.summary || item?.description || item?.content || '');
+  const fullText = cleanFullText(item?.contentEncoded || item?.content || '');
+  const content = fullText === description ? '' : fullText;
   const publishedDate = parsePublishedDate(item);
   const sourceName = publisher || cleanText(item?.creator) || cleanText(item?.author) || source.name;
   const isBreaking = calculateBreakingState({ title, description, publishedDate, source });
@@ -342,6 +351,7 @@ function normalizeItem(item, source) {
     id: Buffer.from(`${source.name}|${item?.link || ''}|${title}`).toString('base64url'),
     title,
     description,
+    content,
     url: item?.link || item?.guid || '',
     imageUrl: extractImage(item),
     source: sourceName,

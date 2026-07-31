@@ -1,4 +1,5 @@
 const { analyzeQuestion } = require('./trend/analysisOrchestrator');
+const { buildPredictionFromAnalysis, savePrediction } = require('./trend/predictionMemoryService');
 
 const DEFAULT_QUESTIONS = [
   'Türkiye’de ikinci el otomobil fiyatlarında genel eğilim nedir?',
@@ -41,7 +42,7 @@ function resolveAnalysisAssetIdentity(value) {
       null;
   } catch (error) {
     console.warn(
-      '[TREND ENGINE] Merkezi analiz kimliÄŸi atlandÄ±:',
+      '[TREND ENGINE] Merkezi analiz kimliği atlandı:',
       error?.message || error
     );
     return null;
@@ -113,6 +114,44 @@ async function analyzeQuery(query, options = {}) {
 
   const task = analyzeQuestion(cleanedQuery)
     .then(result => {
+      let predictionRecord = null;
+
+      try {
+        const prediction = buildPredictionFromAnalysis(result);
+
+        if (prediction) {
+          predictionRecord = savePrediction(prediction);
+
+          console.log('[TREND ENGINE] Prediction recorded:', {
+            query: cleanedQuery,
+            predictionId: predictionRecord?.id || null,
+            assetId:
+              predictionRecord?.asset?.internalAssetId ||
+              predictionRecord?.asset?.canonicalSymbol ||
+              predictionRecord?.asset?.symbol ||
+              null,
+            dueAt: predictionRecord?.dueAt || null
+          });
+        }
+      } catch (error) {
+        console.warn(
+          '[TREND ENGINE] Prediction memory skipped:',
+          error?.message || error
+        );
+      }
+
+      const resultWithMemory = {
+        ...result,
+        engine: {
+          ...(result.engine || {}),
+          predictionMemory: {
+            recorded: Boolean(predictionRecord),
+            predictionId: predictionRecord?.id || null,
+            dueAt: predictionRecord?.dueAt || null
+          }
+        }
+      };
+
       analysisCache.set(key, {
         createdAt: Date.now(),
         value: result

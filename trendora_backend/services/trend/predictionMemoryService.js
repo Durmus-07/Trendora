@@ -20,7 +20,7 @@ function matchPredictionAsset(value) {
     return match.asset;
   } catch (error) {
     console.warn(
-      'Tahmin varlÄ±k kimliÄŸi merkezi katalogla eÅŸleÅŸtirilemedi:',
+      'Tahmin varlık kimliği merkezi katalogla eşleştirilemedi:',
       error?.message || error
     );
     return null;
@@ -31,10 +31,10 @@ function normalizeLegacyAssetKey(value) {
   return String(value || '')
     .trim()
     .toLocaleLowerCase('tr-TR')
-    .replace(/Ä°/g, 'i')
-    .replace(/Ä±/g, 'i')
-    .replace(/[â€™'`]/g, '')
-    .replace(/[^a-z0-9Ã§ÄŸÄ±Ã¶ÅŸÃ¼\.\-\s/]/gi, ' ')
+    .replace(/İ/g, 'i')
+    .replace(/ı/g, 'i')
+    .replace(/[’'`]/g, '')
+    .replace(/[^a-z0-9çğıöşü\.\-\s/]/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
