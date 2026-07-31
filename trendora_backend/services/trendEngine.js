@@ -29,6 +29,33 @@ function normalizeCacheKey(value) {
     .replace(/\s+/g, ' ');
 }
 
+function resolveAnalysisAssetIdentity(value) {
+  try {
+    const { matchAsset } = require('./assets/assetMatcher');
+    const match = matchAsset(value);
+    if (!match?.matched || !match.asset || Number(match.confidence) < 0.9) {
+      return null;
+    }
+    return match.asset.internalAssetId ||
+      match.asset.canonicalSymbol ||
+      null;
+  } catch (error) {
+    console.warn(
+      '[TREND ENGINE] Merkezi analiz kimliÄŸi atlandÄ±:',
+      error?.message || error
+    );
+    return null;
+  }
+}
+
+function buildAnalysisCacheKey(value) {
+  const legacyKey = normalizeCacheKey(value);
+  const assetIdentity = resolveAnalysisAssetIdentity(value);
+  return assetIdentity
+    ? `asset:${String(assetIdentity).toLocaleLowerCase('tr-TR')}`
+    : legacyKey;
+}
+
 function isFresh(entry, ttlMs) {
   return Boolean(
     entry &&
@@ -57,7 +84,7 @@ function pruneAnalysisCache() {
 
 async function analyzeQuery(query, options = {}) {
   const cleanedQuery = String(query || '').trim();
-  const key = normalizeCacheKey(cleanedQuery);
+  const key = buildAnalysisCacheKey(cleanedQuery);
   const forceRefresh = options.forceRefresh === true;
 
   if (!forceRefresh) {

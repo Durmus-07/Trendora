@@ -24,6 +24,14 @@ if (envEnabled('ENABLE_MARKET_COLLECTOR', true)) {
   startMarketCollectorScheduler();
 }
 
+if (envEnabled('ASSET_CATALOG_SYNC_ENABLED', false)) {
+  const {
+    startAssetCatalogSyncScheduler
+  } = require('./services/assets/assetCatalogSyncService');
+
+  startAssetCatalogSyncScheduler();
+}
+
 const children = new Map();
 const restartTimers = new Map();
 

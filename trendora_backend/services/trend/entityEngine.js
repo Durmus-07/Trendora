@@ -1,3 +1,5 @@
+const { matchAsset } = require('../assets/assetMatcher');
+
 function normalizeText(value) {
   return String(value || '')
     .toLocaleLowerCase('tr-TR')
@@ -110,6 +112,42 @@ const OTHER_FINANCE_ENTITIES = [
 ];
 
 const BIST_BY_SYMBOL = new Map(BIST_ENTITIES.map(item => [item.symbol, item]));
+
+function subtypeFromAsset(asset) {
+  if (!asset) return null;
+  if (asset.assetType === 'equity') return 'bist_stock';
+  return asset.assetType || null;
+}
+
+function marketFromAsset(asset) {
+  if (!asset) return null;
+  return asset.market || (asset.assetType === 'fx' ? 'FX' : null);
+}
+
+function buildCatalogEntity(match) {
+  const asset = match?.asset;
+  if (!match?.matched || !asset) return null;
+  const subtype = subtypeFromAsset(asset);
+
+  return {
+    found: true,
+    domain: 'finance',
+    subtype,
+    market: marketFromAsset(asset),
+    symbol: asset.canonicalSymbol,
+    name: asset.displayName,
+    matchedBy: match.matchType,
+    matchedValue: asset.canonicalSymbol,
+    confidence: Math.round((Number(match.confidence) || 0) * 100),
+    internalAssetId: asset.internalAssetId,
+    canonicalSymbol: asset.canonicalSymbol,
+    displayName: asset.displayName,
+    assetType: asset.assetType,
+    exchange: asset.exchange,
+    currency: asset.currency,
+    providerSymbols: { ...(asset.providerSymbols || {}) }
+  };
+}
 
 function tokenBoundaryIncludes(text, candidate) {
   if (!candidate) return false;
@@ -264,6 +302,16 @@ function findOtherFinanceEntity(query) {
 }
 
 function resolveEntity(query) {
+  try {
+    const catalogEntity = buildCatalogEntity(matchAsset(query));
+    if (catalogEntity) return catalogEntity;
+  } catch (error) {
+    console.warn(
+      '[EntityEngine] Merkezi varlık eşleştirme atlandı:',
+      error?.message || error
+    );
+  }
+
   return findIndexEntity(query) || findBistEntity(query) || findOtherFinanceEntity(query) || {
     found: false,
     domain: null,

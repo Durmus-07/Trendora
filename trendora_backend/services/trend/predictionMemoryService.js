@@ -10,6 +10,92 @@ const databasePath = path.join(
   'prediction_memory.json'
 );
 
+function matchPredictionAsset(value) {
+  try {
+    const { matchAsset } = require('../assets/assetMatcher');
+    const match = matchAsset(value);
+    if (!match?.matched || !match.asset || Number(match.confidence) < 0.9) {
+      return null;
+    }
+    return match.asset;
+  } catch (error) {
+    console.warn(
+      'Tahmin varlÄ±k kimliÄŸi merkezi katalogla eÅŸleÅŸtirilemedi:',
+      error?.message || error
+    );
+    return null;
+  }
+}
+
+function normalizeLegacyAssetKey(value) {
+  return String(value || '')
+    .trim()
+    .toLocaleLowerCase('tr-TR')
+    .replace(/Ä°/g, 'i')
+    .replace(/Ä±/g, 'i')
+    .replace(/[â€™'`]/g, '')
+    .replace(/[^a-z0-9Ã§ÄŸÄ±Ã¶ÅŸÃ¼\.\-\s/]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function resolvePredictionAssetIdentity({ query, assetName, assetSymbol, entity }) {
+  const directCatalogAsset = entity?.internalAssetId
+    ? {
+        internalAssetId: entity.internalAssetId,
+        canonicalSymbol: entity.canonicalSymbol || entity.symbol || null,
+        displayName: entity.displayName || entity.name || null,
+        assetType: entity.assetType || entity.subtype || null,
+        exchange: entity.exchange || null,
+        currency: entity.currency || null
+      }
+    : null;
+  const candidates = [
+    entity?.internalAssetId,
+    entity?.canonicalSymbol,
+    entity?.providerSymbols?.yahoo,
+    assetSymbol,
+    assetName,
+    query
+  ].filter(value => String(value || '').trim().length > 0);
+
+  const catalogAsset = directCatalogAsset || candidates
+    .map(matchPredictionAsset)
+    .find(Boolean);
+  const legacyKey = normalizeLegacyAssetKey(
+    assetSymbol || assetName || query
+  );
+
+  if (!catalogAsset) {
+    return {
+      legacyKey,
+      identityKey: legacyKey
+    };
+  }
+
+  return {
+    legacyKey,
+    identityKey: catalogAsset.internalAssetId ||
+      catalogAsset.canonicalSymbol ||
+      legacyKey,
+    internalAssetId: catalogAsset.internalAssetId,
+    canonicalSymbol: catalogAsset.canonicalSymbol,
+    displayName: catalogAsset.displayName,
+    assetType: catalogAsset.assetType,
+    exchange: catalogAsset.exchange,
+    currency: catalogAsset.currency
+  };
+}
+
+function predictionIdentityKey(prediction) {
+  const asset = prediction?.asset || {};
+  if (asset.internalAssetId) return String(asset.internalAssetId);
+  if (asset.canonicalSymbol) return String(asset.canonicalSymbol);
+  return normalizeLegacyAssetKey(
+    asset.symbol || asset.name || prediction?.query
+  );
+}
+
 function ensureDatabaseDirectory() {
   fs.mkdirSync(path.dirname(databasePath), { recursive: true });
 }
@@ -89,6 +175,27 @@ function savePrediction(prediction) {
     outcome: null,
     ...prediction
   };
+
+  const identityKey = predictionIdentityKey(record);
+  const existingIndex = database.predictions.findIndex(item =>
+    item?.status === 'pending' &&
+    predictionIdentityKey(item) === identityKey
+  );
+
+  if (identityKey && existingIndex >= 0) {
+    const existing = database.predictions[existingIndex];
+    database.predictions[existingIndex] = {
+      ...existing,
+      ...record,
+      id: existing.id,
+      createdAt: existing.createdAt,
+      status: existing.status,
+      evaluatedAt: existing.evaluatedAt ?? null,
+      outcome: existing.outcome ?? null
+    };
+    writeDatabase(database);
+    return database.predictions[existingIndex];
+  }
 
   database.predictions.push(record);
   writeDatabase(database);
@@ -178,6 +285,12 @@ function buildPredictionFromAnalysis(analysis) {
   const entity = analysis.entity || {};
   const assetName = String(entity.name || '').trim();
   const assetSymbol = String(entity.symbol || '').trim();
+  const assetIdentity = resolvePredictionAssetIdentity({
+    query: analysis.query,
+    assetName,
+    assetSymbol,
+    entity
+  });
 
   if (!assetName && !assetSymbol) {
     return null;
@@ -208,7 +321,13 @@ function buildPredictionFromAnalysis(analysis) {
     asset: {
       name: assetName || assetSymbol,
       symbol: assetSymbol || null,
-      subtype: entity.subtype || null
+      subtype: entity.subtype || null,
+      ...(assetIdentity.internalAssetId ? { internalAssetId: assetIdentity.internalAssetId } : {}),
+      ...(assetIdentity.canonicalSymbol ? { canonicalSymbol: assetIdentity.canonicalSymbol } : {}),
+      ...(assetIdentity.displayName ? { displayName: assetIdentity.displayName } : {}),
+      ...(assetIdentity.assetType ? { assetType: assetIdentity.assetType } : {}),
+      ...(assetIdentity.exchange ? { exchange: assetIdentity.exchange } : {}),
+      ...(assetIdentity.currency ? { currency: assetIdentity.currency } : {})
     },
     horizonDays,
     dueAt: dueAt.toISOString(),
