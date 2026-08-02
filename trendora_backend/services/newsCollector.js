@@ -799,9 +799,74 @@ async function refreshNewsCache(period = 'all') {
     const currentRaw = dedupeRawItems(results.flatMap((result) => result.items));
     const archivedRaw = dedupeRawItems(mergeWithArchive(currentRaw));
 
-    // Arşivin tamamı dosyada korunur. Her taramada yalnızca en güncel
-    // 12.000 haber gruplanarak Render üzerindeki CPU yükü sınırlandırılır.
-    const groupingItems = archivedRaw.slice(0, 12000);
+    /*
+      CANLI VERİ GÜVENCESİ
+      -------------------
+      Render yeniden başladığında repodaki eski JSON dosyası kısa süreliğine
+      servis edilebilir. Ağır gruplama bitmeden önce en güncel 500 haberi hızlıca
+      gruplayıp atomik olarak yayınlıyoruz. Böylece uygulama dakikalarca eski
+      haber göstermiyor. Tam gruplama bittiğinde bu geçici snapshot otomatik
+      olarak daha zengin nihai snapshot ile değiştirilir.
+    */
+    const fastPublishLimit = Math.max(
+      100,
+      Math.min(1000, Number(process.env.NEWS_FAST_PUBLISH_LIMIT || 500))
+    );
+    const fastItems = archivedRaw.slice(0, fastPublishLimit);
+
+    if (fastItems.length > 0) {
+      const fastGrouped = buildStoryGroups(fastItems);
+      const fastSourceResults = results.map(
+        ({ ok, source, count, durationMs, error }) => ({
+          ok,
+          source,
+          count,
+          durationMs,
+          error: error || null
+        })
+      );
+      const fastActiveSources = fastSourceResults.filter((item) => item.ok).length;
+      const fastCreatedAt = Date.now();
+
+      await writeJsonAtomic(NEWS_DATABASE_FILE, {
+        success: true,
+        createdAt: fastCreatedAt,
+        updatedAt: new Date(fastCreatedAt).toISOString(),
+        newsCount: fastGrouped.length,
+        totalSources: NEWS_SOURCES.length,
+        activeSources: fastActiveSources,
+        failedSources: Math.max(0, NEWS_SOURCES.length - fastActiveSources),
+        items: fastGrouped,
+        sourceResults: fastSourceResults,
+        partial: true,
+        completedSourceCount: results.length,
+        fastPublished: true
+      });
+
+      await writeCollectorStatus({
+        running: true,
+        phase: 'grouping',
+        startedAt: new Date().toISOString(),
+        completedAt: null,
+        newsCount: fastGrouped.length,
+        totalSources: NEWS_SOURCES.length,
+        activeSources: fastActiveSources,
+        failedSources: Math.max(0, NEWS_SOURCES.length - fastActiveSources),
+        error: null
+      });
+
+      console.log(
+        `[NEWS COLLECTOR] Hızlı yayın tamamlandı: ${fastGrouped.length} güncel haber`
+      );
+    }
+
+    // Arşivin tamamı korunur; yalnızca en güncel bölüm gruplanır.
+    // Varsayılan 1.500 sınırı Render CPU/RAM yükünü güvenli tutar.
+    const groupingLimit = Math.max(
+      500,
+      Math.min(2500, Number(process.env.NEWS_GROUPING_LIMIT || 1500))
+    );
+    const groupingItems = archivedRaw.slice(0, groupingLimit);
 
     console.log(
       `[NEWS COLLECTOR] Gruplama başladı: ${groupingItems.length} haber`

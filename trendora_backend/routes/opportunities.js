@@ -449,6 +449,26 @@ function filterAndLimitItems(items, {
     );
   }
 
+  function itemTime(item) {
+    const candidates = [
+      item.updatedAt,
+      item.publishedAt,
+      item.createdAt,
+      item.collectedAt,
+      item.catalogStartDate
+    ];
+
+    for (const value of candidates) {
+      if (!value) continue;
+      const time = new Date(value).getTime();
+      if (Number.isFinite(time)) return time;
+    }
+
+    return 0;
+  }
+
+  result.sort((left, right) => itemTime(right) - itemTime(left));
+
   return result.slice(0, limit);
 }
 

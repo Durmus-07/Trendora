@@ -511,7 +511,27 @@ function startMarketCollectorScheduler() {
     'A101, CarrefourSA.'
   );
 
-  scheduleNext();
+  // Deploy sonrasında eski state dosyasındaki ileri bir nextRunAt değerini
+  // beklemek yerine ilk canlı yenilemeyi kısa gecikmeyle yap.
+  timer = setTimeout(
+    async () => {
+      try {
+        await runMarketCollectorsNow();
+      } catch (error) {
+        console.error(
+          '[MarketScheduler] İlk çalışma hatası:',
+          error?.stack || error
+        );
+      } finally {
+        scheduleNext();
+      }
+    },
+    90 * 1000
+  );
+
+  if (typeof timer.unref === 'function') {
+    timer.unref();
+  }
 }
 
 function getMarketCollectorStatus() {

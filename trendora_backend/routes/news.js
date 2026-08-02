@@ -224,12 +224,38 @@ function filterBySearch(items, searchValue) {
 }
 
 function sortNews(items) {
+  const now = Date.now();
+  const breakingWindowMs = 2 * 60 * 60 * 1000;
+
   return [...items].sort((left, right) => {
+    const leftTime = new Date(left.publishedAt).getTime();
+    const rightTime = new Date(right.publishedAt).getTime();
+
+    const leftRecentBreaking =
+      left.isBreaking === true &&
+      Number.isFinite(leftTime) &&
+      leftTime <= now + 5 * 60 * 1000 &&
+      now - leftTime <= breakingWindowMs;
+
+    const rightRecentBreaking =
+      right.isBreaking === true &&
+      Number.isFinite(rightTime) &&
+      rightTime <= now + 5 * 60 * 1000 &&
+      now - rightTime <= breakingWindowMs;
+
     const breakingDifference =
-      Number(right.isBreaking === true) - Number(left.isBreaking === true);
+      Number(rightRecentBreaking) - Number(leftRecentBreaking);
 
     if (breakingDifference !== 0) {
       return breakingDifference;
+    }
+
+    // Ana akışın sürekli aynı eski yüksek puanlı haberlere takılmasını
+    // önlemek için önce yayın zamanını esas al.
+    const timeDifference = rightTime - leftTime;
+
+    if (Number.isFinite(timeDifference) && timeDifference !== 0) {
+      return timeDifference;
     }
 
     const rightImportance = Number(
@@ -240,16 +266,7 @@ function sortNews(items) {
       left.importanceScore || left.trendScore || 0
     );
 
-    const importanceDifference = rightImportance - leftImportance;
-
-    if (importanceDifference !== 0) {
-      return importanceDifference;
-    }
-
-    return (
-      new Date(right.publishedAt).getTime() -
-      new Date(left.publishedAt).getTime()
-    );
+    return rightImportance - leftImportance;
   });
 }
 
