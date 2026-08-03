@@ -41,7 +41,7 @@ const PERIODS = {
   all: null
 };
 
-function createJsonSnapshotReader(filePath, fallback) {
+function createJsonSnapshotReader(filePath, fallback, { allowRootArray = false } = {}) {
   let parsedData = null;
   let lastModifiedMs = null;
   let lastLoadedAt = null;
@@ -59,7 +59,8 @@ function createJsonSnapshotReader(filePath, fallback) {
 
         const raw = await fs.promises.readFile(filePath, 'utf8');
         const nextData = JSON.parse(raw);
-        if (nextData === null || Array.isArray(nextData) || typeof nextData !== 'object') {
+        if (nextData === null || typeof nextData !== 'object' ||
+            (!allowRootArray && Array.isArray(nextData))) {
           throw new Error('JSON kökü bir nesne olmalıdır.');
         }
         parsedData = nextData;
@@ -95,7 +96,7 @@ const newsDatabaseSnapshot = createJsonSnapshotReader(NEWS_DATABASE_FILE, {
   failedSources: 0,
   items: [],
   sourceResults: []
-});
+}, { allowRootArray: true });
 
 const newsStatusSnapshot = createJsonSnapshotReader(NEWS_STATUS_FILE, {
   running: false,
@@ -230,17 +231,25 @@ function sortNews(items) {
   });
 }
 
+function extractNewsItems(database) {
+  if (Array.isArray(database)) return database;
+  if (!database || typeof database !== 'object') return [];
+  for (const key of ['items', 'news', 'data', 'articles']) {
+    if (Array.isArray(database[key])) return database[key];
+  }
+  return [];
+}
+
 async function readNewsDatabase() {
   const database = await newsDatabaseSnapshot.read();
+  const root = Array.isArray(database) ? {} : database;
 
   return {
-    ...database,
-    items: Array.isArray(database.items)
-      ? database.items
-      : [],
+    ...root,
+    items: extractNewsItems(database),
     sourceResults:
-      Array.isArray(database.sourceResults)
-        ? database.sourceResults
+      Array.isArray(root.sourceResults)
+        ? root.sourceResults
         : []
   };
 }
@@ -474,5 +483,6 @@ module.exports = {
   router,
   getNewsStatus,
   findNewsRecord,
+  extractNewsItems,
   createJsonSnapshotReader
 };

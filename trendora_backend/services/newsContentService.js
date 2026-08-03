@@ -84,7 +84,13 @@ function pinnedAgent(protocol, address, family) {
   const Agent = protocol === 'https:' ? https.Agent : http.Agent;
   return new Agent({
     keepAlive: false,
-    lookup: (_hostname, _options, callback) => callback(null, address, family)
+    lookup: (_hostname, options, callback) => {
+      if (options?.all) {
+        callback(null, [{ address, family }]);
+        return;
+      }
+      callback(null, address, family);
+    }
   });
 }
 
@@ -361,6 +367,7 @@ module.exports = {
   extractArticleContent,
   isPrivateIp,
   normalizeUrl,
+  pinnedAgent,
   resolvePublicUrl,
   streamToText
 };

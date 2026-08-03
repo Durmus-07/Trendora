@@ -3,15 +3,18 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Readable } = require('node:stream');
+const dns = require('node:dns');
+const axios = require('axios');
 const {
   createNewsContentService,
   extractArticleContent,
   isPrivateIp,
   normalizeUrl,
+  pinnedAgent,
   resolvePublicUrl,
   streamToText
 } = require('../services/newsContentService');
-const { findNewsRecord, router } = require('../routes/newsApi');
+const { extractNewsItems, findNewsRecord, router } = require('../routes/newsApi');
 const express = require('express');
 
 const longText = Array.from(
@@ -182,6 +185,48 @@ test('haber yalnızca kayıtlı id veya normalize URL ile bulunur', () => {
   assert.equal(findNewsRecord(items, { id: 'unknown', url: 'https://evil.test' }), null);
 });
 
+test('haber snapshot array ve tekil alias köklerinden çoğaltılmadan çıkarılır', () => {
+  const item = { id: 'root-shape-news' };
+  assert.deepEqual(extractNewsItems([item]), [item]);
+  assert.deepEqual(extractNewsItems({ news: [item] }), [item]);
+  assert.deepEqual(extractNewsItems({ items: [item], data: [item, item] }), [item]);
+  assert.deepEqual(extractNewsItems({ data: [item] }), [item]);
+});
+
+test('uzun ve özel karakterli ID query encode/decode sonrasında birebir bulunur', async () => {
+  const id = `${'Base64Benzeri'.repeat(30)}+/=%`;
+  const app = express();
+  app.get('/find', (req, res) => {
+    const match = findNewsRecord([{ id, url: 'https://example.com/special' }], req.query);
+    res.json({ found: Boolean(match), id: req.query.id });
+  });
+  const server = await new Promise(resolve => {
+    const instance = app.listen(0, '127.0.0.1', () => resolve(instance));
+  });
+  try {
+    const address = server.address();
+    const response = await fetch(
+      `http://127.0.0.1:${address.port}/find?id=${encodeURIComponent(id)}`
+    );
+    const body = await response.json();
+    assert.equal(body.found, true);
+    assert.equal(body.id, id);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+test('pinned DNS lookup Node all seçeneğinde doğrulanan adres listesini döndürür', async () => {
+  const agent = pinnedAgent('https:', '93.184.216.34', 4);
+  const lookup = agent.options.lookup;
+  const result = await new Promise((resolve, reject) => {
+    lookup('example.com', { all: true }, (error, addresses) =>
+      error ? reject(error) : resolve(addresses));
+  });
+  assert.deepEqual(result, [{ address: '93.184.216.34', family: 4 }]);
+  agent.destroy();
+});
+
 test('haber route alias, bilinmeyen içerik, status ve health cevapları uyumludur', async () => {
   const app = express();
   app.use('/api/news', router);
@@ -204,10 +249,37 @@ test('haber route alias, bilinmeyen içerik, status ve health cevapları uyumlud
     assert.ok(Array.isArray(list.news));
     assert.deepEqual(list.news, list.items);
     assert.deepEqual(list.news, list.data);
+    assert.ok(list.news[0]?.id);
     assert.equal(missingResponse.status, 404);
     assert.equal(missing.contentStatus, 'unavailable');
     assert.equal(statusResponse.status, 200);
     assert.equal(healthResponse.status, 200);
+
+    const originalLookup = dns.promises.lookup;
+    const originalGet = axios.get;
+    dns.promises.lookup = async () => [{ address: '93.184.216.34', family: 4 }];
+    axios.get = async () => ({
+      status: 200,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+      data: Readable.from([`<article><p>${longText}</p></article>`])
+    });
+    try {
+      const listedId = list.news[0].id;
+      const contentResponse = await fetch(
+        `${base}/content?id=${encodeURIComponent(listedId)}`
+      );
+      const content = await contentResponse.json();
+      assert.equal(contentResponse.status, 200);
+      assert.equal(content.success, true);
+      assert.equal(content.id, listedId);
+      assert.ok(['full', 'partial', 'summary'].includes(content.contentStatus));
+      assert.equal(content.title, list.news[0].title);
+      assert.equal(content.url, list.news[0].url);
+      assert.ok(content.content);
+    } finally {
+      dns.promises.lookup = originalLookup;
+      axios.get = originalGet;
+    }
   } finally {
     await new Promise((resolve, reject) => server.close(error =>
       error ? reject(error) : resolve()));
