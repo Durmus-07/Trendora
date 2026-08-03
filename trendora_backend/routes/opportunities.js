@@ -25,39 +25,64 @@ const dataFilePath = path.join(
   'opportunities.json'
 );
 
-function readDatabase() {
-  try {
-    if (!fs.existsSync(dataFilePath)) {
-      return {
-        updatedAt: null,
-        items: []
-      };
-    }
+function createJsonSnapshotReader(filePath, fallbackValue) {
+  let parsedData = null;
+  let lastModifiedMs = null;
+  let lastLoadedAt = null;
+  let loadingPromise = null;
 
-    const rawData = fs.readFileSync(
-      dataFilePath,
-      'utf8'
-    );
+  async function read() {
+    if (loadingPromise) return loadingPromise;
 
-    const parsedData = JSON.parse(rawData);
+    loadingPromise = (async () => {
+      try {
+        const stats = await fs.promises.stat(filePath);
+        if (parsedData !== null && stats.mtimeMs === lastModifiedMs) {
+          return parsedData;
+        }
 
-    return {
-      updatedAt: parsedData.updatedAt || null,
-      items: Array.isArray(parsedData.items)
-        ? parsedData.items
-        : []
-    };
-  } catch (error) {
-    console.error(
-      'opportunities.json okunamadı:',
-      error.message
-    );
+        const raw = await fs.promises.readFile(filePath, 'utf8');
+        const nextData = JSON.parse(raw);
+        if (nextData === null || Array.isArray(nextData) || typeof nextData !== 'object') {
+          throw new Error('JSON kökü bir nesne olmalıdır.');
+        }
+        parsedData = nextData;
+        lastModifiedMs = stats.mtimeMs;
+        lastLoadedAt = Date.now();
+        return parsedData;
+      } catch (error) {
+        console.error(
+          `${path.basename(filePath)} okunamadı:`,
+          error.message
+        );
+        return parsedData !== null ? parsedData : fallbackValue;
+      }
+    })().finally(() => {
+      loadingPromise = null;
+    });
 
-    return {
-      updatedAt: null,
-      items: []
-    };
+    return loadingPromise;
   }
+
+  return {
+    read,
+    metadata: () => ({ lastModifiedMs, lastLoadedAt })
+  };
+}
+
+const opportunitySnapshot = createJsonSnapshotReader(dataFilePath, {
+  updatedAt: null,
+  items: []
+});
+
+async function readDatabase() {
+  const parsedData = await opportunitySnapshot.read();
+  return {
+    updatedAt: parsedData.updatedAt || null,
+    items: Array.isArray(parsedData.items)
+      ? parsedData.items
+      : []
+  };
 }
 
 function writeDatabase(items) {
@@ -492,9 +517,9 @@ function sendItemsResponse(
   });
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const database = readDatabase();
+    const database = await readDatabase();
 
     const source = normalizeStoreKey(
       req.query.source
@@ -551,7 +576,7 @@ router.get('/bim/refresh', requireAdminApiKey, async (req, res) => {
       });
     }
 
-    const database = readDatabase();
+    const database = await readDatabase();
 
     const otherSources =
       database.items.filter(
@@ -623,9 +648,9 @@ router.get('/markets/status', (req, res) => {
   });
 });
 
-router.get('/:source', (req, res) => {
+router.get('/:source', async (req, res) => {
   try {
-    const database = readDatabase();
+    const database = await readDatabase();
 
     const source = normalizeStoreKey(
       req.params.source
@@ -665,3 +690,4 @@ router.get('/:source', (req, res) => {
 });
 
 module.exports = router;
+module.exports.createJsonSnapshotReader = createJsonSnapshotReader;

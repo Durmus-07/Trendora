@@ -148,6 +148,69 @@ test('source health endpoint is backward-compatible and observable', async () =>
   assert.ok(Array.isArray(response.body.sources));
 });
 
+test('news pagination and category filtering remain backward-compatible', async () => {
+  const firstPage = await request('/api/news?limit=2&offset=0');
+  assert.equal(firstPage.status, 200);
+  assert.equal(firstPage.body.success, true);
+  assert.equal(firstPage.body.limit, 2);
+  assert.equal(firstPage.body.offset, 0);
+  assert.deepEqual(firstPage.body.news, firstPage.body.items);
+  assert.deepEqual(firstPage.body.news, firstPage.body.data);
+  assert.ok(firstPage.body.news.length <= 2);
+
+  const category = firstPage.body.news[0]?.category;
+  if (category) {
+    const filtered = await request(
+      `/api/news?limit=5&category=${encodeURIComponent(category)}`
+    );
+    assert.equal(filtered.status, 200);
+    assert.ok(filtered.body.news.every(item => item.category === category));
+  }
+
+  const source = firstPage.body.news[0]?.source;
+  if (source) {
+    const bySource = await request(
+      `/api/news?limit=5&q=${encodeURIComponent(source)}`
+    );
+    assert.equal(bySource.status, 200);
+    assert.ok(bySource.body.news.every(item =>
+      `${item.source} ${item.feedSource}`.includes(source)
+    ));
+  }
+});
+
+test('opportunity filters, source route and response aliases remain compatible', async () => {
+  const response = await request('/api/opportunities?limit=3');
+  assert.equal(response.status, 200);
+  assert.equal(response.body.success, true);
+  assert.ok(response.body.opportunities.length <= 3);
+  assert.deepEqual(response.body.opportunities, response.body.products);
+  assert.deepEqual(response.body.opportunities, response.body.items);
+  assert.deepEqual(response.body.opportunities, response.body.data);
+
+  const first = response.body.opportunities[0];
+  const category = first?.category;
+  if (category) {
+    const byCategory = await request(
+      `/api/opportunities?limit=3&category=${encodeURIComponent(category)}`
+    );
+    assert.equal(byCategory.status, 200);
+    assert.ok(byCategory.body.opportunities.every(item =>
+      item.category === category
+    ));
+  }
+
+  const source = first?.store || first?.source;
+  if (source) {
+    const bySource = await request(
+      `/api/opportunities/${encodeURIComponent(source)}?limit=2`
+    );
+    assert.equal(bySource.status, 200);
+    assert.ok(bySource.body.opportunities.length <= 2);
+    assert.deepEqual(bySource.body.opportunities, bySource.body.items);
+  }
+});
+
 test('weather search endpoint validates without calling its provider', async () => {
   const response = await request('/api/weather/search?q=x');
   assert.equal(response.status, 400);

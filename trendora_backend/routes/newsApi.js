@@ -36,23 +36,67 @@ const PERIODS = {
   all: null
 };
 
-function readJson(filePath, fallback) {
-  try {
-    if (!fs.existsSync(filePath)) {
-      return fallback;
-    }
+function createJsonSnapshotReader(filePath, fallback) {
+  let parsedData = null;
+  let lastModifiedMs = null;
+  let lastLoadedAt = null;
+  let loadingPromise = null;
 
-    const raw = fs.readFileSync(filePath, 'utf8');
-    return JSON.parse(raw);
-  } catch (error) {
-    console.error(
-      `[NEWS API] ${path.basename(filePath)} okunamadı:`,
-      error.message
-    );
+  async function read() {
+    if (loadingPromise) return loadingPromise;
 
-    return fallback;
+    loadingPromise = (async () => {
+      try {
+        const stats = await fs.promises.stat(filePath);
+        if (parsedData !== null && stats.mtimeMs === lastModifiedMs) {
+          return parsedData;
+        }
+
+        const raw = await fs.promises.readFile(filePath, 'utf8');
+        const nextData = JSON.parse(raw);
+        if (nextData === null || Array.isArray(nextData) || typeof nextData !== 'object') {
+          throw new Error('JSON kökü bir nesne olmalıdır.');
+        }
+        parsedData = nextData;
+        lastModifiedMs = stats.mtimeMs;
+        lastLoadedAt = Date.now();
+        return parsedData;
+      } catch (error) {
+        console.error(
+          `[NEWS API] ${path.basename(filePath)} okunamadı:`,
+          error.message
+        );
+        return parsedData !== null ? parsedData : fallback;
+      }
+    })().finally(() => {
+      loadingPromise = null;
+    });
+
+    return loadingPromise;
   }
+
+  return {
+    read,
+    metadata: () => ({ lastModifiedMs, lastLoadedAt })
+  };
 }
+
+const newsDatabaseSnapshot = createJsonSnapshotReader(NEWS_DATABASE_FILE, {
+  success: false,
+  updatedAt: null,
+  newsCount: 0,
+  totalSources: 0,
+  activeSources: 0,
+  failedSources: 0,
+  items: [],
+  sourceResults: []
+});
+
+const newsStatusSnapshot = createJsonSnapshotReader(NEWS_STATUS_FILE, {
+  running: false,
+  phase: 'unknown',
+  error: null
+});
 
 function normalizeText(value) {
   return String(value || '')
@@ -181,20 +225,8 @@ function sortNews(items) {
   });
 }
 
-function readNewsDatabase() {
-  const database = readJson(
-    NEWS_DATABASE_FILE,
-    {
-      success: false,
-      updatedAt: null,
-      newsCount: 0,
-      totalSources: 0,
-      activeSources: 0,
-      failedSources: 0,
-      items: [],
-      sourceResults: []
-    }
-  );
+async function readNewsDatabase() {
+  const database = await newsDatabaseSnapshot.read();
 
   return {
     ...database,
@@ -209,16 +241,10 @@ function readNewsDatabase() {
 }
 
 async function getNewsStatus() {
-  const database = readNewsDatabase();
-
-  const collectorStatus = readJson(
-    NEWS_STATUS_FILE,
-    {
-      running: false,
-      phase: 'unknown',
-      error: null
-    }
-  );
+  const [database, collectorStatus] = await Promise.all([
+    readNewsDatabase(),
+    newsStatusSnapshot.read()
+  ]);
 
   const activeSources = Number(
     database.activeSources ??
@@ -258,7 +284,7 @@ async function getNewsStatus() {
 
 router.get('/', async (req, res) => {
   try {
-    const database = readNewsDatabase();
+    const database = await readNewsDatabase();
 
     const period = normalizePeriod(
       req.query.period
@@ -396,5 +422,6 @@ router.get('/health', async (req, res) => {
 
 module.exports = {
   router,
-  getNewsStatus
+  getNewsStatus,
+  createJsonSnapshotReader
 };

@@ -32,43 +32,82 @@ const PERIODS = {
   all: null
 };
 
-function readJsonFile(filePath, fallbackValue) {
-  try {
-    if (!fs.existsSync(filePath)) {
-      return fallbackValue;
-    }
+function createJsonSnapshotReader(filePath, fallbackValue) {
+  let parsedData = null;
+  let lastModifiedMs = null;
+  let lastLoadedAt = null;
+  let loadingPromise = null;
 
-    const raw = fs.readFileSync(filePath, 'utf8');
+  async function read() {
+    if (loadingPromise) return loadingPromise;
 
-    if (!raw.trim()) {
-      return fallbackValue;
-    }
+    loadingPromise = (async () => {
+      try {
+        const stats = await fs.promises.stat(filePath);
+        if (parsedData !== null && stats.mtimeMs === lastModifiedMs) {
+          return parsedData;
+        }
 
-    return JSON.parse(raw);
-  } catch (error) {
-    console.error(
-      `[NEWS ROUTE] ${path.basename(filePath)} okunamadı:`,
-      error.message
-    );
+        const raw = await fs.promises.readFile(filePath, 'utf8');
+        if (!raw.trim()) return parsedData !== null ? parsedData : fallbackValue;
 
-    return fallbackValue;
+        const nextData = JSON.parse(raw);
+        if (nextData === null || Array.isArray(nextData) || typeof nextData !== 'object') {
+          throw new Error('JSON kökü bir nesne olmalıdır.');
+        }
+        parsedData = nextData;
+        lastModifiedMs = stats.mtimeMs;
+        lastLoadedAt = Date.now();
+        return parsedData;
+      } catch (error) {
+        console.error(
+          `[NEWS ROUTE] ${path.basename(filePath)} okunamadı:`,
+          error.message
+        );
+        return parsedData !== null ? parsedData : fallbackValue;
+      }
+    })().finally(() => {
+      loadingPromise = null;
+    });
+
+    return loadingPromise;
   }
+
+  return {
+    read,
+    metadata: () => ({ lastModifiedMs, lastLoadedAt })
+  };
 }
 
-function readNewsDatabase() {
-  const database = readJsonFile(NEWS_DATABASE_FILE, {
-    success: false,
-    createdAt: null,
-    updatedAt: null,
-    newsCount: 0,
-    totalSources: 0,
-    activeSources: 0,
-    failedSources: 0,
-    completedSourceCount: 0,
-    partial: true,
-    items: [],
-    sourceResults: []
-  });
+const newsDatabaseSnapshot = createJsonSnapshotReader(NEWS_DATABASE_FILE, {
+  success: false,
+  createdAt: null,
+  updatedAt: null,
+  newsCount: 0,
+  totalSources: 0,
+  activeSources: 0,
+  failedSources: 0,
+  completedSourceCount: 0,
+  partial: true,
+  items: [],
+  sourceResults: []
+});
+
+const newsStatusSnapshot = createJsonSnapshotReader(NEWS_STATUS_FILE, {
+  running: false,
+  phase: 'unknown',
+  startedAt: null,
+  completedAt: null,
+  durationMs: null,
+  newsCount: 0,
+  totalSources: 0,
+  activeSources: 0,
+  failedSources: 0,
+  error: null
+});
+
+async function readNewsDatabase() {
+  const database = await newsDatabaseSnapshot.read();
 
   return {
     success: database.success !== false,
@@ -92,19 +131,8 @@ function readNewsDatabase() {
   };
 }
 
-function readCollectorStatus() {
-  return readJsonFile(NEWS_STATUS_FILE, {
-    running: false,
-    phase: 'unknown',
-    startedAt: null,
-    completedAt: null,
-    durationMs: null,
-    newsCount: 0,
-    totalSources: 0,
-    activeSources: 0,
-    failedSources: 0,
-    error: null
-  });
+async function readCollectorStatus() {
+  return newsStatusSnapshot.read();
 }
 
 function normalizeText(value) {
@@ -299,10 +327,12 @@ function buildEmptyResponse(database, collectorStatus) {
   };
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const database = readNewsDatabase();
-    const collectorStatus = readCollectorStatus();
+    const [database, collectorStatus] = await Promise.all([
+      readNewsDatabase(),
+      readCollectorStatus()
+    ]);
 
     const category = normalizeCategory(
       req.query.category || req.query.kategori || 'tumu'
@@ -400,8 +430,10 @@ router.get('/status', async (req, res) => {
 });
 
 async function getNewsStatus() {
-  const database = readNewsDatabase();
-  const collectorStatus = readCollectorStatus();
+  const [database, collectorStatus] = await Promise.all([
+    readNewsDatabase(),
+    readCollectorStatus()
+  ]);
 
   return {
     newsCount: database.items.length || database.newsCount || 0,
@@ -428,3 +460,4 @@ async function getNewsStatus() {
 module.exports = router;
 module.exports.router = router;
 module.exports.getNewsStatus = getNewsStatus;
+module.exports.createJsonSnapshotReader = createJsonSnapshotReader;
