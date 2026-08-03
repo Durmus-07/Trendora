@@ -88,6 +88,36 @@ test('AI chat is disabled by default', async () => {
   assert.equal(response.body.code, 'AI_DISABLED');
 });
 
+test('smart search resolves catalog assets without external data calls', async () => {
+  const response = await request('/api/smart-search', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ query: 'Koç Holding kaç TL?' })
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.intent, 'market_price');
+  assert.equal(response.body.asset.canonicalSymbol, 'KCHOL');
+  assert.equal(response.body.service, 'market_board');
+});
+
+test('smart search rejects empty and oversized queries safely', async () => {
+  const empty = await request('/api/smart-search', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ query: ' ' })
+  });
+  const oversized = await request('/api/smart-search', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ query: 'a'.repeat(501) })
+  });
+  assert.equal(empty.status, 400);
+  assert.equal(empty.body.errorType, 'invalid_query');
+  assert.equal(oversized.status, 413);
+  assert.equal(oversized.body.errorType, 'query_too_long');
+});
+
 test('premium status requires a verified Firebase token', async () => {
   const response = await request('/api/premium/status');
 

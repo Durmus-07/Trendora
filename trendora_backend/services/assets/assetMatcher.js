@@ -211,9 +211,10 @@ function fuzzyCandidates(normalized) {
   if (normalized.normalized.length < 5) return [];
 
   const candidates = [];
+  const minimumScore = normalized.normalized.length >= 6 ? 0.84 : 0.88;
   for (const item of index.fuzzyTerms) {
     const score = similarity(normalized.normalized, item.term);
-    if (score >= 0.88) {
+    if (score >= minimumScore) {
       candidates.push(candidateView(item.asset, 'fuzzy', Number(score.toFixed(3)), item.term));
     }
   }
@@ -295,7 +296,7 @@ function matchAsset(input, options = {}) {
   if (aliasMatch) return aliasMatch;
 
   const fuzzy = fuzzyCandidates(normalized);
-  if (fuzzy.length === 1 && fuzzy[0].confidence >= 0.92) {
+  if (fuzzy.length === 1 && fuzzy[0].confidence >= 0.84) {
     return resultFrom(fuzzy[0].asset, 'fuzzy', fuzzy[0].confidence);
   }
   if (fuzzy.length > 1 && fuzzy[0].confidence - fuzzy[1].confidence < 0.05) {

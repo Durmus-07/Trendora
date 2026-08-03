@@ -1,9 +1,12 @@
 import 'dart:convert';
 
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api_client.dart';
 import '../api_config.dart';
+import '../auth/trendora_auth_service.dart';
+import '../news/saved_news_store.dart';
 import '../personalization/personalization_service.dart';
 import '../personalization/personalization_storage.dart';
 import '../saved_analysis_store.dart';
@@ -19,6 +22,17 @@ enum SmartCommandTarget {
 }
 
 enum SmartCommandIntent {
+  marketPrice,
+  marketAnalysis,
+  breakingNews,
+  newsSearch,
+  newsCategory,
+  opportunitiesSearch,
+  opportunitiesSource,
+  savedItems,
+  savedNews,
+  dailyDigest,
+  generalQuestion,
   gold,
   foreignExchange,
   financialAsset,
@@ -45,6 +59,12 @@ class SmartCommandResult {
     required this.target,
     this.targetQuery,
     this.available = true,
+    this.cards = const [],
+    this.suggestions = const [],
+    this.buttonLabel,
+    this.query = '',
+    this.normalizedQuery = '',
+    this.fallbackUsed = false,
   });
 
   final SmartCommandIntent intent;
@@ -54,14 +74,61 @@ class SmartCommandResult {
   final SmartCommandTarget target;
   final String? targetQuery;
   final bool available;
+  final List<Map<String, dynamic>> cards;
+  final List<String> suggestions;
+  final String? buttonLabel;
+  final String query;
+  final String normalizedQuery;
+  final bool fallbackUsed;
 }
 
 class SmartCommandParser {
   const SmartCommandParser();
 
   SmartCommandIntent parse(String input) {
-    final value = _normalize(input);
+    final value = normalize(input);
     if (value.isEmpty) return SmartCommandIntent.unknown;
+    final saved =
+        value.contains('kaydettigim') ||
+        value.contains('kaydetigim') ||
+        value.contains('favorilerim');
+    if (saved && value.contains('haber')) return SmartCommandIntent.savedNews;
+    if (saved) return SmartCommandIntent.savedItems;
+    if (value.contains('gunluk ozet')) return SmartCommandIntent.dailyDigest;
+    if (value.contains('son dakika') ||
+        value.contains('son dakka') ||
+        value.contains('son gelisme')) {
+      return SmartCommandIntent.breakingNews;
+    }
+    if ((value.contains('migros') ||
+            value.contains('migors') ||
+            value.contains('bim')) &&
+        (value.contains('firsat') ||
+            value.contains('indirim') ||
+            value.contains('ne var'))) {
+      return SmartCommandIntent.opportunitiesSource;
+    }
+    if (value.contains('firsat') ||
+        value.contains('indirim') ||
+        value.contains('kampanya')) {
+      return SmartCommandIntent.opportunitiesSearch;
+    }
+    if (value.contains('haber')) {
+      if (value.contains('ekonomi') || value.contains('teknoloji')) {
+        return SmartCommandIntent.newsCategory;
+      }
+      return SmartCommandIntent.newsSearch;
+    }
+    if (value.contains('analiz') ||
+        value.contains('gorunumu') ||
+        value.contains('kisa vadede')) {
+      return SmartCommandIntent.marketAnalysis;
+    }
+    if (value.contains('kac tl') ||
+        value.contains('ne kadar') ||
+        value.contains('fiyat')) {
+      return SmartCommandIntent.marketPrice;
+    }
     if (value.contains('bugun benim icin') ||
         value.contains('onemli olanlar')) {
       return SmartCommandIntent.personalizedSummary;
@@ -101,6 +168,11 @@ class SmartCommandParser {
         value.contains('hisse')) {
       return SmartCommandIntent.financialAsset;
     }
+    if (value.endsWith(' nedir') ||
+        value.startsWith('nasil ') ||
+        value.startsWith('neden ')) {
+      return SmartCommandIntent.generalQuestion;
+    }
     return SmartCommandIntent.unknown;
   }
 
@@ -113,16 +185,53 @@ class SmartCommandParser {
       .replaceAll('ö', 'o')
       .replaceAll('ş', 's')
       .replaceAll('ü', 'u');
+  static String normalize(String value) => _normalize(value)
+      .replaceAll(RegExp(r'[^a-z0-9.\s]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  static String? assetSymbol(String value) {
+    final text = normalize(value);
+    const aliases = <String, String>{
+      'aselsan': 'ASELS',
+      'asels': 'ASELS',
+      'thy': 'THYAO',
+      'thyao': 'THYAO',
+      'turk hava yollari': 'THYAO',
+      'sisecam': 'SISE',
+      'sise': 'SISE',
+      'altin.s1': 'ALTIN.S1',
+      'altin s1': 'ALTIN.S1',
+      'gram altin': 'GRAM_ALTIN',
+      'altin': 'GRAM_ALTIN',
+      'bist 100': 'XU100',
+      'xu100': 'XU100',
+    };
+    for (final entry in aliases.entries) {
+      if (text.contains(entry.key)) return entry.value;
+    }
+    return null;
+  }
 }
 
 abstract interface class SmartCommandDataSource {
+  Future<Map<String, dynamic>?> smartSearchPlan(String query);
+  Future<String?> generalAi(String query);
   Future<List<Map<String, dynamic>>> marketBoard();
-  Future<List<Map<String, dynamic>>> news();
-  Future<List<Map<String, dynamic>>> opportunities();
+  Future<List<Map<String, dynamic>>> news({
+    String? category,
+    String? query,
+    bool breaking = false,
+  });
+  Future<List<Map<String, dynamic>>> opportunities({
+    String? source,
+    String? query,
+  });
   Future<({String location, String description, double? temperature})?>
   weather();
   Future<Set<String>> trackedSymbols();
   Future<int> savedAnalysisCount();
+  Future<List<SavedNews>> savedNews();
 }
 
 class DefaultSmartCommandDataSource implements SmartCommandDataSource {
@@ -139,26 +248,72 @@ class DefaultSmartCommandDataSource implements SmartCommandDataSource {
   final PersonalizationService _personalization;
 
   @override
+  Future<Map<String, dynamic>?> smartSearchPlan(String query) async {
+    final response = await ApiClient.post(
+      Uri.parse('${ApiConfig.baseUrl}/api/smart-search'),
+      body: jsonEncode({'query': query}),
+      timeout: const Duration(seconds: 5),
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) return null;
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+  }
+
+  @override
+  Future<String?> generalAi(String query) async {
+    final auth = TrendoraAuthService.instance;
+    await auth.initialize();
+    final token = await auth.getIdToken();
+    if (token == null || token.isEmpty) return null;
+    final response = await http
+        .post(
+          Uri.parse('${ApiConfig.baseUrl}/api/ai'),
+          headers: {...ApiClient.jsonHeaders, 'Authorization': 'Bearer $token'},
+          body: jsonEncode({'message': query}),
+        )
+        .timeout(const Duration(seconds: 12));
+    if (response.statusCode < 200 || response.statusCode >= 300) return null;
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    if (decoded is! Map || decoded['success'] != true) return null;
+    final answer = '${decoded['answer'] ?? ''}'.trim();
+    return answer.isEmpty ? null : answer;
+  }
+
+  @override
   Future<List<Map<String, dynamic>>> marketBoard() => _apiList(
     Uri.parse('${ApiConfig.trends}/market-board'),
     const ['items', 'data'],
   );
 
   @override
-  Future<List<Map<String, dynamic>>> news() => _apiList(
-    Uri.parse(
-      ApiConfig.news,
-    ).replace(queryParameters: const {'category': 'ekonomi', 'limit': '20'}),
-    const ['news', 'items', 'data'],
-  );
+  Future<List<Map<String, dynamic>>> news({
+    String? category,
+    String? query,
+    bool breaking = false,
+  }) {
+    final parameters = <String, String>{'limit': '5'};
+    if (category != null) parameters['category'] = category;
+    if (query != null) parameters['q'] = query;
+    if (breaking) parameters['breaking'] = 'true';
+    return _apiList(
+      Uri.parse(ApiConfig.news).replace(queryParameters: parameters),
+      const ['news', 'items', 'data'],
+    );
+  }
 
   @override
-  Future<List<Map<String, dynamic>>> opportunities() => _apiList(
-    Uri.parse(
-      ApiConfig.opportunities,
-    ).replace(queryParameters: const {'limit': '40'}),
-    const ['opportunities', 'items', 'data'],
-  );
+  Future<List<Map<String, dynamic>>> opportunities({
+    String? source,
+    String? query,
+  }) {
+    final parameters = <String, String>{'limit': '5', 'active': 'true'};
+    if (source != null) parameters['source'] = source;
+    if (query != null) parameters['q'] = query;
+    return _apiList(
+      Uri.parse(ApiConfig.opportunities).replace(queryParameters: parameters),
+      const ['opportunities', 'items', 'data'],
+    );
+  }
 
   @override
   Future<({String location, String description, double? temperature})?>
@@ -185,6 +340,9 @@ class DefaultSmartCommandDataSource implements SmartCommandDataSource {
   Future<int> savedAnalysisCount() async =>
       (await SavedAnalysisStore.load()).length;
 
+  @override
+  Future<List<SavedNews>> savedNews() => SavedNewsStore.load();
+
   Future<List<Map<String, dynamic>>> _apiList(
     Uri uri,
     List<String> keys,
@@ -192,7 +350,8 @@ class DefaultSmartCommandDataSource implements SmartCommandDataSource {
     final response = await ApiClient.get(
       uri,
       cacheTtl: const Duration(minutes: 2),
-      timeout: const Duration(seconds: 35),
+      timeout: const Duration(seconds: 10),
+      retries: 0,
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {
       return const [];
@@ -228,7 +387,38 @@ class SmartCommandService {
   Future<SmartCommandResult> execute(String command) async {
     final intent = _parser.parse(command);
     try {
+      final plan = await _dataSource.smartSearchPlan(command);
+      if (intent == SmartCommandIntent.marketPrice ||
+          intent == SmartCommandIntent.marketAnalysis) {
+        return await _centralMarket(command, intent, plan);
+      }
+      if (intent == SmartCommandIntent.generalQuestion) {
+        return await _generalQuestion(command, intent, plan);
+      }
       return await switch (intent) {
+        SmartCommandIntent.marketPrice => throw StateError('unreachable'),
+        SmartCommandIntent.marketAnalysis => throw StateError('unreachable'),
+        SmartCommandIntent.breakingNews ||
+        SmartCommandIntent.newsSearch ||
+        SmartCommandIntent.newsCategory => _newsSearch(command, intent),
+        SmartCommandIntent.opportunitiesSearch ||
+        SmartCommandIntent.opportunitiesSource => _opportunitySearch(
+          command,
+          intent,
+        ),
+        SmartCommandIntent.savedItems => _savedItems(command, intent),
+        SmartCommandIntent.savedNews => _savedNews(intent),
+        SmartCommandIntent.dailyDigest => Future.value(
+          SmartCommandResult(
+            intent: intent,
+            message: 'Günlük özetin ana sayfada hazır.',
+            source: 'Trendora günlük özet',
+            updatedAt: DateTime.now(),
+            target: SmartCommandTarget.home,
+            buttonLabel: 'Özeti Göster',
+          ),
+        ),
+        SmartCommandIntent.generalQuestion => throw StateError('unreachable'),
         SmartCommandIntent.gold => _market(command, intent, const [
           'ALTIN',
           'XAU',
@@ -294,18 +484,100 @@ class SmartCommandService {
     }
   }
 
+  Future<SmartCommandResult> _centralMarket(
+    String command,
+    SmartCommandIntent intent,
+    Map<String, dynamic>? plan,
+  ) async {
+    final resolution = '${plan?['assetResolution'] ?? ''}';
+    final candidates = plan?['candidates'];
+    if (resolution == 'selection_required' && candidates is List) {
+      return SmartCommandResult(
+        intent: intent,
+        query: command,
+        normalizedQuery: '${plan?['normalizedQuery'] ?? ''}',
+        message:
+            'Birden fazla güçlü eşleşme bulundu. Devam etmek için bir varlık seç.',
+        source: 'Trendora merkezi varlık kataloğu',
+        updatedAt: DateTime.now(),
+        target: SmartCommandTarget.none,
+        cards: candidates
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .take(5)
+            .toList(),
+      );
+    }
+    final asset = plan?['asset'];
+    if (resolution != 'matched' || asset is! Map) {
+      return _unavailable(
+        intent,
+        'Varlık merkezi katalogda güvenle eşleştirilemedi.',
+        SmartCommandTarget.trend,
+        query: command,
+      );
+    }
+    final symbol = '${asset['canonicalSymbol'] ?? ''}'.trim();
+    final name = '${asset['displayName'] ?? symbol}'.trim();
+    if (intent == SmartCommandIntent.marketAnalysis) {
+      return _analysis(command, intent, symbol: symbol, displayName: name);
+    }
+    return _market(command, intent, [symbol], resolvedSymbol: symbol);
+  }
+
+  Future<SmartCommandResult> _generalQuestion(
+    String command,
+    SmartCommandIntent intent,
+    Map<String, dynamic>? plan,
+  ) async {
+    if (plan?['service'] != 'ai') {
+      return _unavailable(
+        intent,
+        'Bu sorgu güvenli bir genel bilgi sorusu olarak doğrulanamadı.',
+        SmartCommandTarget.none,
+      );
+    }
+    final answer = await _dataSource.generalAi(command);
+    if (answer == null) {
+      return _unavailable(
+        intent,
+        'Genel AI yanıtı şu anda kullanılamıyor.',
+        SmartCommandTarget.none,
+      );
+    }
+    return SmartCommandResult(
+      intent: intent,
+      query: command,
+      normalizedQuery: '${plan?['normalizedQuery'] ?? ''}',
+      message: answer,
+      source: 'Genel AI yanıtı • Trendora AI',
+      updatedAt: DateTime.now(),
+      target: SmartCommandTarget.none,
+      fallbackUsed: true,
+      suggestions: const ['Son dakika haberleri', 'Güncel fırsatlar'],
+    );
+  }
+
   Future<SmartCommandResult> _market(
     String command,
     SmartCommandIntent intent,
-    List<String> preferredTokens,
-  ) async {
+    List<String> preferredTokens, {
+    String? resolvedSymbol,
+  }) async {
     final rows = await _dataSource.marketBoard();
     final upper = command.toUpperCase();
+    final tokens = preferredTokens
+        .expand((token) {
+          if (token == 'GRAM_ALTIN') return const ['ALTIN', 'XAU', 'GRAM'];
+          return [token];
+        })
+        .where((token) => token.isNotEmpty)
+        .toList(growable: false);
     Map<String, dynamic>? match;
     for (final row in rows) {
       final symbol = '${row['symbol'] ?? ''}'.toUpperCase();
       final label = '${row['label'] ?? ''}'.toUpperCase();
-      final preferred = preferredTokens.any(
+      final preferred = tokens.any(
         (token) => symbol.contains(token) || label.contains(token),
       );
       final mentioned =
@@ -336,7 +608,204 @@ class SmartCommandService {
       source: _source(match),
       updatedAt: _date(match),
       target: SmartCommandTarget.trend,
-      targetQuery: label,
+      targetQuery: resolvedSymbol ?? label,
+    );
+  }
+
+  Future<SmartCommandResult> _analysis(
+    String command,
+    SmartCommandIntent intent, {
+    String? symbol,
+    String? displayName,
+  }) async {
+    final resolved = symbol ?? SmartCommandParser.assetSymbol(command);
+    if (resolved == null) {
+      return _unavailable(
+        intent,
+        'Varlık güvenle eşleştirilemedi.',
+        SmartCommandTarget.trend,
+        query: command,
+      );
+    }
+    return SmartCommandResult(
+      intent: intent,
+      query: command,
+      normalizedQuery: SmartCommandParser.normalize(command),
+      message:
+          '${displayName ?? resolved} ($resolved) için güncel teknik görünümü analiz ekranında inceleyebilirsin. Yatırım tavsiyesi değildir.',
+      source: 'Trendora analiz sistemi',
+      updatedAt: DateTime.now(),
+      target: SmartCommandTarget.trend,
+      targetQuery: resolved,
+      buttonLabel: 'Analizi Aç',
+      suggestions: ['$resolved fiyatı', '$resolved haberleri'],
+    );
+  }
+
+  Future<SmartCommandResult> _newsSearch(
+    String command,
+    SmartCommandIntent intent,
+  ) async {
+    final normalized = SmartCommandParser.normalize(command);
+    final category = normalized.contains('ekonomi')
+        ? 'ekonomi'
+        : normalized.contains('teknoloji')
+        ? 'teknoloji'
+        : null;
+    final symbol = SmartCommandParser.assetSymbol(command)?.toLowerCase();
+    final rows = await _dataSource.news(
+      category: category,
+      query: symbol,
+      breaking: intent == SmartCommandIntent.breakingNews,
+    );
+    final filtered = rows
+        .where((row) {
+          final text = SmartCommandParser.normalize(
+            '${row['title']} ${row['summary']} ${row['category']}',
+          );
+          if (category != null && !text.contains(category)) return false;
+          if (symbol != null && !text.contains(symbol)) return false;
+          return true;
+        })
+        .take(5)
+        .toList(growable: false);
+    if (filtered.isEmpty) {
+      return _unavailable(
+        intent,
+        'Şu anda bu filtreye uygun güncel haber bulunamadı.',
+        SmartCommandTarget.news,
+      );
+    }
+    return SmartCommandResult(
+      intent: intent,
+      query: command,
+      normalizedQuery: normalized,
+      message: '${filtered.length} ilgili güncel haber bulundu.',
+      source: 'Trendora Haber Merkezi',
+      updatedAt: _date(filtered.first),
+      target: SmartCommandTarget.news,
+      buttonLabel: 'Tüm Haberleri Gör',
+      cards: filtered,
+      suggestions: const ['Son dakika haberleri', 'Ekonomi haberleri'],
+    );
+  }
+
+  Future<SmartCommandResult> _opportunitySearch(
+    String command,
+    SmartCommandIntent intent,
+  ) async {
+    final normalized = SmartCommandParser.normalize(command);
+    final source =
+        normalized.contains('migros') || normalized.contains('migors')
+        ? 'migros'
+        : normalized.contains('bim')
+        ? 'bim'
+        : null;
+    const ignored = {
+      'firsat',
+      'firsatlari',
+      'indirim',
+      'indirimli',
+      'var',
+      'mi',
+      'ne',
+      'en',
+      'yeni',
+      'migros',
+      'migors',
+      'bim',
+    };
+    final terms = normalized
+        .split(' ')
+        .where((word) => word.length > 2 && !ignored.contains(word))
+        .toList();
+    final rows = await _dataSource.opportunities(
+      source: source,
+      query: terms.isEmpty ? null : terms.join(' '),
+    );
+    final filtered = rows
+        .where((row) {
+          final rowSource = SmartCommandParser.normalize(
+            '${row['source'] ?? row['store']}',
+          );
+          final text = SmartCommandParser.normalize(
+            '${row['title']} ${row['name']} ${row['category']}',
+          );
+          if (source != null && !rowSource.contains(source)) return false;
+          return terms.isEmpty || terms.every(text.contains);
+        })
+        .take(5)
+        .toList(growable: false);
+    if (filtered.isEmpty) {
+      return _unavailable(
+        intent,
+        'Şu anda bu filtreye uygun güncel fırsat bulunamadı.',
+        SmartCommandTarget.opportunities,
+      );
+    }
+    return SmartCommandResult(
+      intent: intent,
+      query: command,
+      normalizedQuery: normalized,
+      message: '${filtered.length} uygun fırsat bulundu.',
+      source: 'Trendora Fırsatlar Merkezi',
+      updatedAt: _date(filtered.first),
+      target: SmartCommandTarget.opportunities,
+      targetQuery: source,
+      buttonLabel: 'Tüm Fırsatları Gör',
+      cards: filtered,
+      suggestions: const ['En yeni fırsatlar', 'En yüksek indirimler'],
+    );
+  }
+
+  Future<SmartCommandResult> _savedNews(SmartCommandIntent intent) async {
+    final items = await _dataSource.savedNews();
+    if (items.isEmpty) {
+      return _unavailable(
+        intent,
+        'Kaydedilmiş haber bulunmuyor.',
+        SmartCommandTarget.news,
+      );
+    }
+    return SmartCommandResult(
+      intent: intent,
+      message: '${items.length} kaydedilmiş haberin var.',
+      source: 'Cihazdaki kaydedilen haberler',
+      updatedAt: items.first.savedAt,
+      target: SmartCommandTarget.news,
+      buttonLabel: 'Haberlere Git',
+      cards: items
+          .take(5)
+          .map(
+            (item) => {
+              'title': item.title,
+              'source': item.source,
+              'updatedAt': item.savedAt.toIso8601String(),
+            },
+          )
+          .toList(),
+    );
+  }
+
+  Future<SmartCommandResult> _savedItems(
+    String command,
+    SmartCommandIntent intent,
+  ) async {
+    final count = await _dataSource.savedAnalysisCount();
+    final symbol = SmartCommandParser.assetSymbol(command);
+    return SmartCommandResult(
+      intent: intent,
+      query: command,
+      normalizedQuery: SmartCommandParser.normalize(command),
+      message: count == 0
+          ? 'Kaydedilmiş analiz bulunmuyor.'
+          : '$count kaydedilmiş analizin var.',
+      source: 'Cihazdaki kaydedilen analizler',
+      updatedAt: DateTime.now(),
+      target: SmartCommandTarget.savedAnalyses,
+      targetQuery: symbol,
+      buttonLabel: 'Kaydedilenleri Aç',
+      available: count > 0,
     );
   }
 
@@ -492,6 +961,17 @@ class SmartCommandService {
 
   static SmartCommandTarget _targetFor(SmartCommandIntent intent) {
     return switch (intent) {
+      SmartCommandIntent.breakingNews ||
+      SmartCommandIntent.newsSearch ||
+      SmartCommandIntent.newsCategory ||
+      SmartCommandIntent.savedNews => SmartCommandTarget.news,
+      SmartCommandIntent.opportunitiesSearch ||
+      SmartCommandIntent.opportunitiesSource =>
+        SmartCommandTarget.opportunities,
+      SmartCommandIntent.marketPrice ||
+      SmartCommandIntent.marketAnalysis ||
+      SmartCommandIntent.savedItems => SmartCommandTarget.trend,
+      SmartCommandIntent.dailyDigest => SmartCommandTarget.home,
       SmartCommandIntent.economyNews => SmartCommandTarget.news,
       SmartCommandIntent.weather => SmartCommandTarget.weather,
       SmartCommandIntent.automotiveCampaigns ||

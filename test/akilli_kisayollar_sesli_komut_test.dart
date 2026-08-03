@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:trendora_app/akilli_kisayollar_sayfasi.dart';
 import 'package:trendora_app/core/shortcuts/smart_command_service.dart';
+import 'package:trendora_app/core/news/saved_news_store.dart';
 import 'package:trendora_app/core/shortcuts/speech_input_service.dart';
 
 void main() {
@@ -273,6 +274,18 @@ class _FakeCommandSource implements SmartCommandDataSource {
   int calls = 0;
 
   @override
+  Future<Map<String, dynamic>?> smartSearchPlan(String query) async => {
+    'service': 'market_board',
+    'normalizedQuery': SmartCommandParser.normalize(query),
+    'assetResolution': 'matched',
+    'asset': {'canonicalSymbol': 'GRAM_ALTIN', 'displayName': 'Gram Altın'},
+    'candidates': const [],
+  };
+
+  @override
+  Future<String?> generalAi(String query) async => null;
+
+  @override
   Future<List<Map<String, dynamic>>> marketBoard() async {
     calls++;
     return [
@@ -288,19 +301,29 @@ class _FakeCommandSource implements SmartCommandDataSource {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> news() async {
+  Future<List<Map<String, dynamic>>> news({
+    String? category,
+    String? query,
+    bool breaking = false,
+  }) async {
     calls++;
     return const [];
   }
 
   @override
-  Future<List<Map<String, dynamic>>> opportunities() async {
+  Future<List<Map<String, dynamic>>> opportunities({
+    String? source,
+    String? query,
+  }) async {
     calls++;
     return const [];
   }
 
   @override
   Future<int> savedAnalysisCount() async => 0;
+
+  @override
+  Future<List<SavedNews>> savedNews() async => const [];
 
   @override
   Future<Set<String>> trackedSymbols() async => {};

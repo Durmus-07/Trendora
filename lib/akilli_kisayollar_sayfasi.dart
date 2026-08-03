@@ -41,6 +41,7 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
   bool _receivedSpeechText = false;
   String _textBeforeSpeech = '';
   String? _speechMessage;
+  int _executionId = 0;
 
   bool get _speechBusy =>
       _speechStarting || _speechListening || _speechInput.isListening;
@@ -95,13 +96,15 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
   Future<void> _execute([String? value]) async {
     final command = (value ?? _controller.text).trim();
     final runtime = _runtime;
-    if (command.isEmpty || runtime == null || _executing || _speechBusy) return;
+    if (command.isEmpty || runtime == null || _speechBusy) return;
+    final executionId = ++_executionId;
+    FocusScope.of(context).unfocus();
     setState(() {
       _executing = true;
       _speechMessage = null;
     });
     final result = await runtime.service.execute(command);
-    if (!mounted) return;
+    if (!mounted || executionId != _executionId) return;
     setState(() {
       _result = result;
       _executing = false;
@@ -364,7 +367,7 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
                   ),
                   IconButton(
                     tooltip: 'Komutu çalıştır',
-                    onPressed: _executing || _speechBusy ? null : _execute,
+                    onPressed: _speechBusy ? null : _execute,
                     icon: _executing
                         ? const SizedBox.square(
                             dimension: 18,
@@ -456,6 +459,15 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
               onOpen: () {
                 _openTarget(_result!);
               },
+              onSelectAsset: (symbol) {
+                final suffix =
+                    _result!.intent == SmartCommandIntent.marketAnalysis
+                    ? 'analiz et'
+                    : 'kaç TL?';
+                final command = '$symbol $suffix';
+                _controller.text = command;
+                _execute(command);
+              },
             ),
           ],
         ],
@@ -465,10 +477,15 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
 }
 
 class _ResultCard extends StatelessWidget {
-  const _ResultCard({required this.result, required this.onOpen});
+  const _ResultCard({
+    required this.result,
+    required this.onOpen,
+    required this.onSelectAsset,
+  });
 
   final SmartCommandResult result;
   final VoidCallback onOpen;
+  final ValueChanged<String> onSelectAsset;
 
   @override
   Widget build(BuildContext context) {
@@ -483,6 +500,35 @@ class _ResultCard extends StatelessWidget {
               result.message,
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
             ),
+            if (result.cards.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ...result.cards
+                  .take(5)
+                  .map(
+                    (item) => ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        result.target == SmartCommandTarget.news
+                            ? Icons.article_outlined
+                            : result.target == SmartCommandTarget.opportunities
+                            ? Icons.local_offer_outlined
+                            : Icons.bookmark_outline,
+                      ),
+                      title: Text(
+                        '${item['title'] ?? item['name'] ?? 'Sonuç'}',
+                      ),
+                      subtitle: Text(
+                        '${item['source'] ?? item['store'] ?? ''}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: '${item['canonicalSymbol'] ?? ''}'.isEmpty
+                          ? null
+                          : () => onSelectAsset('${item['canonicalSymbol']}'),
+                    ),
+                  ),
+            ],
             const SizedBox(height: 10),
             Text(
               'Kaynak: ${result.source}',
@@ -498,7 +544,14 @@ class _ResultCard extends StatelessWidget {
               TextButton.icon(
                 onPressed: onOpen,
                 icon: const Icon(Icons.open_in_new_rounded),
-                label: const Text('İlgili sayfayı aç'),
+                label: Text(result.buttonLabel ?? 'İlgili sayfayı aç'),
+              ),
+            ],
+            if (result.suggestions.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Öneriler: ${result.suggestions.join(' • ')}',
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
               ),
             ],
           ],

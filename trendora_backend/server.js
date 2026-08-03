@@ -28,6 +28,7 @@ const newsRoutes =
 const trendsRoutes = require('./routes/trends');
 const weatherRoutes = require('./routes/weather');
 const aiRoutes = require('./routes/ai');
+const smartSearchRoutes = require('./routes/smartSearch');
 const premiumRoutes = require('./routes/premium');
 const app = express();
 const PORT = environment.port;
@@ -163,6 +164,7 @@ app.get('/', (req, res) => {
       bim: '/api/opportunities/bim',
       trendyol: '/api/opportunities/trendyol',
       trends: '/api/trends',
+      smartSearch: '/api/smart-search',
       trendHealth: '/api/trends/health',
       trendAnalysis: '/api/trends/analyze',
       ...(environment.aiEnabled
@@ -299,6 +301,8 @@ app.use(
   '/api/trends',
   trendsRoutes
 );
+
+app.use('/api/smart-search', smartSearchRoutes);
 
 app.use(
   '/api/weather',
