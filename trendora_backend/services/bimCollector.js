@@ -1,5 +1,6 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
+const crypto = require('crypto');
 
 const BIM_URL =
   'https://www.bim.com.tr/categories/100/aktuel-urunler.aspx';
@@ -315,9 +316,13 @@ function urunNesnesiOlustur({
   index
 }) {
   const simdi = new Date().toISOString();
+  const stableId = crypto.createHash('sha1')
+    .update(`bim|${link || BIM_URL}|${baslik}`)
+    .digest('hex')
+    .slice(0, 18);
 
   return {
-    id: `bim-${Date.now()}-${index}`,
+    id: `bim-${stableId}`,
     title: baslik,
     description:
       'BİM resmî aktüel ürün sayfasında yayımlanan ürün.',
@@ -341,31 +346,58 @@ function urunNesnesiOlustur({
   };
 }
 
-async function bimUrunleriniGetir() {
+async function bimBatchGetir(previousState = {}) {
+  const headers = {
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+      'AppleWebKit/537.36 (KHTML, like Gecko) ' +
+      'Chrome/126.0.0.0 Safari/537.36',
+    Accept:
+      'text/html,application/xhtml+xml,application/xml;' +
+      'q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+    Referer: 'https://www.bim.com.tr/',
+    ...(previousState.etag ? { 'If-None-Match': previousState.etag } : {}),
+    ...(previousState.lastModified
+      ? { 'If-Modified-Since': previousState.lastModified }
+      : {})
+  };
   const response = await axios.get(
     BIM_URL,
     {
       timeout: 30000,
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
-          'AppleWebKit/537.36 (KHTML, like Gecko) ' +
-          'Chrome/126.0.0.0 Safari/537.36',
-
-        Accept:
-          'text/html,application/xhtml+xml,application/xml;' +
-          'q=0.9,image/avif,image/webp,*/*;q=0.8',
-
-        'Accept-Language':
-          'tr-TR,tr;q=0.9,en;q=0.8',
-
-        Referer:
-          'https://www.bim.com.tr/'
-      }
+      headers,
+      responseType: 'text',
+      validateStatus: status => status === 200 || status === 304
     }
   );
 
-  const $ = cheerio.load(response.data);
+  if (response.status === 304) {
+    return {
+      changed: false,
+      reason: 'not-modified',
+      items: [],
+      state: { ...previousState, checkedAt: new Date().toISOString() }
+    };
+  }
+
+  const html = String(response.data || '');
+  const contentHash = crypto.createHash('sha1').update(html).digest('hex');
+  if (previousState.contentHash === contentHash) {
+    return {
+      changed: false,
+      reason: 'same-hash',
+      items: [],
+      state: {
+        ...previousState,
+        etag: response.headers?.etag || previousState.etag || '',
+        lastModified: response.headers?.['last-modified'] || previousState.lastModified || '',
+        checkedAt: new Date().toISOString()
+      }
+    };
+  }
+
+  const $ = cheerio.load(html);
   const urunler = [];
 
   const kartSecicileri = [
@@ -442,11 +474,26 @@ async function bimUrunleriniGetir() {
     }
   );
 
-  return benzersizUrunler(
-    urunler
-  );
+  const items = benzersizUrunler(urunler);
+  return {
+    changed: true,
+    reason: 'content-changed',
+    items,
+    state: {
+      contentHash,
+      etag: response.headers?.etag || '',
+      lastModified: response.headers?.['last-modified'] || '',
+      checkedAt: new Date().toISOString(),
+      itemCount: items.length
+    }
+  };
+}
+
+async function bimUrunleriniGetir() {
+  return (await bimBatchGetir()).items;
 }
 
 module.exports = {
+  bimBatchGetir,
   bimUrunleriniGetir
 };

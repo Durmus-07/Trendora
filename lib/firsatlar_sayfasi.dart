@@ -67,15 +67,14 @@ class _FirsatlarSayfasiState extends State<FirsatlarSayfasi> {
   }) async {
     if (!mounted) return;
 
-    setState(() {
-      if (arkaPlanda) {
-        _yenileniyor = true;
-      } else {
+    if (arkaPlanda) {
+      _yenileniyor = true;
+    } else {
+      setState(() {
         _yukleniyor = true;
-      }
-
-      _hataMesaji = null;
-    });
+        _hataMesaji = null;
+      });
+    }
 
     try {
       final uri = Uri.parse(
@@ -692,6 +691,7 @@ class CanliFirsatlarListeSayfasi extends StatefulWidget {
   final String kategori;
   final String? kaynak;
   final Color renk;
+  final Future<http.Response> Function(Uri uri)? testIstegi;
 
   const CanliFirsatlarListeSayfasi({
     super.key,
@@ -699,6 +699,7 @@ class CanliFirsatlarListeSayfasi extends StatefulWidget {
     required this.kategori,
     required this.renk,
     this.kaynak,
+    this.testIstegi,
   });
 
   @override
@@ -707,7 +708,7 @@ class CanliFirsatlarListeSayfasi extends StatefulWidget {
 }
 
 class _CanliFirsatlarListeSayfasiState
-    extends State<CanliFirsatlarListeSayfasi> {
+    extends State<CanliFirsatlarListeSayfasi> with WidgetsBindingObserver {
   Timer? _yenilemeZamanlayicisi;
   final TextEditingController _aramaKontrolcusu = TextEditingController();
 
@@ -716,6 +717,8 @@ class _CanliFirsatlarListeSayfasiState
 
   bool _yukleniyor = true;
   bool _yenileniyor = false;
+  bool _uygulamaAktif = true;
+  String? _veriSurumu;
 
   String? _hataMesaji;
   DateTime? _sonGuncelleme;
@@ -723,12 +726,18 @@ class _CanliFirsatlarListeSayfasiState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
 
     _firsatlariGetir();
 
     _yenilemeZamanlayicisi = Timer.periodic(
       const Duration(seconds: 60),
       (_) {
+        if (!mounted ||
+            !_uygulamaAktif ||
+            ModalRoute.of(context)?.isCurrent != true) {
+          return;
+        }
         _firsatlariGetir(arkaPlanda: true);
       },
     );
@@ -737,8 +746,24 @@ class _CanliFirsatlarListeSayfasiState
   @override
   void dispose() {
     _yenilemeZamanlayicisi?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _aramaKontrolcusu.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _uygulamaAktif = state == AppLifecycleState.resumed;
+  }
+
+  @override
+  void didUpdateWidget(CanliFirsatlarListeSayfasi oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.kategori != widget.kategori ||
+        oldWidget.kaynak != widget.kaynak) {
+      _veriSurumu = null;
+      _firsatlariGetir();
+    }
   }
 
   Future<void> _firsatlariGetir({
@@ -792,9 +817,13 @@ class _CanliFirsatlarListeSayfasiState
         queryParameters: sorgu,
       );
 
-      final http.Response response = await ApiClient.get(
-        uri,
-        timeout: const Duration(seconds: 20),
+      final http.Response response = await (
+        widget.testIstegi != null
+          ? widget.testIstegi!(uri)
+          : ApiClient.get(
+              uri,
+              timeout: const Duration(seconds: 20),
+            )
       );
 
       if (response.statusCode != 200) {
@@ -807,21 +836,41 @@ class _CanliFirsatlarListeSayfasiState
         utf8.decode(response.bodyBytes),
       );
 
+      final String? gelenVeriSurumu = decoded is Map<String, dynamic>
+          ? decoded['updatedAt']?.toString().trim()
+          : null;
+
+      if (arkaPlanda &&
+          gelenVeriSurumu != null &&
+          gelenVeriSurumu.isNotEmpty &&
+          gelenVeriSurumu == _veriSurumu) {
+        return;
+      }
+
       final List<dynamic> hamListe =
           _jsonListesiniBul(decoded);
 
-      final List<FirsatModeli> gelenFirsatlar = hamListe
+      final Map<String, FirsatModeli> benzersizFirsatlar = {};
+
+      for (final json in hamListe
           .whereType<Map<String, dynamic>>()
           .where(_kayitBuSayfayaAitMi)
-          .where((json) => !_telegramYonlendirmesiMi(json))
-          .map(FirsatModeli.fromJson)
-          .toList();
+          .where((json) => !_telegramYonlendirmesiMi(json))) {
+        benzersizFirsatlar[_firsatAnahtari(json)] =
+            FirsatModeli.fromJson(json);
+      }
+
+      final List<FirsatModeli> gelenFirsatlar =
+          benzersizFirsatlar.values.toList();
 
       if (!mounted) return;
 
       setState(() {
         _firsatlar = gelenFirsatlar;
         _sonGuncelleme = DateTime.now();
+        if (gelenVeriSurumu != null && gelenVeriSurumu.isNotEmpty) {
+          _veriSurumu = gelenVeriSurumu;
+        }
       });
     } on TimeoutException {
       if (!mounted) return;
@@ -838,13 +887,33 @@ class _CanliFirsatlarListeSayfasiState
             'Fırsatlar alınamadı.\n\n$e';
       });
     } finally {
-      if (!mounted) return;
-
-      setState(() {
-        _yukleniyor = false;
-        _yenileniyor = false;
-      });
+      if (mounted) {
+        if (arkaPlanda) {
+          _yenileniyor = false;
+        } else {
+          setState(() {
+            _yukleniyor = false;
+            _yenileniyor = false;
+          });
+        }
+      }
     }
+  }
+
+  String _firsatAnahtari(Map<String, dynamic> json) {
+    final String id = (json['id'] ?? json['externalId'] ?? '').toString().trim();
+    if (id.isNotEmpty) return 'id:$id';
+
+    final String address =
+        (json['officialUrl'] ?? json['url'] ?? '').toString().trim();
+    final Uri? uri = Uri.tryParse(address);
+    if (uri != null && uri.host.isNotEmpty) {
+      return 'url:${uri.replace(query: '', fragment: '').toString().toLowerCase()}';
+    }
+
+    return '${json['source'] ?? json['store'] ?? ''}|${json['title'] ?? ''}'
+        .trim()
+        .toLowerCase();
   }
 
   bool _telegramYonlendirmesiMi(

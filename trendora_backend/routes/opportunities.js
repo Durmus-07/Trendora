@@ -91,11 +91,13 @@ function writeDatabase(items) {
     items
   };
 
+  const tempPath = `${dataFilePath}.tmp`;
   fs.writeFileSync(
-    dataFilePath,
+    tempPath,
     JSON.stringify(database, null, 2),
     'utf8'
   );
+  fs.renameSync(tempPath, dataFilePath);
 
   return database;
 }
@@ -196,6 +198,11 @@ function parseLimit(value, defaultValue = 100) {
   return Math.min(parsed, 500);
 }
 
+function parseOffset(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
 function isActive(item) {
   if (item.active === false) {
     return false;
@@ -225,6 +232,26 @@ function isActive(item) {
       !Number.isNaN(endDate.getTime()) &&
       now > endDate
     ) {
+      return false;
+    }
+  }
+
+  if (!item.catalogEndDate) {
+    const source = normalizeStoreKey(item.store || item.source);
+    const maximumAgeMs = source === 'telegram'
+      ? 72 * 60 * 60 * 1000
+      : 14 * 24 * 60 * 60 * 1000;
+    const timestamp = [
+      item.verifiedAt,
+      item.updatedAt,
+      item.publishedAt,
+      item.createdAt,
+      item.collectedAt,
+      item.catalogStartDate
+    ].map(value => new Date(value || 0).getTime())
+      .find(Number.isFinite);
+
+    if (!timestamp || Date.now() - timestamp > maximumAgeMs) {
       return false;
     }
   }
@@ -455,7 +482,8 @@ function itemMatchesSource(item, requestedSource) {
 function filterAndLimitItems(items, {
   source,
   category,
-  limit
+  limit,
+  offset = 0
 }) {
   let result = items
     .map(prepareItem)
@@ -494,14 +522,20 @@ function filterAndLimitItems(items, {
 
   result.sort((left, right) => itemTime(right) - itemTime(left));
 
-  return result.slice(0, limit);
+  return {
+    items: result.slice(offset, offset + limit),
+    total: result.length,
+    offset,
+    limit
+  };
 }
 
 function sendItemsResponse(
   res,
   database,
-  items
+  page
 ) {
+  const items = page.items;
   const normalizedItems = items.map(item => normalizeOpportunity(item, {
     updatedAt: database.updatedAt
   }));
@@ -509,6 +543,10 @@ function sendItemsResponse(
   res.json({
     success: true,
     count: items.length,
+    total: page.total,
+    offset: page.offset,
+    limit: page.limit,
+    hasMore: page.offset + items.length < page.total,
     updatedAt: database.updatedAt,
     opportunities: normalizedItems,
     products: normalizedItems,
@@ -533,20 +571,22 @@ router.get('/', async (req, res) => {
       req.query.limit,
       100
     );
+    const offset = parseOffset(req.query.offset);
 
-    const items = filterAndLimitItems(
+    const page = filterAndLimitItems(
       database.items,
       {
         source,
         category,
-        limit
+        limit,
+        offset
       }
     );
 
     sendItemsResponse(
       res,
       database,
-      items
+      page
     );
   } catch (error) {
     res.status(500).json({
@@ -664,20 +704,22 @@ router.get('/:source', async (req, res) => {
       req.query.limit,
       100
     );
+    const offset = parseOffset(req.query.offset);
 
-    const items = filterAndLimitItems(
+    const page = filterAndLimitItems(
       database.items,
       {
         source,
         category,
-        limit
+        limit,
+        offset
       }
     );
 
     sendItemsResponse(
       res,
       database,
-      items
+      page
     );
   } catch (error) {
     res.status(500).json({
@@ -691,3 +733,4 @@ router.get('/:source', async (req, res) => {
 
 module.exports = router;
 module.exports.createJsonSnapshotReader = createJsonSnapshotReader;
+module.exports.isActive = isActive;
