@@ -107,10 +107,23 @@ function sourceOf(item) {
     .replace('şok', 'sok');
 }
 
+function mergeSourceBatch(allItems, source, currentItems, now) {
+  const previousItems = allItems.filter(item => sourceOf(item) === source);
+  const classified = classifySourceBatch(previousItems, currentItems, now);
+  return {
+    items: [
+      ...allItems.filter(item => sourceOf(item) !== source),
+      ...classified.items
+    ],
+    classified
+  };
+}
+
 module.exports = {
   classifySourceBatch,
   opportunityHash,
   opportunityIdentity,
+  mergeSourceBatch,
   snapshotSignature,
   sourceOf,
   stableHash

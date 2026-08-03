@@ -5,13 +5,16 @@ const assert = require('node:assert/strict');
 const axios = require('axios');
 const {
   classifySourceBatch,
+  mergeSourceBatch,
   opportunityHash,
   snapshotSignature
 } = require('../services/opportunityIncremental');
 const {
   SOURCE_DEFINITIONS,
   backoffMs,
-  sourceIsDue
+  sourceIsDue,
+  transitionDelayMs,
+  waitForNextDueSource
 } = require('../services/marketCollectorScheduler');
 const { marketUrunleriniGetir } = require('../services/marketCollectorCore');
 const { bimBatchGetir } = require('../services/bimCollector');
@@ -114,6 +117,63 @@ test('backoff 3 ve 5 hatada beklenen süreyi uygular', () => {
   assert.equal(backoffMs(2), 0);
   assert.equal(backoffMs(3), 30 * 60 * 1000);
   assert.equal(backoffMs(5), 2 * 60 * 60 * 1000);
+});
+
+test('active ve health geçişlerinde eski 45 saniyelik gecikme kullanılmaz', () => {
+  assert.equal(transitionDelayMs('active', 'active'), 2000);
+  assert.equal(transitionDelayMs('active', 'health_check_only'), 500);
+  assert.equal(transitionDelayMs('health_check_only', 'health_check_only'), 500);
+});
+
+test('son veya sonrasında uygun kaynak olmayan kayıt bekleme oluşturmaz', async () => {
+  const future = new Date(Date.now() + 60_000).toISOString();
+  const state = {
+    markets: {
+      migros: { status: 'active', nextEligibleFetchAt: future },
+      carrefoursa: { status: 'health_check_only', nextHealthCheckAt: future },
+      a101: { status: 'health_check_only', nextHealthCheckAt: future }
+    }
+  };
+  let sleeps = 0;
+  const delay = await waitForNextDueSource(0, 'active', state, {}, async () => {
+    sleeps += 1;
+  });
+  assert.equal(delay, 0);
+  assert.equal(sleeps, 0);
+
+  const lastDelay = await waitForNextDueSource(3, 'health_check_only', state, {}, async () => {
+    sleeps += 1;
+  });
+  assert.equal(lastDelay, 0);
+  assert.equal(sleeps, 0);
+});
+
+test('health kaynağı normal active gecikmesi yerine kısa gecikme kullanır', async () => {
+  const state = { markets: { a101: { status: 'health_check_only' } } };
+  let observedDelay = 0;
+  const delay = await waitForNextDueSource(
+    2,
+    'health_check_only',
+    state,
+    {},
+    async value => { observedDelay = value; }
+  );
+  assert.equal(delay, 500);
+  assert.equal(observedDelay, 500);
+});
+
+test('aktif kaynak batch birleşimi pasif kaynak kayıtlarını korur', () => {
+  const passive = product('passive', { source: 'a101', store: 'a101' });
+  const previousMigros = product('old');
+  const nextMigros = product('new');
+  const merged = mergeSourceBatch(
+    [passive, previousMigros],
+    'migros',
+    [nextMigros]
+  );
+  assert.equal(merged.items.includes(passive), true);
+  assert.equal(merged.classified.removedProducts, 1);
+  assert.equal(merged.items.some(item => item.id === 'new'), true);
 });
 
 test('süresi dolan ve tarihsiz eski fırsat aktif değildir', () => {

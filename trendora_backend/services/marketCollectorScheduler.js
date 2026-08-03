@@ -9,16 +9,16 @@ const { a101UrunleriniGetir } = require('./a101Collector');
 const sourceHealth = require('./sourceHealth');
 const { dedupe } = require('./duplicateDetector');
 const {
-  classifySourceBatch,
+  mergeSourceBatch,
   snapshotSignature,
-  sourceOf
 } = require('./opportunityIncremental');
 
 const databasePath = path.join(__dirname, '..', 'database', 'opportunities.json');
 const statePath = path.join(__dirname, '..', 'database', 'market-collector-state.json');
 const MINUTE = 60 * 1000;
 const HEALTH_CHECK_MS = 24 * 60 * MINUTE;
-const BETWEEN_MARKETS_MS = 45 * 1000;
+const ACTIVE_SOURCE_DELAY_MS = 2 * 1000;
+const HEALTH_SOURCE_DELAY_MS = 500;
 
 async function collectBim(previousState = {}) {
   return bimBatchGetir(previousState);
@@ -93,6 +93,36 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function transitionDelayMs(currentStatus, nextStatus) {
+  return currentStatus === 'health_check_only' || nextStatus === 'health_check_only'
+    ? HEALTH_SOURCE_DELAY_MS
+    : ACTIVE_SOURCE_DELAY_MS;
+}
+
+function nextDueSource(index, state, options = {}) {
+  for (let nextIndex = index + 1; nextIndex < SOURCE_DEFINITIONS.length; nextIndex += 1) {
+    const definition = SOURCE_DEFINITIONS[nextIndex];
+    const marketState = state.markets[definition.source] || {};
+    const effectiveStatus = marketState.status || definition.status;
+    const effectiveDefinition = { ...definition, status: effectiveStatus };
+    const schedulingDefinition = options.initialRun && definition.status === 'active'
+      ? definition
+      : effectiveDefinition;
+    if (sourceIsDue(schedulingDefinition, marketState, options)) {
+      return { definition, status: effectiveStatus };
+    }
+  }
+  return null;
+}
+
+async function waitForNextDueSource(index, currentStatus, state, options, sleeper = sleep) {
+  const next = nextDueSource(index, state, options);
+  if (!next) return 0;
+  const delayMs = transitionDelayMs(currentStatus, next.status);
+  await sleeper(delayMs);
+  return delayMs;
+}
+
 async function executeMarketCollectors({ initialRun = false, now = Date.now() } = {}) {
   const startedAt = Date.now();
   const database = readDatabase();
@@ -114,7 +144,11 @@ async function executeMarketCollectors({ initialRun = false, now = Date.now() } 
     reusedProducts: 0,
     removedProducts: 0,
     expiredProducts: 0,
-    opportunitiesWritten: false
+    opportunitiesWritten: false,
+    activeDurationMs: 0,
+    healthCheckDurationMs: 0,
+    intentionalDelayMs: 0,
+    databaseWriteDurationMs: 0
   };
   const durations = [];
 
@@ -122,7 +156,8 @@ async function executeMarketCollectors({ initialRun = false, now = Date.now() } 
   state.collectorRunning = true;
 
   try {
-    for (const definition of SOURCE_DEFINITIONS) {
+    for (let index = 0; index < SOURCE_DEFINITIONS.length; index += 1) {
+      const definition = SOURCE_DEFINITIONS[index];
       const previousState = state.markets[definition.source] || {};
       const effectiveStatus = previousState.status || definition.status;
       const isHealthCheck = effectiveStatus === 'health_check_only';
@@ -143,6 +178,7 @@ async function executeMarketCollectors({ initialRun = false, now = Date.now() } 
       try {
         const result = await definition.collector(previousState);
         const durationMs = Date.now() - sourceStartedAt;
+        metrics[isHealthCheck ? 'healthCheckDurationMs' : 'activeDurationMs'] += durationMs;
         durations.push({ source: definition.source, durationMs });
         const items = Array.isArray(result?.items) ? result.items : [];
         const checkedAt = new Date().toISOString();
@@ -170,6 +206,12 @@ async function executeMarketCollectors({ initialRun = false, now = Date.now() } 
               : null,
             disabledReason: healthSuccesses >= 2 ? null : definition.disabledReason
           };
+          metrics.intentionalDelayMs += await waitForNextDueSource(
+            index,
+            effectiveStatus,
+            state,
+            { initialRun, now }
+          );
           continue;
         }
 
@@ -177,12 +219,13 @@ async function executeMarketCollectors({ initialRun = false, now = Date.now() } 
         if (result?.reason === 'not-modified' || result?.reason === 'same-hash') {
           metrics.notModifiedSources += 1;
         } else if (result?.changed && items.length > 0) {
-          const previousItems = workingItems.filter(item => sourceOf(item) === definition.source);
-          const classified = classifySourceBatch(previousItems, dedupe(items, 'opportunity'));
-          workingItems = [
-            ...workingItems.filter(item => sourceOf(item) !== definition.source),
-            ...classified.items
-          ];
+          const merged = mergeSourceBatch(
+            workingItems,
+            definition.source,
+            dedupe(items, 'opportunity')
+          );
+          const classified = merged.classified;
+          workingItems = merged.items;
           for (const key of ['newProducts', 'changedProducts', 'unchangedProducts', 'reusedProducts', 'removedProducts']) {
             metrics[key] += classified[key];
           }
@@ -208,6 +251,7 @@ async function executeMarketCollectors({ initialRun = false, now = Date.now() } 
         sourceHealth.success(`market:${definition.source}`, { recordCount: items.length, responseTimeMs: durationMs });
       } catch (error) {
         const durationMs = Date.now() - sourceStartedAt;
+        metrics[isHealthCheck ? 'healthCheckDurationMs' : 'activeDurationMs'] += durationMs;
         durations.push({ source: definition.source, durationMs });
         const statusCode = httpStatusOf(error);
         const failures = Number(previousState.consecutiveFailures || 0) + 1;
@@ -236,14 +280,19 @@ async function executeMarketCollectors({ initialRun = false, now = Date.now() } 
         console.error(`[MarketScheduler] ${definition.source} hatası:`, error.message);
       }
 
-      if (metrics.attemptedSources + metrics.healthCheckSources < SOURCE_DEFINITIONS.length) {
-        await sleep(BETWEEN_MARKETS_MS);
-      }
+      metrics.intentionalDelayMs += await waitForNextDueSource(
+        index,
+        effectiveStatus,
+        state,
+        { initialRun, now }
+      );
     }
 
     const nextSignature = snapshotSignature(workingItems);
     if (nextSignature !== originalSignature) {
+      const writeStartedAt = Date.now();
       writeJsonAtomic(databasePath, { updatedAt: new Date().toISOString(), items: workingItems });
+      metrics.databaseWriteDurationMs = Date.now() - writeStartedAt;
       metrics.opportunitiesWritten = true;
     }
     state.lastSuccessfulRunAt = new Date().toISOString();
@@ -344,7 +393,10 @@ module.exports = {
   SOURCE_DEFINITIONS,
   backoffMs,
   getMarketCollectorStatus,
+  nextDueSource,
   runMarketCollectorsNow,
   sourceIsDue,
-  startMarketCollectorScheduler
+  startMarketCollectorScheduler,
+  transitionDelayMs,
+  waitForNextDueSource
 };
