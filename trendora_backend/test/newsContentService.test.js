@@ -245,6 +245,7 @@ test('haber route alias, bilinmeyen içerik, status ve health cevapları uyumlud
       ]);
     const list = await listResponse.json();
     const missing = await missingResponse.json();
+    const status = await statusResponse.json();
     assert.equal(listResponse.status, 200);
     assert.ok(Array.isArray(list.news));
     assert.deepEqual(list.news, list.items);
@@ -253,6 +254,8 @@ test('haber route alias, bilinmeyen içerik, status ve health cevapları uyumlud
     assert.equal(missingResponse.status, 404);
     assert.equal(missing.contentStatus, 'unavailable');
     assert.equal(statusResponse.status, 200);
+    assert.ok(['fresh', 'delayed', 'stale', 'running', 'error'].includes(
+      status.freshnessStatus));
     assert.equal(healthResponse.status, 200);
 
     const originalLookup = dns.promises.lookup;

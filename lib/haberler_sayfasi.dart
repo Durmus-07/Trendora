@@ -42,7 +42,8 @@ class HaberlerSayfasi extends StatefulWidget {
   State<HaberlerSayfasi> createState() => _HaberlerSayfasiState();
 }
 
-class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
+class _HaberlerSayfasiState extends State<HaberlerSayfasi>
+    with WidgetsBindingObserver {
   static const String _backendBaseUrl = ApiConfig.news;
 
   static const Duration _otomatikYenilemeSuresi = Duration(minutes: 2);
@@ -84,6 +85,8 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
   int _calisanKaynakSayisi = 0;
   int _toplamKaynakSayisi = 0;
   int _yeniHaberSayisi = 0;
+  bool _uygulamaAktif = true;
+  String? _veriSurumu;
   final Map<String, _KategoriAkisDurumu> _kategoriOnbellegi = {};
 
   List<TrendoraHaber> _gorunenHaberleriFiltrele(
@@ -326,6 +329,7 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _kaydirmaDenetleyicisi.addListener(_sonsuzKaydirmayiKontrolEt);
 
     final initialNews = widget._initialNews;
@@ -350,14 +354,24 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
     if (!widget._networkEnabled) return;
 
     _yenilemeZamanlayicisi?.cancel();
-    _yenilemeZamanlayicisi = Timer.periodic(
-      _otomatikYenilemeSuresi,
-      (_) => _haberleriGetir(arkaPlanda: true, sayfa: 1),
-    );
+    _yenilemeZamanlayicisi = Timer.periodic(_otomatikYenilemeSuresi, (_) {
+      if (!mounted ||
+          !_uygulamaAktif ||
+          ModalRoute.of(context)?.isCurrent != true) {
+        return;
+      }
+      _haberleriGetir(arkaPlanda: true, sayfa: 1);
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _uygulamaAktif = state == AppLifecycleState.resumed;
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _yenilemeZamanlayicisi?.cancel();
     _kaydirmaDenetleyicisi.removeListener(_sonsuzKaydirmayiKontrolEt);
     _kaydirmaDenetleyicisi.dispose();
@@ -418,7 +432,9 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
     final istekAkisSurumu = _akisSurumu;
     final istekKategorisi = _seciliKategori;
 
-    if (mounted) {
+    if (mounted && arkaPlanda && !listeyeEkle) {
+      _yenileniyor = true;
+    } else if (mounted) {
       setState(() {
         if (listeyeEkle) {
           _sonrakiSayfaYukleniyor = true;
@@ -485,6 +501,16 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
 
       if (rawNews is! List) {
         throw const FormatException('Haber listesi bulunamadı.');
+      }
+
+      final gelenVeriSurumu = decoded['updatedAt']?.toString().trim();
+      if (arkaPlanda &&
+          sayfa == 1 &&
+          gelenVeriSurumu != null &&
+          gelenVeriSurumu.isNotEmpty &&
+          gelenVeriSurumu == _veriSurumu) {
+        _yenileniyor = false;
+        return;
       }
 
       final yeniHaberler = rawNews
@@ -590,6 +616,9 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi> {
         }
 
         _sonGuncelleme = DateTime.now();
+        if (gelenVeriSurumu != null && gelenVeriSurumu.isNotEmpty) {
+          _veriSurumu = gelenVeriSurumu;
+        }
         _hataMesaji = null;
 
         _calisanKaynakSayisi = _intDegeri(decoded['workingSources']);

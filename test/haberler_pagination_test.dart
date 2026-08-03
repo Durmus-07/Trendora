@@ -7,6 +7,62 @@ import 'package:trendora_app/haberler_sayfasi.dart';
 
 void main() {
   testWidgets(
+    'aynı veri sürümünde arka plan yenilemesi listeyi yeniden kurmaz',
+    (tester) async {
+      var requests = 0;
+      Future<http.Response> request(Uri uri) async {
+        requests += 1;
+        return _response(
+          items: [_newsJson(1)],
+          offset: 0,
+          limit: 30,
+          total: 1,
+          updatedAt: '2026-08-03T10:00:00.000Z',
+        );
+      }
+
+      await tester.pumpWidget(
+        MaterialApp(home: HaberlerSayfasi.paginationTest(request: request)),
+      );
+      await tester.pump();
+      final firstElement = tester.element(
+        find.byKey(const ValueKey<String>('haber-karti-news-1')),
+      );
+      await tester.pump(const Duration(minutes: 2));
+      await tester.pump();
+
+      expect(requests, 2);
+      expect(
+        tester.element(
+          find.byKey(const ValueKey<String>('haber-karti-news-1')),
+        ),
+        same(firstElement),
+      );
+    },
+  );
+
+  testWidgets('uygulama background iken periyodik haber isteği yapılmaz', (
+    tester,
+  ) async {
+    var requests = 0;
+    Future<http.Response> request(Uri uri) async {
+      requests += 1;
+      return _response(items: [_newsJson(1)], offset: 0, limit: 30, total: 1);
+    }
+
+    await tester.pumpWidget(
+      MaterialApp(home: HaberlerSayfasi.paginationTest(request: request)),
+    );
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump(const Duration(minutes: 2));
+    await tester.pump();
+
+    expect(requests, 1);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+  });
+
+  testWidgets(
     'infinite scroll uses offset, prevents concurrent requests and deduplicates',
     (tester) async {
       final requestedOffsets = <int>[];
@@ -359,6 +415,7 @@ http.Response _response({
   required int offset,
   required int limit,
   required int total,
+  String? updatedAt,
 }) {
   final body = jsonEncode({
     'success': true,
@@ -366,6 +423,7 @@ http.Response _response({
     'total': total,
     'offset': offset,
     'limit': limit,
+    if (updatedAt != null) 'updatedAt': updatedAt,
     'news': items,
   });
 

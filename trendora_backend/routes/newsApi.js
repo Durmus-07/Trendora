@@ -277,6 +277,23 @@ async function getNewsStatus() {
     database.failedSources ??
     Math.max(0, totalSources - activeSources)
   );
+  const databaseUpdatedAt = database.updatedAt || collectorStatus.completedAt || null;
+  const databaseAgeMs = databaseUpdatedAt
+    ? Date.now() - new Date(databaseUpdatedAt).getTime()
+    : Number.POSITIVE_INFINITY;
+  const freshnessStatus = collectorStatus.running === true
+    ? 'running'
+    : collectorStatus.error
+      ? 'error'
+      : databaseAgeMs <= 20 * 60 * 1000
+        ? 'fresh'
+        : databaseAgeMs <= 60 * 60 * 1000
+          ? 'delayed'
+          : 'stale';
+  const latestPublishedAt = database.items.reduce((latest, item) => {
+    const timestamp = new Date(item.publishedAt).getTime();
+    return Number.isFinite(timestamp) && timestamp > latest ? timestamp : latest;
+  }, 0);
 
   return {
     newsCount: database.items.length,
@@ -292,7 +309,25 @@ async function getNewsStatus() {
     collectorPhase:
       collectorStatus.phase || 'unknown',
     error:
-      collectorStatus.error || null
+      collectorStatus.error || null,
+    lastRunStartedAt: collectorStatus.lastRunStartedAt || collectorStatus.startedAt || null,
+    lastRunCompletedAt: collectorStatus.lastRunCompletedAt || collectorStatus.completedAt || null,
+    lastSuccessfulRunAt: collectorStatus.lastSuccessfulRunAt || null,
+    lastFastPublishAt: collectorStatus.lastFastPublishAt || null,
+    lastFinalPublishAt: collectorStatus.lastFinalPublishAt || null,
+    nextScheduledRunAt: collectorStatus.nextScheduledRunAt || null,
+    attemptedSources: Number(collectorStatus.attemptedSources || 0),
+    successfulSources: Number(collectorStatus.successfulSources ?? activeSources),
+    skippedSources: Number(collectorStatus.skippedSources || 0),
+    notModifiedSources: Number(collectorStatus.notModifiedSources || 0),
+    newItems: Number(collectorStatus.newItems || 0),
+    changedItems: Number(collectorStatus.changedItems || 0),
+    unchangedItems: Number(collectorStatus.unchangedItems || 0),
+    reusedItems: Number(collectorStatus.reusedItems || 0),
+    runDurationMs: Number(collectorStatus.durationMs || 0),
+    databaseUpdatedAt,
+    latestPublishedAt: latestPublishedAt ? new Date(latestPublishedAt).toISOString() : null,
+    freshnessStatus
   };
 }
 

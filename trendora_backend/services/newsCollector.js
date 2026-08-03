@@ -1,6 +1,8 @@
 const Parser = require('rss-parser');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const axios = require('axios');
 
 
 const parser = new Parser({
@@ -175,6 +177,16 @@ const NEWS_REFRESH_INTERVAL_MS = Math.max(
   5 * 60 * 1000,
   Number(process.env.NEWS_REFRESH_INTERVAL_MS || 10 * 60 * 1000)
 );
+const REFRESH_TIER_INTERVALS_MS = Object.freeze({
+  breaking: 5 * 60 * 1000,
+  fast: 10 * 60 * 1000,
+  normal: 15 * 60 * 1000,
+  slow: 30 * 60 * 1000
+});
+const COLLECTOR_TICK_MS = Math.min(
+  NEWS_REFRESH_INTERVAL_MS,
+  REFRESH_TIER_INTERVALS_MS.breaking
+);
 
 const PERIODS = {
   '1h': 60 * 60 * 1000,
@@ -192,7 +204,98 @@ const PERIODS = {
 
 let newsCache = { createdAt: 0, items: [], sourceResults: [], period: 'all' };
 let refreshPromise = null;
+let collectorRunPromise = null;
 let archiveWriteQueue = Promise.resolve();
+let archiveCache = null;
+let archiveSignature = null;
+let lastPublishedSignature = null;
+const sourceState = new Map();
+let persistedCollectorStatus = {};
+
+function hydrateSourceState() {
+  try {
+    if (!fs.existsSync(NEWS_STATUS_FILE)) return;
+    const saved = JSON.parse(fs.readFileSync(NEWS_STATUS_FILE, 'utf8'));
+    persistedCollectorStatus = saved && typeof saved === 'object' ? saved : {};
+    if (!saved?.sourceStates || typeof saved.sourceStates !== 'object') return;
+    for (const [name, state] of Object.entries(saved.sourceStates)) {
+      if (state && typeof state === 'object') {
+        // Yeni proses ilk turunda repository'den veya eski sistem saatinden kalan
+        // uygunluk zamanı kaynakları yanlışlıkla uzun süre susturmamalı.
+        sourceState.set(name, { ...state, nextEligibleFetchAt: null });
+      }
+    }
+  } catch (error) {
+    console.warn('[NEWS COLLECTOR] Kaynak durumu geri yüklenemedi:', error?.message || error);
+  }
+}
+
+hydrateSourceState();
+
+function refreshTierForSource(source) {
+  if (source.refreshTier && REFRESH_TIER_INTERVALS_MS[source.refreshTier]) {
+    return source.refreshTier;
+  }
+  if (source.category === 'son_dakika' || source.priority >= 96) return 'breaking';
+  if (source.priority >= 90) return 'fast';
+  if (source.category === 'teknoloji' || source.priority < 84) return 'slow';
+  return 'normal';
+}
+
+function sourceStateFor(source) {
+  if (!sourceState.has(source.name)) {
+    sourceState.set(source.name, {
+      refreshTier: refreshTierForSource(source),
+      lastAttemptAt: null,
+      lastSuccessAt: null,
+      lastFailureAt: null,
+      consecutiveFailures: 0,
+      lastItemCount: 0,
+      lastContentHash: null,
+      lastEtag: null,
+      lastModified: null,
+      nextEligibleFetchAt: null,
+      averageDurationMs: 0,
+      lastErrorType: null
+    });
+  }
+  return sourceState.get(source.name);
+}
+
+function sourceBackoffMs(source, failures) {
+  if (failures >= 5) return source.category === 'son_dakika'
+    ? 30 * 60 * 1000
+    : 2 * 60 * 60 * 1000;
+  if (failures >= 3) return 30 * 60 * 1000;
+  return REFRESH_TIER_INTERVALS_MS[refreshTierForSource(source)];
+}
+
+function sourceIsEligible(source, now = Date.now()) {
+  const state = sourceStateFor(source);
+  if (!state.nextEligibleFetchAt) return true;
+  const nextEligibleAt = new Date(state.nextEligibleFetchAt).getTime();
+  return !Number.isFinite(nextEligibleAt) || nextEligibleAt <= now;
+}
+
+function stableHash(value) {
+  return crypto.createHash('sha1').update(String(value || '')).digest('hex');
+}
+
+function newsContentHash(item) {
+  return stableHash([
+    cleanText(item.url).replace(/[?#].*$/, ''),
+    normalizeText(item.title),
+    cleanText(item.description),
+    cleanText(item.content),
+    item.publishedAt,
+    cleanText(item.source),
+    cleanText(item.imageUrl)
+  ].join('|'));
+}
+
+function snapshotSignature(items) {
+  return stableHash(items.map(item => `${item.id || item.url}:${newsContentHash(item)}`).join('\n'));
+}
 
 function cleanText(value) {
   if (!value) return '';
@@ -385,44 +488,118 @@ function withTimeout(promise, timeoutMs, label) {
 async function fetchSource(source, period = '24h') {
   const startedAt = Date.now();
   const url = sourceUrl(source, period);
+  const state = sourceStateFor(source);
+  state.lastAttemptAt = new Date(startedAt).toISOString();
 
   try {
-    // rss-parser'ın kendi timeout'u bazı ağ/IPv6 durumlarında yeterli olmayabiliyor.
-    // Promise.race ile her kaynağa kesin bir üst süre koyuyoruz.
-    const parsePromise = parser.parseURL(url);
-    // Yarıştan sonra geç sonuçlanırsa unhandled rejection üretmesini engelle.
-    parsePromise.catch(() => {});
-
-    const feed = await withTimeout(
-      parsePromise,
+    const response = await withTimeout(
+      axios.get(url, {
+        timeout: SOURCE_TIMEOUT_MS,
+        responseType: 'text',
+        maxContentLength: 5 * 1024 * 1024,
+        validateStatus: status => status === 200 || status === 304,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 Trendora/3.0 (+https://trendora-icj9.onrender.com)',
+          Accept: 'application/rss+xml, application/xml, text/xml, application/atom+xml',
+          ...(state.lastEtag ? { 'If-None-Match': state.lastEtag } : {}),
+          ...(state.lastModified ? { 'If-Modified-Since': state.lastModified } : {})
+        }
+      }),
       SOURCE_TIMEOUT_MS,
       source.name
     );
+    const durationMs = Date.now() - startedAt;
+
+    if (response.status === 304) {
+      state.lastSuccessAt = new Date().toISOString();
+      state.consecutiveFailures = 0;
+      state.averageDurationMs = Math.round(
+        state.averageDurationMs ? state.averageDurationMs * 0.75 + durationMs * 0.25 : durationMs
+      );
+      state.lastErrorType = null;
+      state.nextEligibleFetchAt = new Date(
+        Date.now() + REFRESH_TIER_INTERVALS_MS[refreshTierForSource(source)]
+      ).toISOString();
+      return {
+        ok: true,
+        notModified: true,
+        source: source.name,
+        count: state.lastItemCount,
+        durationMs,
+        items: []
+      };
+    }
+
+    const body = String(response.data || '');
+    const bodyHash = stableHash(body);
+    if (state.lastContentHash && state.lastContentHash === bodyHash) {
+      state.lastSuccessAt = new Date().toISOString();
+      state.consecutiveFailures = 0;
+      state.averageDurationMs = Math.round(
+        state.averageDurationMs ? state.averageDurationMs * 0.75 + durationMs * 0.25 : durationMs
+      );
+      state.lastErrorType = null;
+      state.nextEligibleFetchAt = new Date(
+        Date.now() + REFRESH_TIER_INTERVALS_MS[refreshTierForSource(source)]
+      ).toISOString();
+      return {
+        ok: true,
+        notModified: true,
+        source: source.name,
+        count: state.lastItemCount,
+        durationMs,
+        items: []
+      };
+    }
+
+    const feed = await parser.parseString(body);
 
     const items = (feed.items || [])
       .slice(0, MAX_ITEMS_PER_SOURCE)
       .map((item) => normalizeItem(item, source))
       .filter((item) => item.title && item.url && new Date(item.publishedAt).getFullYear() >= 2000);
 
-    console.log(
-      `[NEWS] ${source.name}: ${items.length} haber, ${Date.now() - startedAt} ms`
+    state.lastSuccessAt = new Date().toISOString();
+    state.consecutiveFailures = 0;
+    state.lastItemCount = items.length;
+    state.lastContentHash = bodyHash;
+    state.lastEtag = response.headers?.etag || state.lastEtag;
+    state.lastModified = response.headers?.['last-modified'] || state.lastModified;
+    state.averageDurationMs = Math.round(
+      state.averageDurationMs ? state.averageDurationMs * 0.75 + durationMs * 0.25 : durationMs
     );
+    state.lastErrorType = null;
+    state.nextEligibleFetchAt = new Date(
+      Date.now() + REFRESH_TIER_INTERVALS_MS[refreshTierForSource(source)]
+    ).toISOString();
+
+    console.log(`[NEWS] ${source.name}: ${items.length} haber, ${durationMs} ms`);
 
     return {
       ok: true,
       source: source.name,
       count: items.length,
-      durationMs: Date.now() - startedAt,
+      durationMs,
       items
     };
   } catch (error) {
     const message = error?.message || 'Kaynak okunamadı';
+    const durationMs = Date.now() - startedAt;
+    state.lastFailureAt = new Date().toISOString();
+    state.consecutiveFailures += 1;
+    state.averageDurationMs = Math.round(
+      state.averageDurationMs ? state.averageDurationMs * 0.75 + durationMs * 0.25 : durationMs
+    );
+    state.lastErrorType = error?.code || error?.name || 'SOURCE_ERROR';
+    state.nextEligibleFetchAt = new Date(
+      Date.now() + sourceBackoffMs(source, state.consecutiveFailures)
+    ).toISOString();
     console.error(`[NEWS] ${source.name} okunamadı: ${message}`);
     return {
       ok: false,
       source: source.name,
       count: 0,
-      durationMs: Date.now() - startedAt,
+      durationMs,
       error: message,
       items: []
     };
@@ -701,13 +878,22 @@ function buildStoryGroups(items) {
     });
 }
 function loadArchive() {
+  if (archiveCache) return archiveCache;
   try {
-    if (!fs.existsSync(ARCHIVE_FILE)) return [];
+    if (!fs.existsSync(ARCHIVE_FILE)) {
+      archiveCache = [];
+      archiveSignature = snapshotSignature(archiveCache);
+      return archiveCache;
+    }
     const parsed = JSON.parse(fs.readFileSync(ARCHIVE_FILE, 'utf8'));
-    return Array.isArray(parsed) ? parsed : [];
+    archiveCache = Array.isArray(parsed) ? parsed : [];
+    archiveSignature = snapshotSignature(archiveCache);
+    return archiveCache;
   } catch (error) {
     console.error('[NEWS] Arşiv okunamadı:', error?.message || error);
-    return [];
+    archiveCache = [];
+    archiveSignature = snapshotSignature(archiveCache);
+    return archiveCache;
   }
 }
 
@@ -732,7 +918,12 @@ function mergeWithArchive(current) {
   const merged = [...byId.values()]
     .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
     .slice(0, MAX_ARCHIVE_ITEMS);
-  void persistArchive(merged);
+  const mergedSignature = snapshotSignature(merged);
+  if (mergedSignature !== archiveSignature) {
+    archiveCache = merged;
+    archiveSignature = mergedSignature;
+    void persistArchive(merged);
+  }
   return merged;
 }
 
@@ -752,6 +943,31 @@ function dedupeRawItems(items) {
   return output;
 }
 
+function classifyNewsItems(currentItems, previousItems) {
+  const previousById = new Map(
+    previousItems.map(item => [item.id || `${normalizeText(item.title)}|${item.url}`, item])
+  );
+  const items = [];
+  let newCount = 0;
+  let changedCount = 0;
+  let unchangedCount = 0;
+  for (const item of currentItems) {
+    const key = item.id || `${normalizeText(item.title)}|${item.url}`;
+    const previous = previousById.get(key);
+    if (!previous) {
+      newCount += 1;
+      items.push(item);
+    } else if (newsContentHash(previous) !== newsContentHash(item)) {
+      changedCount += 1;
+      items.push({ ...previous, ...item });
+    } else {
+      unchangedCount += 1;
+      items.push(previous);
+    }
+  }
+  return { items, newCount, changedCount, unchangedCount };
+}
+
 async function refreshNewsCache(period = 'all') {
   if (refreshPromise) return refreshPromise;
 
@@ -763,7 +979,18 @@ async function refreshNewsCache(period = 'all') {
       NEWS_SOURCES,
       SOURCE_CONCURRENCY,
       async (source) => {
-        const result = await fetchSource(source, period);
+        const state = sourceStateFor(source);
+        const result = sourceIsEligible(source)
+          ? await fetchSource(source, period)
+          : {
+              ok: Boolean(state.lastSuccessAt),
+              skipped: true,
+              source: source.name,
+              count: state.lastItemCount,
+              durationMs: 0,
+              error: state.lastErrorType,
+              items: []
+            };
         completedResults.push(result);
         return result;
       }
@@ -797,7 +1024,41 @@ async function refreshNewsCache(period = 'all') {
     }
 
     const currentRaw = dedupeRawItems(results.flatMap((result) => result.items));
-    const archivedRaw = dedupeRawItems(mergeWithArchive(currentRaw));
+    const classified = classifyNewsItems(currentRaw, loadArchive());
+    const runMetrics = {
+      attemptedSources: results.filter(result => !result.skipped).length,
+      skippedSources: results.filter(result => result.skipped).length,
+      notModifiedSources: results.filter(result => result.notModified).length,
+      newItems: classified.newCount,
+      changedItems: classified.changedCount,
+      unchangedItems: classified.unchangedCount,
+      reusedItems: classified.unchangedCount
+    };
+    const sourceResults = results.map(({ ok, source, count, durationMs, error,
+      skipped, notModified }) => ({
+      ok,
+      source,
+      count,
+      durationMs,
+      error: error || null,
+      skipped: Boolean(skipped),
+      notModified: Boolean(notModified)
+    }));
+
+    if (classified.newCount === 0 &&
+        classified.changedCount === 0 &&
+        newsCache.items.length > 0) {
+      newsCache = {
+        ...newsCache,
+        sourceResults,
+        metrics: runMetrics,
+        partial: !finished,
+        completedSourceCount: results.length
+      };
+      return newsCache;
+    }
+
+    const archivedRaw = dedupeRawItems(mergeWithArchive(classified.items));
 
     /*
       CANLI VERİ GÜVENCESİ
@@ -814,17 +1075,9 @@ async function refreshNewsCache(period = 'all') {
     );
     const fastItems = archivedRaw.slice(0, fastPublishLimit);
 
-    if (fastItems.length > 0) {
+    if (fastItems.length > 0 && (classified.newCount > 0 || classified.changedCount > 0)) {
       const fastGrouped = buildStoryGroups(fastItems);
-      const fastSourceResults = results.map(
-        ({ ok, source, count, durationMs, error }) => ({
-          ok,
-          source,
-          count,
-          durationMs,
-          error: error || null
-        })
-      );
+      const fastSourceResults = sourceResults;
       const fastActiveSources = fastSourceResults.filter((item) => item.ok).length;
       const fastCreatedAt = Date.now();
 
@@ -840,7 +1093,8 @@ async function refreshNewsCache(period = 'all') {
         sourceResults: fastSourceResults,
         partial: true,
         completedSourceCount: results.length,
-        fastPublished: true
+        fastPublished: true,
+        ...runMetrics
       });
 
       await writeCollectorStatus({
@@ -852,9 +1106,11 @@ async function refreshNewsCache(period = 'all') {
         totalSources: NEWS_SOURCES.length,
         activeSources: fastActiveSources,
         failedSources: Math.max(0, NEWS_SOURCES.length - fastActiveSources),
+        lastFastPublishAt: new Date(fastCreatedAt).toISOString(),
         error: null
       });
 
+      lastPublishedSignature = snapshotSignature(fastGrouped);
       console.log(
         `[NEWS COLLECTOR] Hızlı yayın tamamlandı: ${fastGrouped.length} güncel haber`
       );
@@ -882,16 +1138,11 @@ async function refreshNewsCache(period = 'all') {
       createdAt: Date.now(),
       items: grouped,
       period,
-      sourceResults: results.map(({ ok, source, count, durationMs, error }) => ({
-        ok,
-        source,
-        count,
-        durationMs,
-        error: error || null
-      })),
+      sourceResults,
       partial: !finished,
       completedSourceCount: results.length,
-      totalSourceCount: NEWS_SOURCES.length
+      totalSourceCount: NEWS_SOURCES.length,
+      metrics: runMetrics
     };
 
     return newsCache;
@@ -990,13 +1241,23 @@ async function writeJsonAtomic(filePath, value) {
   await fs.promises.rename(tempPath, filePath);
 }
 
+function mergeCollectorStatus(previous, current) {
+  return {
+    ...(previous && typeof previous === 'object' ? previous : {}),
+    ...(current && typeof current === 'object' ? current : {})
+  };
+}
+
 async function writeCollectorStatus(status) {
   try {
-    await writeJsonAtomic(NEWS_STATUS_FILE, {
-      ...status,
+    const nextStatus = {
+      ...mergeCollectorStatus(persistedCollectorStatus, status),
+      sourceStates: Object.fromEntries(sourceState),
       processId: process.pid,
       writtenAt: new Date().toISOString()
-    });
+    };
+    await writeJsonAtomic(NEWS_STATUS_FILE, nextStatus);
+    persistedCollectorStatus = nextStatus;
   } catch (error) {
     console.error(
       '[NEWS COLLECTOR] Durum dosyası yazılamadı:',
@@ -1005,7 +1266,7 @@ async function writeCollectorStatus(status) {
   }
 }
 
-async function collectAndSaveNews() {
+async function runCollectorOnce() {
   const startedAt = Date.now();
 
   await writeCollectorStatus({
@@ -1043,7 +1304,14 @@ async function collectAndSaveNews() {
       completedSourceCount: data.completedSourceCount || data.sourceResults.length
     };
 
-    await writeJsonAtomic(NEWS_DATABASE_FILE, snapshot);
+    const finalSignature = snapshotSignature(snapshot.items);
+    const finalPublished = finalSignature !== lastPublishedSignature;
+    if (finalPublished) {
+      await writeJsonAtomic(NEWS_DATABASE_FILE, snapshot);
+      lastPublishedSignature = finalSignature;
+    }
+
+    const metrics = data.metrics || {};
 
     await writeCollectorStatus({
       running: false,
@@ -1055,6 +1323,20 @@ async function collectAndSaveNews() {
       totalSources: snapshot.totalSources,
       activeSources: snapshot.activeSources,
       failedSources: snapshot.failedSources,
+      attemptedSources: metrics.attemptedSources || 0,
+      successfulSources: data.sourceResults.filter(item => item.ok && !item.skipped).length,
+      skippedSources: metrics.skippedSources || 0,
+      notModifiedSources: metrics.notModifiedSources || 0,
+      newItems: metrics.newItems || 0,
+      changedItems: metrics.changedItems || 0,
+      unchangedItems: metrics.unchangedItems || 0,
+      reusedItems: metrics.reusedItems || 0,
+      finalPublished,
+      ...(finalPublished ? { lastFinalPublishAt: new Date().toISOString() } : {}),
+      nextScheduledRunAt: new Date(Date.now() + COLLECTOR_TICK_MS).toISOString(),
+      lastRunStartedAt: new Date(startedAt).toISOString(),
+      lastRunCompletedAt: new Date().toISOString(),
+      lastSuccessfulRunAt: new Date().toISOString(),
       error: null
     });
 
@@ -1063,6 +1345,16 @@ async function collectAndSaveNews() {
       `${snapshot.activeSources}/${snapshot.totalSources} kaynak, ` +
       `${Date.now() - startedAt} ms`
     );
+    console.log('[NEWS COLLECTOR] Tur özeti:', {
+      ...metrics,
+      finalPublished,
+      durationMs: Date.now() - startedAt,
+      slowestSources: [...data.sourceResults]
+        .filter(item => !item.skipped)
+        .sort((left, right) => right.durationMs - left.durationMs)
+        .slice(0, 5)
+        .map(item => ({ source: item.source, durationMs: item.durationMs, ok: item.ok }))
+    });
   } catch (error) {
     console.error(
       '[NEWS COLLECTOR] Tarama hatası:',
@@ -1080,20 +1372,28 @@ async function collectAndSaveNews() {
   }
 }
 
+function collectAndSaveNews() {
+  if (collectorRunPromise) return collectorRunPromise;
+  collectorRunPromise = runCollectorOnce().finally(() => {
+    collectorRunPromise = null;
+  });
+  return collectorRunPromise;
+}
+
 let intervalHandle = null;
 let stopping = false;
 
 async function startCollector() {
   console.log(
     `[NEWS COLLECTOR] Başlatıldı. Yenileme aralığı: ` +
-    `${Math.round(NEWS_REFRESH_INTERVAL_MS / 60000)} dakika`
+    `${Math.round(COLLECTOR_TICK_MS / 60000)} dakika kontrol turu`
   );
 
   await collectAndSaveNews();
 
   intervalHandle = setInterval(() => {
     void collectAndSaveNews();
-  }, NEWS_REFRESH_INTERVAL_MS);
+  }, COLLECTOR_TICK_MS);
 
 
 }
@@ -1118,26 +1418,41 @@ async function stopCollector(signal) {
   process.exit(0);
 }
 
-process.on('SIGTERM', () => {
-  void stopCollector('SIGTERM');
-});
+if (require.main === module) {
+  process.on('SIGTERM', () => {
+    void stopCollector('SIGTERM');
+  });
 
-process.on('SIGINT', () => {
-  void stopCollector('SIGINT');
-});
+  process.on('SIGINT', () => {
+    void stopCollector('SIGINT');
+  });
 
-process.on('unhandledRejection', (error) => {
-  console.error(
-    '[NEWS COLLECTOR] Yakalanmamış Promise hatası:',
-    error?.stack || error
-  );
-});
+  process.on('unhandledRejection', (error) => {
+    console.error(
+      '[NEWS COLLECTOR] Yakalanmamış Promise hatası:',
+      error?.stack || error
+    );
+  });
 
-process.on('uncaughtException', (error) => {
-  console.error(
-    '[NEWS COLLECTOR] Yakalanmamış hata:',
-    error?.stack || error
-  );
-});
+  process.on('uncaughtException', (error) => {
+    console.error(
+      '[NEWS COLLECTOR] Yakalanmamış hata:',
+      error?.stack || error
+    );
+  });
 
-void startCollector();
+  void startCollector();
+}
+
+module.exports = {
+  classifyNewsItems,
+  collectAndSaveNews,
+  fetchSource,
+  mergeCollectorStatus,
+  newsContentHash,
+  refreshTierForSource,
+  snapshotSignature,
+  sourceBackoffMs,
+  sourceIsEligible,
+  sourceStateFor
+};
