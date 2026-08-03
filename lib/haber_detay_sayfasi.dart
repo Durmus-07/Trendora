@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'core/news/news_explanation_service.dart';
+import 'core/news/news_content_service.dart';
 import 'core/news/news_intelligence_service.dart';
 import 'core/news/news_share_service.dart';
 import 'core/news/saved_news_store.dart';
@@ -50,6 +51,12 @@ class RelatedNewsItem {
   final bool hasValidPublishedAt;
 }
 
+class _ResolvedContentSnapshot {
+  _ResolvedContentSnapshot(this.value);
+
+  String value;
+}
+
 class HaberDetaySayfasi extends StatelessWidget {
   HaberDetaySayfasi({
     super.key,
@@ -70,11 +77,14 @@ class HaberDetaySayfasi extends StatelessWidget {
     NewsShareService? shareService,
     NewsExplanationService? explanationService,
     NewsIntelligenceService? intelligenceService,
+    NewsContentGateway? contentGateway,
     NewsIntelligenceResult? intelligence,
     this.hasValidPublishedAt = true,
     this.sourceCount = 1,
     this.confirmingSourceCount = 0,
   }) : _shareService = shareService ?? NewsShareService(),
+       _contentGateway = contentGateway ?? const ApiNewsContentGateway(),
+       _resolvedContent = _ResolvedContentSnapshot(articleText.trim()),
        _explanation = (explanationService ?? NewsExplanationService.shared)
            .explain(
              newsId: _resolvedNewsId(
@@ -127,6 +137,8 @@ class HaberDetaySayfasi extends StatelessWidget {
   final NewsSourceLauncher? onOpenSource;
   final NewsShareAction? onShare;
   final NewsShareService _shareService;
+  final NewsContentGateway _contentGateway;
+  final _ResolvedContentSnapshot _resolvedContent;
   final NewsExplanation _explanation;
   final NewsIntelligenceResult _intelligence;
 
@@ -137,7 +149,7 @@ class HaberDetaySayfasi extends StatelessWidget {
     id: _newsId,
     title: title.trim(),
     summary: summary.trim(),
-    articleText: articleText.trim(),
+    articleText: _resolvedContent.value,
     imageUrl: imageUrl.trim(),
     url: url.trim(),
     source: _sourceLabel,
@@ -181,23 +193,10 @@ class HaberDetaySayfasi extends StatelessWidget {
 
   String get _readingTimeLabel => '$_readingMinutes dk okuma';
 
-  String get _readableArticleText {
-    final fullText = articleText.trim();
-    if (fullText.isNotEmpty) return fullText;
-
-    final shortText = summary.trim();
-    if (shortText.isNotEmpty) {
-      return '$shortText\n\nKaynak bu kayıt için tam haber metnini '
-          'sağlamadı. Tüm ayrıntılar için Kaynağa Git butonunu kullanabilirsin.';
-    }
-
-    return 'Haberin tam metni kaynaktan sağlanmadı. Tüm ayrıntılar için '
-        'Kaynağa Git butonunu kullanabilirsin.';
-  }
-
   bool get _hasSeparateSummary {
     final shortText = summary.trim();
-    return shortText.isNotEmpty && shortText != articleText.trim();
+    final fullText = articleText.trim();
+    return shortText.isNotEmpty && fullText.isNotEmpty && shortText != fullText;
   }
 
   List<String> get _importancePoints {
@@ -313,10 +312,15 @@ class HaberDetaySayfasi extends StatelessWidget {
                   const SizedBox(height: 14),
                   _buildMetadata(),
                   const SizedBox(height: 22),
-                  _NewsTextSection(
-                    title: 'Haberin Tam Metni',
-                    text: _readableArticleText,
-                    primary: true,
+                  _AsyncNewsArticleSection(
+                    newsId: _newsId,
+                    url: url,
+                    initialArticleText: articleText,
+                    summary: summary,
+                    gateway: _contentGateway,
+                    onArticleResolved: (content) {
+                      _resolvedContent.value = content;
+                    },
                   ),
                   if (_hasSeparateSummary) ...[
                     const SizedBox(height: 18),
@@ -473,7 +477,7 @@ class HaberDetaySayfasi extends StatelessWidget {
       key: const Key('haber-kaynaga-git'),
       onPressed: sourceEnabled ? () => _openSource(context) : null,
       icon: const Icon(Icons.open_in_new_rounded),
-      label: const Text('Kaynağa Git'),
+      label: const Text('Orijinal Kaynağı Aç'),
       style: TextButton.styleFrom(
         foregroundColor: const Color(0xFF526075),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -490,7 +494,7 @@ class HaberDetaySayfasi extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       ),
     );
-    final saveButton = _SaveNewsButton(news: _savedNews);
+    final saveButton = _SaveNewsButton(newsBuilder: () => _savedNews);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1607,9 +1611,9 @@ class _PremiumReadingViewState extends State<_PremiumReadingView> {
 }
 
 class _SaveNewsButton extends StatefulWidget {
-  const _SaveNewsButton({required this.news});
+  const _SaveNewsButton({required this.newsBuilder});
 
-  final SavedNews news;
+  final SavedNews Function() newsBuilder;
 
   @override
   State<_SaveNewsButton> createState() => _SaveNewsButtonState();
@@ -1628,7 +1632,7 @@ class _SaveNewsButtonState extends State<_SaveNewsButton> {
   @override
   void didUpdateWidget(covariant _SaveNewsButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.news.id != widget.news.id) {
+    if (oldWidget.newsBuilder().id != widget.newsBuilder().id) {
       _loadState();
     }
   }
@@ -1681,7 +1685,7 @@ class _SaveNewsButtonState extends State<_SaveNewsButton> {
 
   Future<void> _loadState() async {
     try {
-      final saved = await SavedNewsStore.isSaved(widget.news.id);
+      final saved = await SavedNewsStore.isSaved(widget.newsBuilder().id);
       if (!mounted) return;
       setState(() {
         _saved = saved;
@@ -1697,7 +1701,7 @@ class _SaveNewsButtonState extends State<_SaveNewsButton> {
     setState(() => _loading = true);
 
     try {
-      final saved = await SavedNewsStore.toggle(widget.news);
+      final saved = await SavedNewsStore.toggle(widget.newsBuilder());
       if (!mounted) return;
       setState(() {
         _saved = saved;
@@ -1743,6 +1747,117 @@ class _NewsMetadataItem extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _AsyncNewsArticleSection extends StatefulWidget {
+  const _AsyncNewsArticleSection({
+    required this.newsId,
+    required this.url,
+    required this.initialArticleText,
+    required this.summary,
+    required this.gateway,
+    required this.onArticleResolved,
+  });
+
+  final String newsId;
+  final String url;
+  final String initialArticleText;
+  final String summary;
+  final NewsContentGateway gateway;
+  final ValueChanged<String> onArticleResolved;
+
+  @override
+  State<_AsyncNewsArticleSection> createState() =>
+      _AsyncNewsArticleSectionState();
+}
+
+class _AsyncNewsArticleSectionState extends State<_AsyncNewsArticleSection> {
+  late String _text;
+  bool _loading = false;
+  bool _failed = false;
+
+  bool _isSufficient(String value) {
+    final clean = sanitizeNewsContentText(value);
+    final words = clean
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .length;
+    return clean.length >= 500 && words >= 80;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = sanitizeNewsContentText(widget.initialArticleText);
+    _text = initial.isNotEmpty
+        ? initial
+        : sanitizeNewsContentText(widget.summary);
+    if (!_isSufficient(initial)) _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final result = await widget.gateway.load(
+        id: widget.newsId,
+        url: widget.url,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (result.hasArticle) {
+          _text = result.content;
+          widget.onArticleResolved(result.content);
+        }
+        _failed = !result.hasArticle;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _failed = true;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleText = _text.isEmpty
+        ? 'Haberin tam metni kaynaktan sağlanmadı.'
+        : _text;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _NewsTextSection(
+          title: 'Haberin Tam Metni',
+          text: visibleText,
+          primary: true,
+        ),
+        if (_loading) ...[
+          const SizedBox(height: 8),
+          const LinearProgressIndicator(
+            key: Key('haber-tam-metin-yukleniyor'),
+            minHeight: 2,
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Tam metin güvenli biçimde hazırlanıyor…',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF667085), fontSize: 12),
+          ),
+        ],
+        if (_failed) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Tam metin alınamadı; mevcut özet gösteriliyor.',
+            key: Key('haber-tam-metin-alinamadi'),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF667085), fontSize: 12),
+          ),
+        ],
       ],
     );
   }

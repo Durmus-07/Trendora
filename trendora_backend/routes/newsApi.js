@@ -1,12 +1,17 @@
 'use strict';
 
 const express = require('express');
+const {
+  createNewsContentService,
+  normalizeUrl
+} = require('../services/newsContentService');
 const fs = require('fs');
 const path = require('path');
 const { normalizeNews } = require('../services/dataModels');
 const sourceHealth = require('../services/sourceHealth');
 
 const router = express.Router();
+const newsContentService = createNewsContentService();
 
 const NEWS_DATABASE_FILE = path.join(
   __dirname,
@@ -282,6 +287,51 @@ async function getNewsStatus() {
   };
 }
 
+function findNewsRecord(items, { id, url }) {
+  const requestedId = String(id || '').trim();
+  if (requestedId) {
+    const match = items.find(item => String(item.id || '').trim() === requestedId);
+    if (match) return match;
+  }
+
+  const requestedUrl = normalizeUrl(url);
+  if (!requestedUrl) return null;
+  return items.find(item => normalizeUrl(item.url) === requestedUrl) || null;
+}
+
+router.get('/content', async (req, res) => {
+  try {
+    if (!String(req.query.id || '').trim() && !String(req.query.url || '').trim()) {
+      return res.status(400).json({
+        success: false,
+        contentStatus: 'unavailable',
+        message: 'Haber kimliği veya kayıtlı haber adresi gerekli.'
+      });
+    }
+
+    const database = await readNewsDatabase();
+    const record = findNewsRecord(database.items, req.query);
+    if (!record) {
+      return res.status(404).json({
+        success: false,
+        contentStatus: 'unavailable',
+        message: 'Haber kaydı bulunamadı.'
+      });
+    }
+
+    const { expiresAtMs, ...result } = await newsContentService.resolve(record);
+    res.set('Cache-Control', 'private, max-age=300');
+    return res.json({ success: true, id: record.id || null, ...result });
+  } catch (error) {
+    console.error('[NEWS CONTENT] Tam metin hazırlanamadı:', error.message);
+    return res.status(502).json({
+      success: false,
+      contentStatus: 'unavailable',
+      message: 'Haberin tam metni şu anda hazırlanamadı.'
+    });
+  }
+});
+
 router.get('/', async (req, res) => {
   try {
     const database = await readNewsDatabase();
@@ -423,5 +473,6 @@ router.get('/health', async (req, res) => {
 module.exports = {
   router,
   getNewsStatus,
+  findNewsRecord,
   createJsonSnapshotReader
 };
