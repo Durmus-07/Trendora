@@ -592,6 +592,7 @@ class _CanliTrendKartState extends State<_CanliTrendKart> {
       final response = await ApiClient.get(
         Uri.parse('${ApiConfig.baseUrl}/api/trends/market-board'),
         timeout: const Duration(seconds: 30),
+        cacheTtl: const Duration(minutes: 2),
       );
       final body = jsonDecode(utf8.decode(response.bodyBytes));
       final raw = body is Map ? body['items'] : null;
@@ -1477,6 +1478,7 @@ class _CanliHaberKartState extends State<_CanliHaberKart> {
       final response = await ApiClient.get(
         uri,
         timeout: const Duration(seconds: 30),
+        cacheTtl: const Duration(minutes: 2),
       );
       final body = jsonDecode(utf8.decode(response.bodyBytes));
       final raw = body is Map ? (body['news'] ?? body['data']) : null;
@@ -1485,7 +1487,9 @@ class _CanliHaberKartState extends State<_CanliHaberKart> {
           .whereType<Map>()
           .map((item) => Map<String, dynamic>.from(item))
           .where((item) {
-            final image = '${item['imageUrl'] ?? ''}'.trim();
+            final image =
+                '${item['imageUrl'] ?? item['image'] ?? item['urlToImage'] ?? ''}'
+                    .trim();
             return image.startsWith('http://') || image.startsWith('https://');
           })
           .take(12)
@@ -1732,6 +1736,7 @@ class _CanliFirsatKartState extends State<_CanliFirsatKart>
       final response = await ApiClient.get(
         uri,
         timeout: const Duration(seconds: 30),
+        cacheTtl: const Duration(minutes: 2),
       );
       final body = jsonDecode(utf8.decode(response.bodyBytes));
       final raw = body is Map
@@ -2160,6 +2165,7 @@ class _AnaMenuHeroState extends State<_AnaMenuHero>
       final response = await ApiClient.get(
         Uri.parse('${ApiConfig.baseUrl}/api/trends/market-board'),
         timeout: const Duration(seconds: 30),
+        cacheTtl: const Duration(minutes: 2),
       );
       final body = jsonDecode(utf8.decode(response.bodyBytes));
       final items = body is Map ? body['items'] : null;

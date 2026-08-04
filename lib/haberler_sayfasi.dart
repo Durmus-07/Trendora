@@ -2273,26 +2273,31 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi>
   }
 
   Widget _agdanHaberGorseli(TrendoraHaber haber, String imageUrl) {
-    return Image.network(
-      imageUrl,
-      width: double.infinity,
-      height: double.infinity,
-      fit: BoxFit.cover,
-      filterQuality: FilterQuality.medium,
-      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-        if (wasSynchronouslyLoaded) return child;
-        return AnimatedOpacity(
-          opacity: frame == null ? 0 : 1,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          child: child,
-        );
-      },
-      errorBuilder: (_, __, ___) => _gorselYerTutucu(haber),
-      loadingBuilder: (context, child, progress) {
-        if (progress == null) return child;
-        return _gorselYerTutucu(haber);
-      },
+    return KeyedSubtree(
+      key: ValueKey<String>('haber-ag-gorseli-${_haberAnahtari(haber)}'),
+      child: Image.network(
+        imageUrl,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.cover,
+        cacheWidth: 1200,
+        filterQuality: FilterQuality.low,
+        gaplessPlayback: true,
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded) return child;
+          return AnimatedOpacity(
+            opacity: frame == null ? 0 : 1,
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            child: child,
+          );
+        },
+        errorBuilder: (_, __, ___) => _gorselYerTutucu(haber),
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return _gorselYerTutucu(haber);
+        },
+      ),
     );
   }
 
@@ -2656,7 +2661,13 @@ class TrendoraHaber {
         'body',
       ]),
       url: json['url']?.toString() ?? '',
-      imageUrl: json['imageUrl']?.toString() ?? '',
+      imageUrl: _firstText(json, const [
+        'imageUrl',
+        'image',
+        'urlToImage',
+        'thumbnailUrl',
+        'thumbnail',
+      ]),
       source: json['source']?.toString() ?? '',
       feedSource: json['feedSource']?.toString() ?? '',
       category: json['category']?.toString() ?? 'gundem',

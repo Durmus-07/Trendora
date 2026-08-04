@@ -126,16 +126,19 @@ class DailyDigestService {
   final DailyDigestCache _cache;
   final DateTime Function() _now;
 
+  DailyDigestSnapshot? cached(String userId) => _cache.read(userId);
+
   Future<DailyDigestSnapshot?> loadDue(
-    PersonalizationPreferences preferences,
-  ) async {
+    PersonalizationPreferences preferences, {
+    bool forceRefresh = false,
+  }) async {
     if (!preferences.dailyDigestEnabled) return null;
     final now = _now();
     if (now.isBefore(scheduledAt(preferences, now))) return null;
 
     final slotKey = _slotKey(preferences, now);
     final previous = _cache.read(preferences.userId);
-    if (previous?.slotKey == slotKey) {
+    if (!forceRefresh && previous?.slotKey == slotKey) {
       return _freshCachedSnapshot(previous!, now);
     }
 
@@ -183,12 +186,13 @@ class DailyDigestService {
       items.addAll(_savedAnalyses(savedAnalyses, preferences, now));
     }
 
-    final previousEventIds =
-        previous?.items
-            .where((item) => _isOneTimeEvent(item.category))
-            .map((item) => item.id)
-            .toSet() ??
-        const <String>{};
+    final previousEventIds = previous?.slotKey == slotKey
+        ? const <String>{}
+        : previous?.items
+                  .where((item) => _isOneTimeEvent(item.category))
+                  .map((item) => item.id)
+                  .toSet() ??
+              const <String>{};
     final unique = <String, DailyDigestItem>{};
     for (final item in items) {
       if (_isOneTimeEvent(item.category) &&

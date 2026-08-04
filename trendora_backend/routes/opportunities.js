@@ -237,7 +237,9 @@ function isActive(item) {
   }
 
   if (!item.catalogEndDate) {
-    const source = normalizeStoreKey(item.store || item.source);
+    // Telegram is only the transport. Store-specific offers keep the normal
+    // store freshness window instead of being expired as generic Telegram.
+    const source = detectStore(item);
     const maximumAgeMs = source === 'telegram'
       ? 72 * 60 * 60 * 1000
       : 14 * 24 * 60 * 60 * 1000;
@@ -249,7 +251,7 @@ function isActive(item) {
       item.collectedAt,
       item.catalogStartDate
     ].map(value => new Date(value || 0).getTime())
-      .find(Number.isFinite);
+      .find(value => Number.isFinite(value) && value > 0);
 
     if (!timestamp || Date.now() - timestamp > maximumAgeMs) {
       return false;

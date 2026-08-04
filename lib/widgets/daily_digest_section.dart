@@ -103,19 +103,23 @@ class _DailyDigestSectionState extends State<DailyDigestSection> {
       final preferences = await dependencies.personalizationService
           .initialize();
       if (!mounted) return;
+      final cached = preferences.dailyDigestEnabled
+          ? dependencies.digestService.cached(preferences.userId)
+          : null;
       setState(() {
         _dependencies = dependencies;
         _preferences = preferences;
+        _snapshot = cached;
         _initializing = false;
       });
-      await _loadDueDigest();
+      await _loadDueDigest(forceRefresh: true);
       _scheduleNextLoad();
     } catch (_) {
       if (mounted) setState(() => _initializing = false);
     }
   }
 
-  Future<void> _loadDueDigest() async {
+  Future<void> _loadDueDigest({bool forceRefresh = false}) async {
     final dependencies = _dependencies;
     final preferences = _preferences;
     if (dependencies == null ||
@@ -129,7 +133,10 @@ class _DailyDigestSectionState extends State<DailyDigestSection> {
 
     setState(() => _loadingDigest = true);
     try {
-      final snapshot = await dependencies.digestService.loadDue(preferences);
+      final snapshot = await dependencies.digestService.loadDue(
+        preferences,
+        forceRefresh: forceRefresh,
+      );
       if (mounted) setState(() => _snapshot = snapshot);
       if (snapshot != null) {
         await _dispatchNotifications(preferences.userId, snapshot);
@@ -321,6 +328,18 @@ class _DailyDigestSectionState extends State<DailyDigestSection> {
                   size: 20,
                 ),
               ),
+              if (preferences.dailyDigestEnabled)
+                IconButton(
+                  tooltip: 'Günlük özeti yenile',
+                  onPressed: _loadingDigest
+                      ? null
+                      : () => _loadDueDigest(forceRefresh: true),
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    color: TrendoraColors.textSecondary,
+                    size: 20,
+                  ),
+                ),
               Switch.adaptive(
                 value: preferences.dailyDigestEnabled,
                 onChanged: _toggleEnabled,

@@ -13,6 +13,13 @@ class SmartShortcutsSection extends StatefulWidget {
 
 class _SmartShortcutsSectionState extends State<SmartShortcutsSection> {
   List<SmartShortcutDefinition> _items = SmartShortcutCatalog.all;
+  final TextEditingController _queryController = TextEditingController();
+
+  @override
+  void dispose() {
+    _queryController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -31,9 +38,15 @@ class _SmartShortcutsSectionState extends State<SmartShortcutsSection> {
   }
 
   Future<void> _open(SmartShortcutDefinition item) async {
+    await _openQuery(item.command);
+  }
+
+  Future<void> _openQuery(String value) async {
+    final query = value.trim();
+    if (query.isEmpty) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AkilliKisayollarSayfasi(initialCommand: item.command),
+        builder: (_) => AkilliKisayollarSayfasi(initialCommand: query),
       ),
     );
     await _loadOrder();
@@ -57,6 +70,21 @@ class _SmartShortcutsSectionState extends State<SmartShortcutsSection> {
         const Text(
           'Haberleri, fırsatları ve piyasaları arayın veya bir soru sorun.',
           style: TextStyle(color: Colors.white54, fontSize: 11),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _queryController,
+          textInputAction: TextInputAction.search,
+          onSubmitted: _openQuery,
+          decoration: InputDecoration(
+            hintText: 'Trendora’da ara veya bir şey sor…',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: IconButton(
+              tooltip: 'Ara',
+              onPressed: () => _openQuery(_queryController.text),
+              icon: const Icon(Icons.arrow_forward_rounded),
+            ),
+          ),
         ),
         const SizedBox(height: 9),
         const Text(

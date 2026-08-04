@@ -66,7 +66,8 @@ Future<bool> _openNews(BuildContext context, DailyDigestItem item) async {
       builder: (_) => HaberDetaySayfasi(
         id: id,
         title: title,
-        imageUrl: '${data['imageUrl'] ?? data['image'] ?? ''}',
+        imageUrl:
+            '${data['imageUrl'] ?? data['image'] ?? data['urlToImage'] ?? data['thumbnailUrl'] ?? ''}',
         source: source,
         publishedAt: publishedAt,
         summary: '${data['summary'] ?? data['description'] ?? item.detail}',

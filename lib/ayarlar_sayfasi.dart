@@ -289,14 +289,16 @@ Yapay zekâ destekli dijital karar platformu.
     Widget? sayfa,
     bool yakinda = false,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
         color: const Color(0xFF101D2E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
-      ),
-      child: ListTile(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.white.withOpacity(0.06)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
         leading: Container(
           width: 44,
@@ -339,6 +341,7 @@ Yapay zekâ destekli dijital karar platformu.
             Navigator.push(context, MaterialPageRoute(builder: (_) => sayfa));
           }
         },
+        ),
       ),
     );
   }

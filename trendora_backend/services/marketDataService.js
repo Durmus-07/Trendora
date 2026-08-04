@@ -579,7 +579,7 @@ function analyzeTechnicalData(inputRows, options = {}) {
 
 
 function choosePreviousClose({ current, latestOpen, previousRowClose, metaPreviousClose, chartPreviousClose }) {
-  const candidates = [metaPreviousClose, previousRowClose, chartPreviousClose]
+  const candidates = [previousRowClose, metaPreviousClose, chartPreviousClose]
     .map(finite)
     .filter((value) => value != null && value > 0);
 
@@ -849,5 +849,6 @@ async function fetchDerivedGoldMarketData(goldType, options = {}) {
 module.exports = {
   analyzeTechnicalData,
   fetchMarketData,
+  choosePreviousClose,
   resolveYahooSymbol
 };
