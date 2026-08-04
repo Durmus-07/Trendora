@@ -4,6 +4,7 @@ import 'package:trendora_app/core/daily_digest/daily_digest_service.dart';
 import 'package:trendora_app/core/personalization/personalization_preferences.dart';
 import 'package:trendora_app/core/personalization/personalization_storage.dart';
 import 'package:trendora_app/core/saved_analysis_store.dart';
+import 'package:trendora_app/core/news/saved_news_store.dart';
 
 void main() {
   final now = DateTime(2026, 7, 28, 10);
@@ -258,6 +259,71 @@ void main() {
       );
     },
   );
+
+  test('saved statistics use real stores and deduplicate aliases', () async {
+    final checkedAt = now.subtract(const Duration(hours: 2));
+    final duplicate = SavedAnalysis(
+      id: 'analysis-1',
+      query: 'EREGL',
+      title: 'EREGL analizi',
+      savedAt: now.subtract(const Duration(days: 2)),
+      startingPrice: 40,
+      currency: 'TRY',
+      confidence: 70,
+      dominantScenario: 'Dengeli',
+      dominantProbability: 60,
+      expectedDirection: 'up',
+      latestPrice: 44,
+      checkedAt: checkedAt,
+    );
+    final news = SavedNews(
+      id: 'news-1',
+      title: 'Kaydedilen haber',
+      summary: '',
+      articleText: '',
+      imageUrl: '',
+      url: 'https://example.com/news?utm_source=test',
+      source: 'Kaynak',
+      category: 'economy',
+      publishedAt: now,
+      savedAt: now,
+    );
+    final source = _FakeDigestSource(
+      analyses: [duplicate, duplicate],
+      savedNewsRows: [news, news],
+    );
+    final preferences = _enabled(
+      userId: 'guest:statistics',
+      categories: const <DailyDigestCategory>{},
+    ).copyWith(trackedFinancialAssets: {'EREGL', 'eregl', 'ASELS'});
+
+    final snapshot = await _service(
+      source,
+      _MemoryStore(),
+      now,
+    ).loadDue(preferences);
+
+    expect(snapshot?.statistics.savedAssetCount, 2);
+    expect(snapshot?.statistics.savedAnalysisCount, 1);
+    expect(snapshot?.statistics.savedNewsCount, 1);
+    expect(snapshot?.statistics.updatedLast24HoursCount, 1);
+    expect(snapshot?.statistics.priceChangedCount, 1);
+  });
+
+  test('old digest item JSON remains parseable without route metadata', () {
+    final item = DailyDigestItem.fromJson({
+      'id': 'legacy',
+      'category': 'news',
+      'title': 'Eski kayıt',
+      'detail': '',
+      'source': 'Kaynak',
+      'updatedAt': now.toIso8601String(),
+      'reference': 'legacy-reference',
+    });
+    expect(item.reference, 'legacy-reference');
+    expect(item.itemId, isNull);
+    expect(item.target, isNull);
+  });
 }
 
 PersonalizationPreferences _enabled({
@@ -280,7 +346,8 @@ DailyDigestService _service(
   return DailyDigestService(source, DailyDigestCache(store), now: () => now);
 }
 
-class _FakeDigestSource implements DailyDigestDataSource {
+class _FakeDigestSource
+    implements DailyDigestDataSource, DailyDigestSavedDataSource {
   _FakeDigestSource({
     this.newsRows = const [],
     this.opportunityRows = const [],
@@ -288,6 +355,7 @@ class _FakeDigestSource implements DailyDigestDataSource {
     this.weatherData,
     this.analyses = const [],
     this.failNews = false,
+    this.savedNewsRows = const [],
   });
 
   final List<Map<String, dynamic>> newsRows;
@@ -296,6 +364,7 @@ class _FakeDigestSource implements DailyDigestDataSource {
   final Map<String, dynamic>? weatherData;
   final List<SavedAnalysis> analyses;
   final bool failNews;
+  final List<SavedNews> savedNewsRows;
 
   int callCount = 0;
   int newsCalls = 0;
@@ -325,6 +394,9 @@ class _FakeDigestSource implements DailyDigestDataSource {
     callCount++;
     return analyses;
   }
+
+  @override
+  Future<List<SavedNews>> savedNews() async => savedNewsRows;
 
   @override
   Future<Map<String, dynamic>?> weather() async {

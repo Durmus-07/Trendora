@@ -7,6 +7,8 @@ import '../api_config.dart';
 import '../personalization/personalization_preferences.dart';
 import '../personalization/personalization_storage.dart';
 import '../recommendations/recommendation_service.dart';
+import '../news/saved_news_store.dart';
+import '../news/news_clustering_service.dart' show normalizeContentUrl;
 import '../saved_analysis_store.dart';
 import '../weather/weather_data_policy.dart';
 import 'daily_digest_models.dart';
@@ -19,7 +21,12 @@ abstract interface class DailyDigestDataSource {
   Future<List<SavedAnalysis>> savedAnalyses();
 }
 
-class AppDailyDigestDataSource implements DailyDigestDataSource {
+abstract interface class DailyDigestSavedDataSource {
+  Future<List<SavedNews>> savedNews();
+}
+
+class AppDailyDigestDataSource
+    implements DailyDigestDataSource, DailyDigestSavedDataSource {
   AppDailyDigestDataSource(
     this._preferences, [
     this._recommendationDataSource = const ApiRecommendationDataSource(),
@@ -41,6 +48,9 @@ class AppDailyDigestDataSource implements DailyDigestDataSource {
 
   @override
   Future<List<SavedAnalysis>> savedAnalyses() => SavedAnalysisStore.load();
+
+  @override
+  Future<List<SavedNews>> savedNews() => SavedNewsStore.load();
 
   @override
   Future<Map<String, dynamic>?> weather() async {
@@ -130,6 +140,16 @@ class DailyDigestService {
     }
 
     final items = <DailyDigestItem>[];
+    List<SavedAnalysis> savedAnalyses = const [];
+    List<SavedNews> savedNews = const [];
+    try {
+      savedAnalyses = await _dataSource.savedAnalyses();
+    } catch (_) {}
+    if (_dataSource case final DailyDigestSavedDataSource savedSource) {
+      try {
+        savedNews = await savedSource.savedNews();
+      } catch (_) {}
+    }
     final categories = preferences.digestCategories;
 
     if (categories.contains(DailyDigestCategory.finance) &&
@@ -160,11 +180,7 @@ class DailyDigestService {
       } catch (_) {}
     }
     if (categories.contains(DailyDigestCategory.savedAnalyses)) {
-      try {
-        items.addAll(
-          _savedAnalyses(await _dataSource.savedAnalyses(), preferences, now),
-        );
-      } catch (_) {}
+      items.addAll(_savedAnalyses(savedAnalyses, preferences, now));
     }
 
     final previousEventIds =
@@ -187,6 +203,7 @@ class DailyDigestService {
       slotKey: slotKey,
       generatedAt: now.toUtc(),
       items: List.unmodifiable(unique.values),
+      statistics: _statistics(preferences, savedAnalyses, savedNews, now),
     );
     await _cache.save(snapshot);
     return snapshot;
@@ -246,6 +263,15 @@ class DailyDigestService {
             source: source,
             updatedAt: updatedAt!.toUtc(),
             reference: symbol,
+            itemType: 'asset',
+            itemId: _text(row, const ['id', 'internalAssetId']),
+            internalAssetId: _text(row, const ['internalAssetId', 'id']),
+            canonicalSymbol: symbol,
+            snapshot: Map<String, dynamic>.from(row),
+            target: 'assetDetail',
+            targetArguments: {'canonicalSymbol': symbol},
+            dataTime: updatedAt.toUtc(),
+            currentStatus: 'active',
           );
         })
         .whereType<DailyDigestItem>()
@@ -289,6 +315,18 @@ class DailyDigestService {
           source: source,
           updatedAt: updatedAt!.toUtc(),
           reference: reference,
+          itemType: 'news',
+          itemId: _text(row, const ['id']),
+          originalUrl: _text(row, const ['url', 'link']),
+          normalizedUrl: normalizeContentUrl(_text(row, const ['url', 'link'])),
+          snapshot: Map<String, dynamic>.from(row),
+          target: 'newsDetail',
+          targetArguments: {
+            if (_text(row, const ['id']).isNotEmpty)
+              'itemId': _text(row, const ['id']),
+          },
+          dataTime: updatedAt.toUtc(),
+          currentStatus: 'active',
         ),
       );
       if (result.length == 3) break;
@@ -330,6 +368,21 @@ class DailyDigestService {
           source: source,
           updatedAt: updatedAt!.toUtc(),
           reference: reference,
+          itemType: 'opportunity',
+          itemId: _text(row, const ['id', 'externalId']),
+          opportunityId: _text(row, const ['id', 'externalId']),
+          originalUrl: _text(row, const ['officialUrl', 'url', 'link']),
+          normalizedUrl: normalizeContentUrl(
+            _text(row, const ['officialUrl', 'url', 'link']),
+          ),
+          snapshot: Map<String, dynamic>.from(row),
+          target: 'opportunityDetail',
+          targetArguments: {
+            if (_text(row, const ['id', 'externalId']).isNotEmpty)
+              'opportunityId': _text(row, const ['id', 'externalId']),
+          },
+          dataTime: updatedAt.toUtc(),
+          currentStatus: row['active'] == false ? 'expired' : 'active',
         ),
       );
       if (result.length == 3) break;
@@ -371,6 +424,11 @@ class DailyDigestService {
       source: source,
       updatedAt: updatedAt.toUtc(),
       reference: title,
+      itemType: 'weather',
+      snapshot: Map<String, dynamic>.from(data),
+      target: 'weatherCenter',
+      dataTime: updatedAt.toUtc(),
+      currentStatus: data['stale'] == true ? 'stale' : 'active',
     );
   }
 
@@ -404,6 +462,15 @@ class DailyDigestService {
           source: 'Kaydedilen analiz',
           updatedAt: checkedAt.toUtc(),
           reference: analysis.query,
+          itemType: 'analysis',
+          itemId: analysis.id,
+          canonicalSymbol: analysis.query.trim().toUpperCase(),
+          savedAt: analysis.savedAt,
+          snapshot: analysis.toJson(),
+          target: 'analysisDetail',
+          targetArguments: {'query': analysis.query, 'analysisId': analysis.id},
+          dataTime: checkedAt.toUtc(),
+          currentStatus: 'saved',
         ),
       );
       if (result.length == 3) break;
@@ -448,6 +515,7 @@ class DailyDigestService {
       slotKey: snapshot.slotKey,
       generatedAt: snapshot.generatedAt,
       items: freshItems,
+      statistics: snapshot.statistics,
     );
   }
 
@@ -503,5 +571,45 @@ class DailyDigestService {
   static String _formatNumber(double value) {
     final digits = value.abs() < 1000 ? 2 : 0;
     return value.toStringAsFixed(digits).replaceAll('.', ',');
+  }
+
+  static DailyDigestStatistics _statistics(
+    PersonalizationPreferences preferences,
+    List<SavedAnalysis> analyses,
+    List<SavedNews> news,
+    DateTime now,
+  ) {
+    final assets = preferences.trackedFinancialAssets
+        .map((item) => item.trim().toUpperCase())
+        .where((item) => item.isNotEmpty)
+        .toSet();
+    final uniqueAnalyses = <String, SavedAnalysis>{};
+    for (final item in analyses) {
+      uniqueAnalyses.putIfAbsent(item.id.trim(), () => item);
+    }
+    final uniqueNews = <String, SavedNews>{};
+    for (final item in news) {
+      final key = item.id.trim().isNotEmpty
+          ? item.id.trim()
+          : normalizeContentUrl(item.url);
+      if (key.isNotEmpty) uniqueNews.putIfAbsent(key, () => item);
+    }
+    final cutoff = now.subtract(const Duration(hours: 24));
+    final updatedAnalyses = uniqueAnalyses.values.where(
+      (item) => item.checkedAt != null && item.checkedAt!.isAfter(cutoff),
+    );
+    return DailyDigestStatistics(
+      savedAssetCount: assets.length,
+      savedAnalysisCount: uniqueAnalyses.length,
+      savedNewsCount: uniqueNews.length,
+      updatedLast24HoursCount: updatedAnalyses.length,
+      priceChangedCount: uniqueAnalyses.values.where((item) {
+        final start = item.startingPrice;
+        final latest = item.latestPrice;
+        return start != null &&
+            latest != null &&
+            (latest - start).abs() > 0.000001;
+      }).length,
+    );
   }
 }

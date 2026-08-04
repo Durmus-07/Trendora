@@ -38,15 +38,23 @@ void weatherCallbackDispatcher() {
       if (response.statusCode != 200) return false;
       final data = jsonDecode(utf8.decode(response.bodyBytes));
       if (data is! Map) return false;
-      final current = data['current'] is Map ? data['current'] as Map : const {};
-      final warnings = data['warnings'] is List ? data['warnings'] as List : const [];
-      final code = current['weatherCode'] is num ? (current['weatherCode'] as num).toInt() : null;
+      if (data['stale'] == true || data['success'] == false) return true;
+      final current = data['current'] is Map
+          ? data['current'] as Map
+          : const {};
+      final warnings = data['warnings'] is List
+          ? data['warnings'] as List
+          : const [];
+      final code = current['weatherCode'] is num
+          ? (current['weatherCode'] as num).toInt()
+          : null;
       final warning = warnings.isNotEmpty && warnings.first is Map
           ? '${(warnings.first as Map)['message'] ?? ''}'
           : '';
       final previousCode = prefs.getInt(_weatherCode);
       final previousWarning = prefs.getString(_weatherWarning) ?? '';
-      final changed = previousCode != null && code != null && previousCode != code;
+      final changed =
+          previousCode != null && code != null && previousCode != code;
       final newWarning = warning.isNotEmpty && warning != previousWarning;
       if (changed || newWarning) {
         await WeatherNotificationService.initializeNotifications();
@@ -55,7 +63,10 @@ void weatherCallbackDispatcher() {
         await _notifications.show(
           id: 4101,
           title: newWarning ? 'Trendora hava uyarısı' : 'Hava durumu değişti',
-          body: newWarning ? warning : '$description • ${temperature ?? '-'}° • ${prefs.getString(_weatherName) ?? 'Konumum'}',
+          body: newWarning
+              ? warning
+              : '$description • ${temperature ?? '-'}° • ${prefs.getString(_weatherName) ?? 'Konumum'}',
+          payload: jsonEncode({'type': 'weather', 'target': 'weatherCenter'}),
           notificationDetails: const NotificationDetails(
             android: AndroidNotificationDetails(
               'trendora_weather_changes',
@@ -79,17 +90,23 @@ void weatherCallbackDispatcher() {
 class WeatherNotificationService {
   WeatherNotificationService._();
 
-  static Future<void> initialize() async {
-    await initializeNotifications();
+  static Future<void> initialize({
+    void Function(String? payload)? onNotificationPayload,
+  }) async {
+    await initializeNotifications(onNotificationPayload: onNotificationPayload);
     await Workmanager().initialize(weatherCallbackDispatcher);
   }
 
-  static Future<void> initializeNotifications() => _notifications.initialize(
-        settings: const InitializationSettings(
-          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-          iOS: DarwinInitializationSettings(),
-        ),
-      );
+  static Future<void> initializeNotifications({
+    void Function(String? payload)? onNotificationPayload,
+  }) => _notifications.initialize(
+    settings: const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(),
+    ),
+    onDidReceiveNotificationResponse: (response) =>
+        onNotificationPayload?.call(response.payload),
+  );
 
   static Future<bool> isEnabled() async =>
       (await SharedPreferences.getInstance()).getBool(_weatherEnabled) ?? false;
@@ -101,7 +118,10 @@ class WeatherNotificationService {
     int? currentCode,
     String warning = '',
   }) async {
-    final android = _notifications.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+    final android = _notifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     final allowed = await android?.requestNotificationsPermission() ?? true;
     if (!allowed) return false;
     final prefs = await SharedPreferences.getInstance();
@@ -122,6 +142,7 @@ class WeatherNotificationService {
       id: 4100,
       title: 'Trendora hava bildirimleri açık',
       body: '$locationName için önemli hava değişiklikleri bildirilecek.',
+      payload: jsonEncode({'type': 'weather', 'target': 'weatherCenter'}),
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           'trendora_weather_changes',

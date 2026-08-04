@@ -37,6 +37,19 @@ class DailyDigestItem {
     required this.source,
     required this.updatedAt,
     required this.reference,
+    this.itemType,
+    this.itemId,
+    this.originalUrl,
+    this.normalizedUrl,
+    this.snapshot,
+    this.internalAssetId,
+    this.canonicalSymbol,
+    this.opportunityId,
+    this.savedAt,
+    this.target,
+    this.targetArguments,
+    this.dataTime,
+    this.currentStatus,
   });
 
   final String id;
@@ -46,6 +59,19 @@ class DailyDigestItem {
   final String source;
   final DateTime updatedAt;
   final String reference;
+  final String? itemType;
+  final String? itemId;
+  final String? originalUrl;
+  final String? normalizedUrl;
+  final Map<String, dynamic>? snapshot;
+  final String? internalAssetId;
+  final String? canonicalSymbol;
+  final String? opportunityId;
+  final DateTime? savedAt;
+  final String? target;
+  final Map<String, dynamic>? targetArguments;
+  final DateTime? dataTime;
+  final String? currentStatus;
 
   factory DailyDigestItem.fromJson(Map<String, dynamic> json) {
     final category = DailyDigestCategory.values
@@ -63,6 +89,23 @@ class DailyDigestItem {
       source: '${json['source'] ?? ''}'.trim(),
       updatedAt: updatedAt.toUtc(),
       reference: '${json['reference'] ?? ''}'.trim(),
+      itemType: _nullableText(json['itemType']),
+      itemId: _nullableText(json['itemId']),
+      originalUrl: _nullableText(json['originalUrl']),
+      normalizedUrl: _nullableText(json['normalizedUrl']),
+      snapshot: json['snapshot'] is Map
+          ? Map<String, dynamic>.from(json['snapshot'] as Map)
+          : null,
+      internalAssetId: _nullableText(json['internalAssetId']),
+      canonicalSymbol: _nullableText(json['canonicalSymbol']),
+      opportunityId: _nullableText(json['opportunityId']),
+      savedAt: DateTime.tryParse('${json['savedAt'] ?? ''}'),
+      target: _nullableText(json['target']),
+      targetArguments: json['targetArguments'] is Map
+          ? Map<String, dynamic>.from(json['targetArguments'] as Map)
+          : null,
+      dataTime: DateTime.tryParse('${json['dataTime'] ?? ''}'),
+      currentStatus: _nullableText(json['currentStatus']),
     );
   }
 
@@ -74,6 +117,65 @@ class DailyDigestItem {
     'source': source,
     'updatedAt': updatedAt.toUtc().toIso8601String(),
     'reference': reference,
+    if (itemType != null) 'itemType': itemType,
+    if (itemId != null) 'itemId': itemId,
+    if (originalUrl != null) 'originalUrl': originalUrl,
+    if (normalizedUrl != null) 'normalizedUrl': normalizedUrl,
+    if (snapshot != null) 'snapshot': snapshot,
+    if (internalAssetId != null) 'internalAssetId': internalAssetId,
+    if (canonicalSymbol != null) 'canonicalSymbol': canonicalSymbol,
+    if (opportunityId != null) 'opportunityId': opportunityId,
+    if (savedAt != null) 'savedAt': savedAt!.toUtc().toIso8601String(),
+    if (target != null) 'target': target,
+    if (targetArguments != null) 'targetArguments': targetArguments,
+    if (dataTime != null) 'dataTime': dataTime!.toUtc().toIso8601String(),
+    if (currentStatus != null) 'currentStatus': currentStatus,
+  };
+
+  static String? _nullableText(dynamic value) {
+    final text = '${value ?? ''}'.trim();
+    return text.isEmpty || text == 'null' ? null : text;
+  }
+}
+
+class DailyDigestStatistics {
+  const DailyDigestStatistics({
+    this.savedAssetCount = 0,
+    this.savedAnalysisCount = 0,
+    this.savedNewsCount = 0,
+    this.updatedLast24HoursCount = 0,
+    this.priceChangedCount = 0,
+  });
+
+  final int savedAssetCount;
+  final int savedAnalysisCount;
+  final int savedNewsCount;
+  final int updatedLast24HoursCount;
+  final int priceChangedCount;
+
+  bool get isEmpty =>
+      savedAssetCount == 0 &&
+      savedAnalysisCount == 0 &&
+      savedNewsCount == 0 &&
+      updatedLast24HoursCount == 0 &&
+      priceChangedCount == 0;
+
+  factory DailyDigestStatistics.fromJson(Map<String, dynamic> json) =>
+      DailyDigestStatistics(
+        savedAssetCount: (json['savedAssetCount'] as num?)?.toInt() ?? 0,
+        savedAnalysisCount: (json['savedAnalysisCount'] as num?)?.toInt() ?? 0,
+        savedNewsCount: (json['savedNewsCount'] as num?)?.toInt() ?? 0,
+        updatedLast24HoursCount:
+            (json['updatedLast24HoursCount'] as num?)?.toInt() ?? 0,
+        priceChangedCount: (json['priceChangedCount'] as num?)?.toInt() ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {
+    'savedAssetCount': savedAssetCount,
+    'savedAnalysisCount': savedAnalysisCount,
+    'savedNewsCount': savedNewsCount,
+    'updatedLast24HoursCount': updatedLast24HoursCount,
+    'priceChangedCount': priceChangedCount,
   };
 }
 
@@ -83,12 +185,14 @@ class DailyDigestSnapshot {
     required this.slotKey,
     required this.generatedAt,
     required this.items,
+    this.statistics = const DailyDigestStatistics(),
   });
 
   final String userId;
   final String slotKey;
   final DateTime generatedAt;
   final List<DailyDigestItem> items;
+  final DailyDigestStatistics statistics;
 
   bool get isEmpty => items.isEmpty;
 
@@ -116,6 +220,11 @@ class DailyDigestSnapshot {
       slotKey: '${json['slotKey'] ?? ''}'.trim(),
       generatedAt: generatedAt.toUtc(),
       items: List.unmodifiable(items),
+      statistics: json['statistics'] is Map
+          ? DailyDigestStatistics.fromJson(
+              Map<String, dynamic>.from(json['statistics'] as Map),
+            )
+          : const DailyDigestStatistics(),
     );
   }
 
@@ -124,5 +233,6 @@ class DailyDigestSnapshot {
     'slotKey': slotKey,
     'generatedAt': generatedAt.toUtc().toIso8601String(),
     'items': items.map((item) => item.toJson()).toList(growable: false),
+    'statistics': statistics.toJson(),
   };
 }

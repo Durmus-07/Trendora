@@ -19,6 +19,7 @@ class _BildirimAyarlariSayfasiState extends State<BildirimAyarlariSayfasi> {
   SharedPreferencesSmartNotificationStore? _store;
   String? _userId;
   bool _loading = true;
+  bool? _permissionAllowed;
 
   @override
   void initState() {
@@ -35,11 +36,18 @@ class _BildirimAyarlariSayfasiState extends State<BildirimAyarlariSayfasi> {
       final userId = await identity.resolve();
       final store = SharedPreferencesSmartNotificationStore(shared);
       final preferences = await store.loadPreferences(userId);
+      final plugin = FlutterLocalNotificationsPlugin();
+      final android = plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      final permissionAllowed = await android?.areNotificationsEnabled();
       if (!mounted) return;
       setState(() {
         _store = store;
         _userId = userId;
         _preferences = preferences;
+        _permissionAllowed = permissionAllowed;
         _loading = false;
       });
     } catch (_) {
@@ -55,14 +63,22 @@ class _BildirimAyarlariSayfasiState extends State<BildirimAyarlariSayfasi> {
             AndroidFlutterLocalNotificationsPlugin
           >();
       final allowed = await android?.requestNotificationsPermission() ?? true;
-      if (!allowed) return;
+      if (!allowed) {
+        if (mounted) {
+          setState(() => _permissionAllowed = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Bildirim izni kapalı. Sistem ayarlarından izin verebilirsin.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+      if (mounted) setState(() => _permissionAllowed = true);
     }
-    final categories = enabled && _preferences.categories.isEmpty
-        ? SmartNotificationCategory.values.toSet()
-        : _preferences.categories;
-    await _save(
-      _preferences.copyWith(enabled: enabled, categories: categories),
-    );
+    await _save(_preferences.copyWith(enabled: enabled));
   }
 
   Future<void> _toggleCategory(
@@ -100,6 +116,21 @@ class _BildirimAyarlariSayfasiState extends State<BildirimAyarlariSayfasi> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                ListTile(
+                  leading: Icon(
+                    _permissionAllowed == false
+                        ? Icons.notifications_off_outlined
+                        : Icons.notifications_active_outlined,
+                  ),
+                  title: const Text('Sistem bildirim izni'),
+                  subtitle: Text(
+                    _permissionAllowed == true
+                        ? 'İzin verildi'
+                        : _permissionAllowed == false
+                        ? 'İzin verilmedi'
+                        : 'Bu platformda durum doğrulanamadı',
+                  ),
+                ),
                 SwitchListTile(
                   value: _preferences.enabled,
                   onChanged: _setEnabled,
@@ -109,7 +140,7 @@ class _BildirimAyarlariSayfasiState extends State<BildirimAyarlariSayfasi> {
                   ),
                 ),
                 const Divider(),
-                for (final category in SmartNotificationCategory.values)
+                for (final category in _selectableCategories)
                   SwitchListTile(
                     value: _preferences.categories.contains(category),
                     onChanged: _preferences.enabled
@@ -129,6 +160,17 @@ class _BildirimAyarlariSayfasiState extends State<BildirimAyarlariSayfasi> {
 
   static String _label(SmartNotificationCategory category) =>
       switch (category) {
+        SmartNotificationCategory.breakingNews => 'Son dakika haberleri',
+        SmartNotificationCategory.importantNews => 'Önemli haberler',
+        SmartNotificationCategory.followedAssets => 'Takip edilen varlıklar',
+        SmartNotificationCategory.marketAlerts => 'Piyasa alarmları',
+        SmartNotificationCategory.newOpportunities => 'Yeni fırsatlar',
+        SmartNotificationCategory.followedStores => 'Takip edilen mağazalar',
+        SmartNotificationCategory.savedContentChanges =>
+          'Kaydedilen içerik değişiklikleri',
+        SmartNotificationCategory.dailyDigest => 'Günlük kişisel özet',
+        SmartNotificationCategory.weatherAlerts => 'Hava uyarıları',
+        SmartNotificationCategory.announcements => 'Trendora duyuruları',
         SmartNotificationCategory.finance => 'Finans ve takip listesi',
         SmartNotificationCategory.company => 'KAP ve şirket gelişmeleri',
         SmartNotificationCategory.news => 'Önemli haberler',
@@ -136,4 +178,17 @@ class _BildirimAyarlariSayfasiState extends State<BildirimAyarlariSayfasi> {
         SmartNotificationCategory.weather => 'Hava uyarıları',
         SmartNotificationCategory.reminders => 'Hatırlatmalar',
       };
+
+  static const _selectableCategories = <SmartNotificationCategory>[
+    SmartNotificationCategory.breakingNews,
+    SmartNotificationCategory.importantNews,
+    SmartNotificationCategory.followedAssets,
+    SmartNotificationCategory.marketAlerts,
+    SmartNotificationCategory.newOpportunities,
+    SmartNotificationCategory.followedStores,
+    SmartNotificationCategory.savedContentChanges,
+    SmartNotificationCategory.dailyDigest,
+    SmartNotificationCategory.weatherAlerts,
+    SmartNotificationCategory.announcements,
+  ];
 }

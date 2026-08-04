@@ -54,7 +54,7 @@ class NewsClusterCandidate {
   String get stableId {
     final id = newsId.trim();
     if (id.isNotEmpty) return id;
-    final normalizedUrl = _normalizeUrl(url);
+    final normalizedUrl = normalizeContentUrl(url);
     if (normalizedUrl.isNotEmpty) return normalizedUrl;
     return '${title.trim()}|${publishedAt?.toUtc().toIso8601String() ?? 'no-date'}';
   }
@@ -467,7 +467,7 @@ class NewsClusteringService {
     final newsId = candidate.newsId.trim();
     if (newsId.isNotEmpty) keys.add('id:$newsId');
 
-    final normalizedUrl = _normalizeUrl(candidate.url);
+    final normalizedUrl = normalizeContentUrl(candidate.url);
     if (normalizedUrl.isNotEmpty) keys.add('url:$normalizedUrl');
 
     final day =
@@ -1099,21 +1099,36 @@ String _normalizeText(String value) {
       .replaceAll(RegExp(r'\s+'), ' ');
 }
 
-String _normalizeUrl(String value) {
+String normalizeContentUrl(String value) {
   final uri = Uri.tryParse(value.trim());
-  if (uri == null || !uri.hasScheme) return '';
+  if (uri == null ||
+      !const {'http', 'https'}.contains(uri.scheme.toLowerCase()) ||
+      uri.host.isEmpty) {
+    return '';
+  }
+  const trackingParameters = <String>{
+    'fbclid',
+    'gclid',
+    'dclid',
+    'msclkid',
+    'mc_cid',
+    'mc_eid',
+    'oc',
+  };
   final queryParameters = Map<String, String>.from(uri.queryParameters)
     ..removeWhere((key, _) {
       final normalized = key.toLowerCase();
       return normalized.startsWith('utm_') ||
-          normalized == 'fbclid' ||
-          normalized == 'gclid' ||
-          normalized == 'oc';
+          trackingParameters.contains(normalized);
     });
-  return uri
-      .replace(queryParameters: queryParameters, fragment: '')
-      .toString()
-      .replaceFirst(RegExp(r'/$'), '');
+  return Uri(
+    scheme: uri.scheme.toLowerCase(),
+    userInfo: uri.userInfo,
+    host: uri.host.toLowerCase(),
+    port: uri.hasPort ? uri.port : null,
+    path: uri.path,
+    queryParameters: queryParameters.isEmpty ? null : queryParameters,
+  ).toString().replaceFirst(RegExp(r'/$'), '');
 }
 
 double _candidateCompleteness(NewsClusterCandidate item) {

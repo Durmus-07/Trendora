@@ -320,7 +320,7 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
     return Scaffold(
       backgroundColor: const Color(0xFF07111F),
       appBar: AppBar(
-        title: const Text('Akıllı Kısayollar'),
+        title: const Text('Trendora Arama Motoru'),
         actions: [
           IconButton(
             onPressed: _loading ? null : _reorder,
@@ -331,6 +331,11 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          const Text(
+            'Trendora içindeki haberleri, fırsatları, piyasaları ve analizleri arayın veya genel bir soru sorun.',
+            style: TextStyle(color: Colors.white70, height: 1.4),
+          ),
+          const SizedBox(height: 12),
           TextField(
             controller: _controller,
             textInputAction: TextInputAction.search,
@@ -338,7 +343,7 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
               if (!_speechBusy) _execute(value);
             },
             decoration: InputDecoration(
-              hintText: 'Altın bugün ne kadar?',
+              hintText: 'Bir şey yazın veya sorun…',
               prefixIcon: const Icon(Icons.auto_awesome_rounded),
               suffixIcon: Row(
                 mainAxisSize: MainAxisSize.min,

@@ -3,6 +3,16 @@ import 'package:geolocator/geolocator.dart';
 import 'package:trendora_app/core/weather/weather_data_policy.dart';
 
 void main() {
+  test('backend stale marker is respected inside the normal age window', () {
+    expect(
+      WeatherDataPolicy.isStale({
+        'stale': true,
+        'updatedAt': DateTime.now().toUtc().toIso8601String(),
+      }),
+      isTrue,
+    );
+  });
+
   test('coordinates are reduced to approximate two-decimal precision', () {
     expect(WeatherDataPolicy.approximateCoordinate(41.0082376), 41.01);
     expect(WeatherDataPolicy.approximateCoordinate(28.9783589), 28.98);

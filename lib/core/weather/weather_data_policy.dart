@@ -37,6 +37,7 @@ class WeatherDataPolicy {
   }
 
   static bool isStale(Map<String, dynamic> data, {DateTime? now}) {
+    if (data['stale'] == true) return true;
     final updateTime = updatedAt(data);
     if (updateTime == null) return true;
     return (now ?? DateTime.now()).difference(updateTime) > staleAfter;

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../core/daily_digest/daily_digest_models.dart';
 import '../core/daily_digest/daily_digest_service.dart';
@@ -11,6 +12,7 @@ import '../core/personalization/personalization_preferences.dart';
 import '../core/personalization/personalization_service.dart';
 import '../core/personalization/personalization_storage.dart';
 import '../core/premium_ai/premium_ai_summary_service.dart';
+import '../core/notifications/smart_notification_engine.dart';
 import '../theme/trendora_theme.dart';
 import 'premium_ai_digest_section.dart';
 
@@ -46,6 +48,8 @@ class DailyDigestSection extends StatefulWidget {
     required this.onOpenOpportunities,
     required this.onOpenWeather,
     required this.onOpenFinance,
+    this.onOpenDirectItem,
+    this.onNotificationPayload,
     this.dependenciesBuilder,
     this.now,
     this.premiumAiService,
@@ -57,6 +61,8 @@ class DailyDigestSection extends StatefulWidget {
   final VoidCallback onOpenOpportunities;
   final VoidCallback onOpenWeather;
   final ValueChanged<String> onOpenFinance;
+  final Future<bool> Function(DailyDigestItem item)? onOpenDirectItem;
+  final ValueChanged<String?>? onNotificationPayload;
   final Future<DailyDigestDependencies> Function()? dependenciesBuilder;
   final DateTime Function()? now;
   final PremiumAiSummaryGateway? premiumAiService;
@@ -125,10 +131,48 @@ class _DailyDigestSectionState extends State<DailyDigestSection> {
     try {
       final snapshot = await dependencies.digestService.loadDue(preferences);
       if (mounted) setState(() => _snapshot = snapshot);
+      if (snapshot != null) {
+        await _dispatchNotifications(preferences.userId, snapshot);
+      }
     } catch (_) {
       // Kaynak hatası ana sayfayı durdurmaz; mevcut özet korunur.
     } finally {
       if (mounted) setState(() => _loadingDigest = false);
+    }
+  }
+
+  Future<void> _dispatchNotifications(
+    String userId,
+    DailyDigestSnapshot snapshot,
+  ) async {
+    try {
+      final shared = await SharedPreferences.getInstance();
+      final store = SharedPreferencesSmartNotificationStore(shared);
+      final notificationPreferences = await store.loadPreferences(userId);
+      if (!notificationPreferences.enabled) return;
+      final plugin = FlutterLocalNotificationsPlugin();
+      await plugin.initialize(
+        settings: const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          iOS: DarwinInitializationSettings(),
+        ),
+        onDidReceiveNotificationResponse: (response) =>
+            widget.onNotificationPayload?.call(response.payload),
+      );
+      final engine = SmartNotificationEngine(
+        store: store,
+        gateway: LocalSmartNotificationGateway(plugin),
+      );
+      await engine.process(
+        userId,
+        DailyDigestNotificationEvents.dailySummary(snapshot),
+      );
+      await engine.process(
+        userId,
+        DailyDigestNotificationEvents.fromSnapshot(snapshot),
+      );
+    } catch (_) {
+      // Bildirim hatası özet üretimini veya ana ekranı durdurmaz.
     }
   }
 
@@ -308,6 +352,14 @@ class _DailyDigestSectionState extends State<DailyDigestSection> {
                 if (category != grouped.keys.last) const SizedBox(height: 10),
               ],
           ],
+          if (preferences.dailyDigestEnabled &&
+              _snapshot?.statistics.isEmpty == false) ...[
+            const SizedBox(height: 13),
+            _DigestStatistics(
+              statistics: _snapshot!.statistics,
+              onOpenNews: widget.onOpenNews,
+            ),
+          ],
           PremiumAiDigestSection(
             snapshot: _snapshot,
             enabled: widget.premiumAiEnabled,
@@ -341,7 +393,8 @@ class _DailyDigestSectionState extends State<DailyDigestSection> {
     return '$period özeti • ${preferences.digestTime} • ${_timeLabel(_snapshot!.generatedAt)} güncellendi';
   }
 
-  void _openItem(DailyDigestItem item) {
+  Future<void> _openItem(DailyDigestItem item) async {
+    if (await widget.onOpenDirectItem?.call(item) == true) return;
     switch (item.category) {
       case DailyDigestCategory.news:
         widget.onOpenNews();
@@ -361,6 +414,82 @@ class _DailyDigestSectionState extends State<DailyDigestSection> {
   static String _timeLabel(DateTime value) {
     final local = value.toLocal();
     return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+class _DigestStatistics extends StatelessWidget {
+  const _DigestStatistics({required this.statistics, required this.onOpenNews});
+
+  final DailyDigestStatistics statistics;
+  final VoidCallback onOpenNews;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = <(String, int, IconData, VoidCallback?)>[
+      if (statistics.savedAssetCount > 0)
+        (
+          'Kaydedilen varlık',
+          statistics.savedAssetCount,
+          Icons.star_outline,
+          null,
+        ),
+      if (statistics.savedAnalysisCount > 0)
+        (
+          'Kaydedilen analiz',
+          statistics.savedAnalysisCount,
+          Icons.bookmark_outline,
+          null,
+        ),
+      if (statistics.savedNewsCount > 0)
+        (
+          'Kaydedilen haber',
+          statistics.savedNewsCount,
+          Icons.article_outlined,
+          onOpenNews,
+        ),
+      if (statistics.updatedLast24HoursCount > 0)
+        (
+          '24 saatte güncellenen',
+          statistics.updatedLast24HoursCount,
+          Icons.update_rounded,
+          null,
+        ),
+      if (statistics.priceChangedCount > 0)
+        (
+          'Fiyatı değişen',
+          statistics.priceChangedCount,
+          Icons.swap_vert_rounded,
+          null,
+        ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'KAYDEDİLENLER',
+          style: TextStyle(
+            color: TrendoraColors.textSecondary,
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: entries
+              .map(
+                (entry) => ActionChip(
+                  avatar: Icon(entry.$3, size: 15),
+                  label: Text('${entry.$1}: ${entry.$2}'),
+                  onPressed: entry.$4,
+                ),
+              )
+              .toList(growable: false),
+        ),
+      ],
+    );
   }
 }
 

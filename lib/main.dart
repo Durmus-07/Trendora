@@ -10,12 +10,14 @@ import 'dunya_tarama_sayfasi.dart';
 import 'firsatlar_sayfasi.dart';
 import 'haberler_sayfasi.dart';
 import 'hava_merkezi_sayfasi.dart';
+import 'daily_digest_navigation.dart';
 import 'theme/trendora_theme.dart';
 import 'trend_tahmini_sayfasi.dart';
 import 'core/weather_notification_service.dart';
 import 'core/auth/trendora_auth_service.dart';
 import 'core/api_client.dart';
 import 'core/api_config.dart';
+import 'core/daily_digest/daily_digest_models.dart';
 import 'widgets/daily_digest_section.dart';
 import 'widgets/personalized_recommendations_section.dart';
 import 'widgets/smart_shortcuts_section.dart';
@@ -23,8 +25,74 @@ import 'widgets/smart_shortcuts_section.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await TrendoraAuthService.instance.initialize();
-  await WeatherNotificationService.initialize();
+  await WeatherNotificationService.initialize(
+    onNotificationPayload: _handleSmartNotificationPayload,
+  );
   runApp(const TrendoraApp());
+}
+
+final GlobalKey<NavigatorState> trendoraNavigatorKey =
+    GlobalKey<NavigatorState>();
+
+Future<void> _handleSmartNotificationPayload(String? raw) async {
+  if (raw == null || raw.trim().isEmpty) return;
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) return;
+    final data = Map<String, dynamic>.from(decoded);
+    final context = trendoraNavigatorKey.currentContext;
+    if (context == null) return;
+    if (data['type'] == 'dailyDigest') {
+      trendoraNavigatorKey.currentState?.popUntil((route) => route.isFirst);
+      return;
+    }
+    final type = '${data['type'] ?? ''}';
+    final category = switch (type) {
+      'news' => DailyDigestCategory.news,
+      'opportunity' => DailyDigestCategory.opportunities,
+      'weather' => DailyDigestCategory.weather,
+      'analysis' => DailyDigestCategory.savedAnalyses,
+      _ => DailyDigestCategory.finance,
+    };
+    final item = DailyDigestItem(
+      id: 'notification:${data['itemId'] ?? data['canonicalSymbol'] ?? type}',
+      category: category,
+      title: '${data['title'] ?? ''}',
+      detail: '${data['detail'] ?? ''}',
+      source: '${data['source'] ?? 'Trendora'}',
+      updatedAt:
+          DateTime.tryParse('${data['updatedAt'] ?? ''}') ?? DateTime.now(),
+      reference: '${data['canonicalSymbol'] ?? data['itemId'] ?? ''}',
+      itemType: type,
+      itemId: '${data['itemId'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${data['itemId']}',
+      canonicalSymbol: '${data['canonicalSymbol'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${data['canonicalSymbol']}',
+      originalUrl: '${data['originalUrl'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${data['originalUrl']}',
+      snapshot: data['snapshot'] is Map
+          ? Map<String, dynamic>.from(data['snapshot'] as Map)
+          : null,
+      target: '${data['target'] ?? ''}',
+      targetArguments: data['targetArguments'] is Map
+          ? Map<String, dynamic>.from(data['targetArguments'] as Map)
+          : null,
+      currentStatus: '${data['currentStatus'] ?? ''}',
+    );
+    final opened = await openDailyDigestItem(context, item);
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bildirim ayrıntısı artık kullanılamıyor.'),
+        ),
+      );
+    }
+  } catch (_) {
+    // Bozuk veya eski payload uygulamayı durdurmaz.
+  }
 }
 
 class TrendoraApp extends StatelessWidget {
@@ -33,6 +101,7 @@ class TrendoraApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: trendoraNavigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Trendora',
       theme: TrendoraTheme.dark,
@@ -391,6 +460,9 @@ class _SabitAnaMenuIcerigi extends StatelessWidget {
                       onOpenNews: onHaberler,
                       onOpenOpportunities: onFirsatlar,
                       onOpenWeather: onHava,
+                      onOpenDirectItem: (item) =>
+                          openDailyDigestItem(context, item),
+                      onNotificationPayload: _handleSmartNotificationPayload,
                       onOpenFinance: (query) {
                         Navigator.of(context).push(
                           MaterialPageRoute(

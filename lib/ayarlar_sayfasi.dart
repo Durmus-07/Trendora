@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'core/feature_flags.dart';
 import 'bildirim_ayarlari_sayfasi.dart';
+import 'hava_merkezi_sayfasi.dart';
 import 'hesabim_sayfasi.dart';
 import 'ilgi_alanlari_sayfasi.dart';
 
@@ -22,6 +23,22 @@ class AyarlarSayfasi extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          _baslik('Hızlı Ayarlar'),
+          _menu(
+            context,
+            ikon: Icons.cloud_outlined,
+            baslik: 'Akıllı Hava Merkezi',
+            altBaslik: 'Konum, tahmin, yenileme ve hava uyarıları',
+            sayfa: const HavaMerkeziSayfasi(),
+          ),
+          _menu(
+            context,
+            ikon: Icons.notifications_none,
+            baslik: 'Bildirimler',
+            altBaslik: 'İzin, alarm ve bildirim tercihleri',
+            sayfa: const BildirimAyarlariSayfasi(),
+          ),
+          const SizedBox(height: 18),
           _baslik('Kişiselleştirme'),
           _menu(
             context,
@@ -45,13 +62,6 @@ class AyarlarSayfasi extends StatelessWidget {
               altBaslik: 'Yakında',
               yakinda: true,
             ),
-          _menu(
-            context,
-            ikon: Icons.notifications_none,
-            baslik: 'Bildirimler',
-            altBaslik: 'Alarm ve bildirim tercihleri',
-            sayfa: const BildirimAyarlariSayfasi(),
-          ),
           _menu(
             context,
             ikon: Icons.dark_mode_outlined,

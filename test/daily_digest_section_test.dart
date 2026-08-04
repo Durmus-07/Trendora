@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:trendora_app/core/daily_digest/daily_digest_models.dart';
 import 'package:trendora_app/core/daily_digest/daily_digest_service.dart';
 import 'package:trendora_app/core/personalization/personalization_service.dart';
@@ -10,6 +11,10 @@ import 'package:trendora_app/widgets/daily_digest_section.dart';
 
 void main() {
   final now = DateTime(2026, 7, 28, 20);
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
 
   testWidgets('disabled digest is responsive and does not load sources', (
     tester,
@@ -104,9 +109,59 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  testWidgets('digest card forwards exact identity to direct navigator', (
+    tester,
+  ) async {
+    final source = _FakeDigestSource(
+      newsRows: [
+        {
+          'id': 'news-direct-1',
+          'title': 'Doğrudan açılacak haber',
+          'source': 'Haber Kaynağı',
+          'url': 'https://example.com/direct?utm_source=test',
+          'isBreaking': true,
+          'publishedAt': now
+              .subtract(const Duration(hours: 1))
+              .toIso8601String(),
+        },
+      ],
+    );
+    final dependencies = _dependencies(_MemoryStore(), source, now);
+    await dependencies.personalizationService.initialize();
+    await dependencies.personalizationService.update(
+      (current) => current.copyWith(
+        dailyDigestEnabled: true,
+        digestTime: '09:00',
+        digestCategories: {DailyDigestCategory.news},
+      ),
+    );
+    DailyDigestItem? opened;
+    await tester.pumpWidget(
+      _app(
+        dependencies,
+        now,
+        onOpenDirectItem: (item) async {
+          opened = item;
+          return true;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Doğrudan açılacak haber'));
+    await tester.pump();
+
+    expect(opened?.itemId, 'news-direct-1');
+    expect(opened?.target, 'newsDetail');
+    expect(opened?.normalizedUrl, 'https://example.com/direct');
+  });
 }
 
-Widget _app(DailyDigestDependencies dependencies, DateTime now) {
+Widget _app(
+  DailyDigestDependencies dependencies,
+  DateTime now, {
+  Future<bool> Function(DailyDigestItem item)? onOpenDirectItem,
+}) {
   return MaterialApp(
     theme: TrendoraTheme.dark,
     home: Scaffold(
@@ -118,6 +173,7 @@ Widget _app(DailyDigestDependencies dependencies, DateTime now) {
           onOpenOpportunities: () {},
           onOpenWeather: () {},
           onOpenFinance: (_) {},
+          onOpenDirectItem: onOpenDirectItem,
         ),
       ),
     ),

@@ -11,7 +11,11 @@ import 'core/weather/weather_data_policy.dart';
 import 'core/weather_notification_service.dart';
 
 class HavaMerkeziSayfasi extends StatefulWidget {
-  const HavaMerkeziSayfasi({super.key, this.initialWeather, this.autoLocate = true});
+  const HavaMerkeziSayfasi({
+    super.key,
+    this.initialWeather,
+    this.autoLocate = true,
+  });
 
   final Map<String, dynamic>? initialWeather;
   final bool autoLocate;
@@ -52,12 +56,16 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
     final query = _arama.text.trim();
     if (query.length < 2 || _yukleniyor) return;
     FocusManager.instance.primaryFocus?.unfocus();
-    setState(() { _yukleniyor = true; _hata = null; });
+    setState(() {
+      _yukleniyor = true;
+      _hata = null;
+    });
     try {
       Map<String, dynamic>? place;
       for (final candidate in WeatherDataPolicy.citySearchCandidates(query)) {
-        final searchUri = Uri.parse('${ApiConfig.baseUrl}/api/weather/search')
-            .replace(queryParameters: {'q': candidate});
+        final searchUri = Uri.parse(
+          '${ApiConfig.baseUrl}/api/weather/search',
+        ).replace(queryParameters: {'q': candidate});
         final searchResponse = await ApiClient.get(
           searchUri,
           cacheTtl: const Duration(hours: 1),
@@ -82,16 +90,25 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
           'name': '${place['label'] ?? place['name']}',
         },
       );
-      final response = await ApiClient.get(weatherUri, cacheTtl: WeatherDataPolicy.cacheTtl);
+      final response = await ApiClient.get(
+        weatherUri,
+        cacheTtl: WeatherDataPolicy.cacheTtl,
+      );
       final decoded = jsonDecode(utf8.decode(response.bodyBytes));
       if (response.statusCode != 200 || decoded is! Map) {
         throw Exception('Hava verisi şu anda alınamadı.');
       }
       if (mounted) setState(() => _hava = Map<String, dynamic>.from(decoded));
       await _havaKartiKaydet(Map<String, dynamic>.from(decoded));
-      if (_bildirimlerAcik) await _bildirimTercihiniDegistir(true, sessiz: true);
+      if (_bildirimlerAcik) {
+        await _bildirimTercihiniDegistir(true, sessiz: true);
+      }
     } catch (error) {
-      if (mounted) setState(() => _hata = error.toString().replaceFirst('Exception: ', ''));
+      if (mounted) {
+        setState(
+          () => _hata = error.toString().replaceFirst('Exception: ', ''),
+        );
+      }
     } finally {
       if (mounted) setState(() => _yukleniyor = false);
     }
@@ -108,31 +125,57 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
         permission = await Geolocator.requestPermission();
       }
       if (WeatherDataPolicy.shouldUseCityFallback(permission)) {
-        throw Exception('Konum izni verilmedi. İstersen şehir adını elle arayabilirsin.');
+        throw Exception(
+          'Konum izni verilmedi. İstersen şehir adını elle arayabilirsin.',
+        );
       }
-      setState(() { _yukleniyor = true; _hata = null; });
+      setState(() {
+        _yukleniyor = true;
+        _hata = null;
+      });
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium, timeLimit: Duration(seconds: 15)),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 15),
+        ),
       );
-      final approximateLatitude = WeatherDataPolicy.approximateCoordinate(position.latitude);
-      final approximateLongitude = WeatherDataPolicy.approximateCoordinate(position.longitude);
+      final approximateLatitude = WeatherDataPolicy.approximateCoordinate(
+        position.latitude,
+      );
+      final approximateLongitude = WeatherDataPolicy.approximateCoordinate(
+        position.longitude,
+      );
       var locationName = 'Konumum';
       try {
-        final places = await Geocoding().placemarkFromCoordinates(approximateLatitude, approximateLongitude);
+        final places = await Geocoding().placemarkFromCoordinates(
+          approximateLatitude,
+          approximateLongitude,
+        );
         if (places.isNotEmpty) {
           final place = places.first;
-          locationName = <String?>[place.subAdministrativeArea, place.administrativeArea]
-              .where((part) => part != null && part.trim().isNotEmpty)
-              .map((part) => part!.trim())
-              .toSet()
-              .join(', ');
-          if (locationName.isEmpty) locationName = place.locality?.trim() ?? 'Konumum';
+          locationName =
+              <String?>[place.subAdministrativeArea, place.administrativeArea]
+                  .where((part) => part != null && part.trim().isNotEmpty)
+                  .map((part) => part!.trim())
+                  .toSet()
+                  .join(', ');
+          if (locationName.isEmpty) {
+            locationName = place.locality?.trim() ?? 'Konumum';
+          }
         }
       } catch (_) {}
       _arama.text = locationName;
-      await _koordinattanGetir(approximateLatitude, approximateLongitude, locationName);
+      await _koordinattanGetir(
+        approximateLatitude,
+        approximateLongitude,
+        locationName,
+      );
     } catch (error) {
-      if (mounted) setState(() => _hata = error.toString().replaceFirst('Exception: ', ''));
+      if (mounted) {
+        setState(
+          () => _hata = error.toString().replaceFirst('Exception: ', ''),
+        );
+      }
       if (_hava == null) await _sehriGetir();
     } finally {
       if (mounted) setState(() => _yukleniyor = false);
@@ -140,12 +183,17 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
   }
 
   Future<void> _koordinattanGetir(double lat, double lon, String name) async {
-    final uri = Uri.parse('${ApiConfig.baseUrl}/api/weather').replace(
-      queryParameters: {'lat': '$lat', 'lon': '$lon', 'name': name},
+    final uri = Uri.parse(
+      '${ApiConfig.baseUrl}/api/weather',
+    ).replace(queryParameters: {'lat': '$lat', 'lon': '$lon', 'name': name});
+    final response = await ApiClient.get(
+      uri,
+      cacheTtl: WeatherDataPolicy.cacheTtl,
     );
-    final response = await ApiClient.get(uri, cacheTtl: WeatherDataPolicy.cacheTtl);
     final decoded = jsonDecode(utf8.decode(response.bodyBytes));
-    if (response.statusCode != 200 || decoded is! Map) throw Exception('Konumun hava verisi alınamadı.');
+    if (response.statusCode != 200 || decoded is! Map) {
+      throw Exception('Konumun hava verisi alınamadı.');
+    }
     if (mounted) setState(() => _hava = Map<String, dynamic>.from(decoded));
     await _havaKartiKaydet(Map<String, dynamic>.from(decoded));
     if (_bildirimlerAcik) await _bildirimTercihiniDegistir(true, sessiz: true);
@@ -153,49 +201,98 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
 
   Future<void> _havaKartiKaydet(Map<String, dynamic> data) async {
     final prefs = await SharedPreferences.getInstance();
-    final location = data['location'] is Map ? data['location'] as Map : const {};
+    final location = data['location'] is Map
+        ? data['location'] as Map
+        : const {};
     final current = data['current'] is Map ? data['current'] as Map : const {};
-    await prefs.setString('weather_card_location', '${location['name'] ?? 'Konumum'}');
-    await prefs.setString('weather_card_description', '${current['description'] ?? ''}');
-    if (current['weatherCode'] is num) await prefs.setInt('weather_card_code', (current['weatherCode'] as num).toInt());
-    if (current['temperature'] is num) await prefs.setDouble('weather_card_temperature', (current['temperature'] as num).toDouble());
-    if (location['latitude'] is num) await prefs.setDouble('weather_card_latitude', (location['latitude'] as num).toDouble());
-    if (location['longitude'] is num) await prefs.setDouble('weather_card_longitude', (location['longitude'] as num).toDouble());
+    await prefs.setString(
+      'weather_card_location',
+      '${location['name'] ?? 'Konumum'}',
+    );
+    await prefs.setString(
+      'weather_card_description',
+      '${current['description'] ?? ''}',
+    );
+    if (current['weatherCode'] is num) {
+      await prefs.setInt(
+        'weather_card_code',
+        (current['weatherCode'] as num).toInt(),
+      );
+    }
+    if (current['temperature'] is num) {
+      await prefs.setDouble(
+        'weather_card_temperature',
+        (current['temperature'] as num).toDouble(),
+      );
+    }
+    if (location['latitude'] is num) {
+      await prefs.setDouble(
+        'weather_card_latitude',
+        (location['latitude'] as num).toDouble(),
+      );
+    }
+    if (location['longitude'] is num) {
+      await prefs.setDouble(
+        'weather_card_longitude',
+        (location['longitude'] as num).toDouble(),
+      );
+    }
   }
 
-  Future<void> _bildirimTercihiniDegistir(bool enabled, {bool sessiz = false}) async {
+  Future<void> _bildirimTercihiniDegistir(
+    bool enabled, {
+    bool sessiz = false,
+  }) async {
     if (!enabled) {
       await WeatherNotificationService.disable();
       if (mounted) setState(() => _bildirimlerAcik = false);
       return;
     }
-    final location = Map<String, dynamic>.from(_hava?['location'] as Map? ?? {});
+    final location = Map<String, dynamic>.from(
+      _hava?['location'] as Map? ?? {},
+    );
     final lat = location['latitude'];
     final lon = location['longitude'];
     if (lat is! num || lon is! num) {
-      if (!sessiz) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Önce konum veya şehir hava verisini yükle.')));
+      if (!sessiz) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Önce konum veya şehir hava verisini yükle.'),
+          ),
+        );
+      }
       return;
     }
     final warnings = _list('warnings');
     final allowed = await WeatherNotificationService.enable(
-      latitude: lat.toDouble(), longitude: lon.toDouble(),
+      latitude: lat.toDouble(),
+      longitude: lon.toDouble(),
       locationName: '${location['name'] ?? 'Konumum'}',
-      currentCode: _current['weatherCode'] is num ? (_current['weatherCode'] as num).toInt() : null,
+      currentCode: _current['weatherCode'] is num
+          ? (_current['weatherCode'] as num).toInt()
+          : null,
       warning: warnings.isEmpty ? '' : '${warnings.first['message'] ?? ''}',
     );
     if (mounted) setState(() => _bildirimlerAcik = allowed);
     if (!allowed && !sessiz && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bildirim izni verilmedi.')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Bildirim izni verilmedi.')));
     }
   }
 
-  Map<String, dynamic> get _current => Map<String, dynamic>.from(_hava?['current'] as Map? ?? {});
-  List<Map<String, dynamic>> _list(String key) => (_hava?[key] as List? ?? const [])
-      .whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  Map<String, dynamic> get _current =>
+      Map<String, dynamic>.from(_hava?['current'] as Map? ?? {});
+  List<Map<String, dynamic>> _list(String key) =>
+      (_hava?[key] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
   Map<String, dynamic>? get _drivingWarning => _hava?['drivingWarning'] is Map
       ? Map<String, dynamic>.from(_hava!['drivingWarning'] as Map)
       : null;
-  String _num(dynamic value, [int fraction = 0]) => value is num ? value.toStringAsFixed(fraction) : '-';
+  String _num(dynamic value, [int fraction = 0]) =>
+      value is num ? value.toStringAsFixed(fraction) : '-';
 
   IconData _icon(dynamic code) {
     final c = code is num ? code.toInt() : -1;
@@ -214,8 +311,15 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
         backgroundColor: const Color(0xFF071421),
         title: const Text('Akıllı Hava Merkezi'),
         actions: [
-          IconButton(tooltip: 'Konumumu bul', onPressed: _yukleniyor ? null : _konumuBul, icon: const Icon(Icons.my_location_rounded)),
-          IconButton(onPressed: _yukleniyor ? null : _sehriGetir, icon: const Icon(Icons.refresh_rounded)),
+          IconButton(
+            tooltip: 'Konumumu bul',
+            onPressed: _yukleniyor ? null : _konumuBul,
+            icon: const Icon(Icons.my_location_rounded),
+          ),
+          IconButton(
+            onPressed: _yukleniyor ? null : _sehriGetir,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
         ],
       ),
       body: RefreshIndicator(
@@ -232,7 +336,10 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
               decoration: InputDecoration(
                 hintText: 'Şehir veya ilçe ara',
                 prefixIcon: const Icon(Icons.location_on_outlined),
-                suffixIcon: IconButton(onPressed: _sehriGetir, icon: const Icon(Icons.search_rounded)),
+                suffixIcon: IconButton(
+                  onPressed: _sehriGetir,
+                  icon: const Icon(Icons.search_rounded),
+                ),
               ),
             ),
             if (_yukleniyor) ...[
@@ -241,31 +348,64 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
             ],
             if (_hata != null) ...[
               const SizedBox(height: 16),
-              _panel(child: Text(_hata!, style: const TextStyle(color: Color(0xFFFF8A92)))),
+              _panel(
+                child: Text(
+                  _hata!,
+                  style: const TextStyle(color: Color(0xFFFF8A92)),
+                ),
+              ),
             ],
             if (_hava != null) ...[
               const SizedBox(height: 16),
               if (WeatherDataPolicy.isStale(_hava!)) ...[
-                _panel(child: const Row(children: [
-                  Icon(Icons.history_rounded, color: Color(0xFFFFC857)),
-                  SizedBox(width: 9),
-                  Expanded(child: Text('Bu hava verisi eski olabilir. Güncel koşullar için yenile.', style: TextStyle(color: Color(0xFFFFDDA0)))),
-                ])),
+                _panel(
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.history_rounded,
+                        color: Color(0xFFFFC857),
+                      ),
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          '${_hava!['message'] ?? 'Bu hava verisi eski olabilir. Güncel koşullar için yenile.'}',
+                          style: const TextStyle(color: Color(0xFFFFDDA0)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 10),
               ],
               _anaKart(),
               const SizedBox(height: 10),
-              _panel(child: Material(
-                type: MaterialType.transparency,
-                child: SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: _bildirimlerAcik,
-                  onChanged: _bildirimTercihiniDegistir,
-                  secondary: Icon(_bildirimlerAcik ? Icons.notifications_active_rounded : Icons.notifications_off_outlined, color: const Color(0xFF7DD3FC)),
-                  title: const Text('Hava değişikliği bildirimleri', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-                  subtitle: const Text('İsteğe bağlıdır. Önemli değişim veya risk oluşunca bildirir.', style: TextStyle(color: Color(0xFF8097A9), fontSize: 11)),
+              _panel(
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    value: _bildirimlerAcik,
+                    onChanged: _bildirimTercihiniDegistir,
+                    secondary: Icon(
+                      _bildirimlerAcik
+                          ? Icons.notifications_active_rounded
+                          : Icons.notifications_off_outlined,
+                      color: const Color(0xFF7DD3FC),
+                    ),
+                    title: const Text(
+                      'Hava değişikliği bildirimleri',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'İsteğe bağlıdır. Önemli değişim veya risk oluşunca bildirir.',
+                      style: TextStyle(color: Color(0xFF8097A9), fontSize: 11),
+                    ),
+                  ),
                 ),
-              )),
+              ),
               if (_list('warnings').isNotEmpty) ...[
                 const SizedBox(height: 12),
                 ..._list('warnings').map(_uyari),
@@ -307,32 +447,83 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
   }
 
   Widget _anaKart() {
-    final location = Map<String, dynamic>.from(_hava?['location'] as Map? ?? {});
+    final location = Map<String, dynamic>.from(
+      _hava?['location'] as Map? ?? {},
+    );
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF123D59), Color(0xFF0B2135)]),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF123D59), Color(0xFF0B2135)],
+        ),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(color: const Color(0xFF2D6B8D)),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('${location['name'] ?? _arama.text}', style: const TextStyle(color: Color(0xFFB9E8FF), fontWeight: FontWeight.w800)),
-        const SizedBox(height: 14),
-        Row(children: [
-          Icon(_icon(_current['weatherCode']), size: 58, color: const Color(0xFFFFD166)),
-          const SizedBox(width: 14),
-          Text('${_num(_current['temperature'])}°', style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w900)),
-          const SizedBox(width: 12),
-          Expanded(child: Text('${_current['description'] ?? '-'}\nHissedilen ${_num(_current['apparentTemperature'])}°', style: const TextStyle(color: Color(0xFFD3E7F4), height: 1.5))),
-        ]),
-        const Divider(color: Color(0xFF2B536B), height: 28),
-        Wrap(spacing: 14, runSpacing: 12, children: [
-          _metric(Icons.water_drop_outlined, 'Nem', '%${_num(_current['humidity'])}'),
-          _metric(Icons.air_rounded, 'Rüzgâr', '${_num(_current['windSpeed'])} km/s'),
-          _metric(Icons.speed_rounded, 'Basınç', '${_num(_current['pressure'])} hPa'),
-          _metric(Icons.cloud_outlined, 'Bulut', '%${_num(_current['cloudCover'])}'),
-        ]),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${location['name'] ?? _arama.text}',
+            style: const TextStyle(
+              color: Color(0xFFB9E8FF),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Icon(
+                _icon(_current['weatherCode']),
+                size: 58,
+                color: const Color(0xFFFFD166),
+              ),
+              const SizedBox(width: 14),
+              Text(
+                '${_num(_current['temperature'])}°',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 48,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '${_current['description'] ?? '-'}\nHissedilen ${_num(_current['apparentTemperature'])}°',
+                  style: const TextStyle(color: Color(0xFFD3E7F4), height: 1.5),
+                ),
+              ),
+            ],
+          ),
+          const Divider(color: Color(0xFF2B536B), height: 28),
+          Wrap(
+            spacing: 14,
+            runSpacing: 12,
+            children: [
+              _metric(
+                Icons.water_drop_outlined,
+                'Nem',
+                '%${_num(_current['humidity'])}',
+              ),
+              _metric(
+                Icons.air_rounded,
+                'Rüzgâr',
+                '${_num(_current['windSpeed'])} km/s',
+              ),
+              _metric(
+                Icons.speed_rounded,
+                'Basınç',
+                '${_num(_current['pressure'])} hPa',
+              ),
+              _metric(
+                Icons.cloud_outlined,
+                'Bulut',
+                '%${_num(_current['cloudCover'])}',
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -345,66 +536,209 @@ class _HavaMerkeziSayfasiState extends State<HavaMerkeziSayfasi> {
       itemBuilder: (_, i) {
         final h = _list('hourly')[i];
         final time = DateTime.tryParse('${h['time']}');
-        return _panel(width: 84, child: Column(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text(time == null ? '-' : '${time.hour.toString().padLeft(2, '0')}:00', style: const TextStyle(color: Color(0xFFAFC4D3))),
-          Icon(_icon(h['weatherCode']), color: const Color(0xFF7DD3FC)),
-          Text('${_num(h['temperature'])}°', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-          Text('%${_num(h['precipitationProbability'])} yağış', style: const TextStyle(color: Color(0xFF7D99AE), fontSize: 9)),
-        ]));
+        return _panel(
+          width: 84,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                time == null
+                    ? '-'
+                    : '${time.hour.toString().padLeft(2, '0')}:00',
+                style: const TextStyle(color: Color(0xFFAFC4D3)),
+              ),
+              Icon(_icon(h['weatherCode']), color: const Color(0xFF7DD3FC)),
+              Text(
+                '${_num(h['temperature'])}°',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Text(
+                '%${_num(h['precipitationProbability'])} yağış',
+                style: const TextStyle(color: Color(0xFF7D99AE), fontSize: 9),
+              ),
+            ],
+          ),
+        );
       },
     ),
   );
 
   Widget _gunluk(Map<String, dynamic> day) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
-    child: _panel(child: Row(children: [
-      Icon(_icon(day['weatherCode']), color: const Color(0xFF7DD3FC)),
-      const SizedBox(width: 12),
-      Expanded(child: Text('${day['date']}\n${day['description'] ?? '-'}', style: const TextStyle(color: Colors.white, height: 1.35))),
-      Text('${_num(day['minTemperature'])}°  /  ${_num(day['maxTemperature'])}°', style: const TextStyle(color: Color(0xFFFFD166), fontWeight: FontWeight.w900)),
-      const SizedBox(width: 10),
-      Text('%${_num(day['precipitationProbability'])}', style: const TextStyle(color: Color(0xFF7DD3FC), fontSize: 11)),
-    ])),
+    child: _panel(
+      child: Row(
+        children: [
+          Icon(_icon(day['weatherCode']), color: const Color(0xFF7DD3FC)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              '${day['date']}\n${day['description'] ?? '-'}',
+              style: const TextStyle(color: Colors.white, height: 1.35),
+            ),
+          ),
+          Text(
+            '${_num(day['minTemperature'])}°  /  ${_num(day['maxTemperature'])}°',
+            style: const TextStyle(
+              color: Color(0xFFFFD166),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '%${_num(day['precipitationProbability'])}',
+            style: const TextStyle(color: Color(0xFF7DD3FC), fontSize: 11),
+          ),
+        ],
+      ),
+    ),
   );
 
   Widget _uyari(Map<String, dynamic> warning) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
     child: Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFF3A2414), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF8A5A24))),
-      child: Row(children: [const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFC857)), const SizedBox(width: 9), Expanded(child: Text('${warning['message']}', style: const TextStyle(color: Color(0xFFFFDDA0))))]),
+      decoration: BoxDecoration(
+        color: const Color(0xFF3A2414),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF8A5A24)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFC857)),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              '${warning['message']}',
+              style: const TextStyle(color: Color(0xFFFFDDA0)),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 
   Widget _bilgi(Map<String, dynamic> insight) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
-    child: _panel(child: Row(children: [
-      const Icon(Icons.info_outline_rounded, color: Color(0xFF7DD3FC)),
-      const SizedBox(width: 9),
-      Expanded(child: Text('${insight['message'] ?? ''}', style: const TextStyle(color: Color(0xFFD3E7F4)))),
-    ])),
+    child: _panel(
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline_rounded, color: Color(0xFF7DD3FC)),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              '${insight['message'] ?? ''}',
+              style: const TextStyle(color: Color(0xFFD3E7F4)),
+            ),
+          ),
+        ],
+      ),
+    ),
   );
 
   Widget _aktivite(Map<String, dynamic> activity) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
-    child: _panel(child: Row(children: [
-      Icon(activity['type'] == 'with_children' ? Icons.family_restroom_rounded : Icons.directions_walk_rounded, color: const Color(0xFF6EE7B7)),
-      const SizedBox(width: 9),
-      Expanded(child: Text('${activity['message'] ?? ''}', style: const TextStyle(color: Color(0xFFCFF8E7)))),
-    ])),
+    child: _panel(
+      child: Row(
+        children: [
+          Icon(
+            activity['type'] == 'with_children'
+                ? Icons.family_restroom_rounded
+                : Icons.directions_walk_rounded,
+            color: const Color(0xFF6EE7B7),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              '${activity['message'] ?? ''}',
+              style: const TextStyle(color: Color(0xFFCFF8E7)),
+            ),
+          ),
+        ],
+      ),
+    ),
   );
 
   Widget _surusUyarisi(Map<String, dynamic> warning) => Container(
     padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(color: const Color(0xFF302416), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF7D6333))),
-    child: Row(children: [
-      const Icon(Icons.directions_car_filled_rounded, color: Color(0xFFFFC857)),
-      const SizedBox(width: 9),
-      Expanded(child: Text('${warning['message'] ?? ''}', style: const TextStyle(color: Color(0xFFFFE5B2)))),
-    ]),
+    decoration: BoxDecoration(
+      color: const Color(0xFF302416),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: const Color(0xFF7D6333)),
+    ),
+    child: Row(
+      children: [
+        const Icon(
+          Icons.directions_car_filled_rounded,
+          color: Color(0xFFFFC857),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            '${warning['message'] ?? ''}',
+            style: const TextStyle(color: Color(0xFFFFE5B2)),
+          ),
+        ),
+      ],
+    ),
   );
 
-  Widget _metric(IconData icon, String title, String value) => SizedBox(width: 135, child: Row(children: [Icon(icon, size: 18, color: const Color(0xFF7DD3FC)), const SizedBox(width: 7), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: Color(0xFF829BAD), fontSize: 10)), Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800))]))])) ;
-  Widget _baslik(String text, IconData icon) => Row(children: [Icon(icon, color: const Color(0xFF6EE7F9)), const SizedBox(width: 8), Flexible(child: Text(text, maxLines: 2, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w900)))]);
-  Widget _panel({required Widget child, double? width}) => Container(width: width, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFF0A1927), borderRadius: BorderRadius.circular(15), border: Border.all(color: const Color(0xFF1B3B52))), child: child);
+  Widget _metric(IconData icon, String title, String value) => SizedBox(
+    width: 135,
+    child: Row(
+      children: [
+        Icon(icon, size: 18, color: const Color(0xFF7DD3FC)),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(color: Color(0xFF829BAD), fontSize: 10),
+              ),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+  Widget _baslik(String text, IconData icon) => Row(
+    children: [
+      Icon(icon, color: const Color(0xFF6EE7F9)),
+      const SizedBox(width: 8),
+      Flexible(
+        child: Text(
+          text,
+          maxLines: 2,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    ],
+  );
+  Widget _panel({required Widget child, double? width}) => Container(
+    width: width,
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: const Color(0xFF0A1927),
+      borderRadius: BorderRadius.circular(15),
+      border: Border.all(color: const Color(0xFF1B3B52)),
+    ),
+    child: child,
+  );
 }

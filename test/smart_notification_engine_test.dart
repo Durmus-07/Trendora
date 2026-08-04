@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trendora_app/core/notifications/smart_notification_engine.dart';
+import 'package:trendora_app/core/daily_digest/daily_digest_models.dart';
 
 void main() {
   test('disabled preferences never send notifications', () async {
@@ -67,6 +68,63 @@ void main() {
       expect(gateway.lastPayload, 'trend');
     },
   );
+
+  test('daily limit prevents a second batch after three events', () async {
+    final store = _MemoryStore(
+      preferences: const SmartNotificationPreferences(
+        enabled: true,
+        categories: {SmartNotificationCategory.finance},
+      ),
+    );
+    final gateway = _FakeGateway();
+    final engine = SmartNotificationEngine(store: store, gateway: gateway);
+    expect(
+      await engine.process('guest', [_event('a'), _event('b'), _event('c')]),
+      3,
+    );
+    expect(await engine.process('guest', [_event('d')]), 0);
+    expect(gateway.calls, 1);
+  });
+
+  test(
+    'gateway failure is contained and does not mark event delivered',
+    () async {
+      final store = _MemoryStore(
+        preferences: const SmartNotificationPreferences(
+          enabled: true,
+          categories: {SmartNotificationCategory.finance},
+        ),
+      );
+      final count = await SmartNotificationEngine(
+        store: store,
+        gateway: _FailingGateway(),
+      ).process('guest', [_event('failure')]);
+      expect(count, 0);
+      expect(store.delivered, isEmpty);
+    },
+  );
+
+  test('stale weather digest never creates a notification event', () {
+    final snapshot = DailyDigestSnapshot(
+      userId: 'guest',
+      slotKey: '2026-07-27|morning',
+      generatedAt: DateTime.utc(2026, 7, 27),
+      items: [
+        DailyDigestItem(
+          id: 'weather',
+          category: DailyDigestCategory.weather,
+          title: 'İstanbul',
+          detail: 'Eski hava verisi',
+          source: 'Open-Meteo',
+          updatedAt: DateTime.utc(2026, 7, 27),
+          reference: 'İstanbul',
+          itemType: 'weather',
+          currentStatus: 'stale',
+        ),
+      ],
+    );
+    expect(DailyDigestNotificationEvents.fromSnapshot(snapshot), isEmpty);
+  });
 }
 
 SmartNotificationEvent _event(
@@ -127,5 +185,16 @@ class _FakeGateway implements SmartNotificationGateway {
   }) async {
     calls++;
     lastPayload = payload;
+  }
+}
+
+class _FailingGateway implements SmartNotificationGateway {
+  @override
+  Future<void> show({
+    required String title,
+    required String body,
+    required String payload,
+  }) async {
+    throw StateError('notification unavailable');
   }
 }

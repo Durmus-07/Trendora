@@ -4,6 +4,47 @@ import 'package:trendora_app/core/news/news_clustering_service.dart';
 void main() {
   final now = DateTime.utc(2026, 7, 29, 12);
 
+  group('content URL normalization', () {
+    test('removes tracking parameters and empty fragments', () {
+      expect(
+        normalizeContentUrl('https://example.com/direct?utm_source=test#'),
+        'https://example.com/direct',
+      );
+    });
+
+    test('preserves content identity parameters', () {
+      expect(
+        normalizeContentUrl('https://example.com/news?id=123&utm_campaign=x'),
+        'https://example.com/news?id=123',
+      );
+      expect(
+        normalizeContentUrl('https://example.com/page?category=ekonomi'),
+        'https://example.com/page?category=ekonomi',
+      );
+    });
+
+    test('removes all supported tracking keys case-insensitively', () {
+      expect(
+        normalizeContentUrl(
+          'https://example.com/product?sku=ABC&UTM_Medium=x&fbclid=1&gclid=2&dclid=3&msclkid=4&mc_cid=5&MC_EID=6',
+        ),
+        'https://example.com/product?sku=ABC',
+      );
+    });
+
+    test('removes non-empty fragments consistently with existing matching', () {
+      expect(
+        normalizeContentUrl('https://example.com/page#section'),
+        'https://example.com/page',
+      );
+    });
+
+    test('invalid and unsafe URLs fail closed', () {
+      expect(normalizeContentUrl('not a url'), isEmpty);
+      expect(normalizeContentUrl('file:///tmp/content'), isEmpty);
+    });
+  });
+
   NewsClusteringService service({
     int analysisCapacity = 512,
     int resultCapacity = 12,

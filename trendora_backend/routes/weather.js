@@ -15,12 +15,17 @@ const GEOCODING_URL =
   'https://geocoding-api.open-meteo.com/v1/search';
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
+const STALE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000;
 const SEARCH_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 9000;
 const MAX_CACHE_ITEMS = 250;
 
 const weatherCache = new Map();
 const searchCache = new Map();
+const weatherInFlight = new Map();
+const weatherBackoff = new Map();
+let weatherRequester = (url, options) => axios.get(url, options);
 
 function normalizeText(value) {
   return String(value || '').trim();
@@ -48,7 +53,7 @@ function finiteNumber(value) {
 
 function cleanupCache(cache, now = Date.now()) {
   for (const [key, item] of cache.entries()) {
-    if (!item || item.expiresAt <= now) {
+    if (!item || (item.staleExpiresAt || item.expiresAt) <= now) {
       cache.delete(key);
     }
   }
@@ -72,19 +77,27 @@ function getCached(cache, key) {
   }
 
   if (item.expiresAt <= Date.now()) {
-    cache.delete(key);
     return null;
   }
 
   return item.value;
 }
 
-function setCached(cache, key, value, ttl) {
+function getStale(cache, key) {
+  const item = cache.get(key);
+  if (!item || (item.staleExpiresAt || item.expiresAt) <= Date.now()) {
+    return null;
+  }
+  return item.value;
+}
+
+function setCached(cache, key, value, ttl, staleTtl = ttl) {
   cleanupCache(cache);
 
   cache.set(key, {
     value,
-    expiresAt: Date.now() + ttl
+    expiresAt: Date.now() + ttl,
+    staleExpiresAt: Date.now() + staleTtl
   });
 }
 
@@ -329,23 +342,11 @@ async function searchLocation(query) {
   };
 }
 
-async function fetchWeather(
+async function fetchWeatherFromProvider(
   latitude,
   longitude,
   locationName
 ) {
-  const key = `${latitude},${longitude}`;
-
-  const cached =
-    getCached(weatherCache, key);
-
-  if (cached) {
-    return {
-      ...cached,
-      cached: true
-    };
-  }
-
   const params = {
     latitude,
     longitude,
@@ -398,7 +399,7 @@ async function fetchWeather(
   };
 
   const response =
-    await axios.get(FORECAST_URL, {
+    await weatherRequester(FORECAST_URL, {
       timeout: REQUEST_TIMEOUT_MS,
       params
     });
@@ -563,17 +564,55 @@ async function fetchWeather(
       new Date().toISOString()
   };
 
-  setCached(
-    weatherCache,
-    key,
-    value,
-    CACHE_TTL_MS
-  );
+  return value;
+}
 
-  return {
-    ...value,
-    cached: false
-  };
+async function fetchWeather(latitude, longitude, locationName) {
+  const key = `${latitude},${longitude}`;
+  const cached = getCached(weatherCache, key);
+  if (cached) return { ...cached, cached: true, stale: false };
+
+  const stale = getStale(weatherCache, key);
+  const retryAt = weatherBackoff.get(key) || 0;
+  if (retryAt > Date.now()) {
+    if (stale) return {
+      ...stale,
+      cached: true,
+      stale: true,
+      message: 'Yeni hava verisi şu anda alınamıyor. Son başarılı tahmin gösteriliyor.'
+    };
+    const error = new Error('Hava sağlayıcısı kısa süreliğine beklemede.');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  if (weatherInFlight.has(key)) return weatherInFlight.get(key);
+
+  const request = fetchWeatherFromProvider(latitude, longitude, locationName)
+    .then(value => {
+      setCached(weatherCache, key, value, CACHE_TTL_MS, STALE_CACHE_TTL_MS);
+      weatherBackoff.delete(key);
+      return { ...value, cached: false, stale: false };
+    })
+    .catch(error => {
+      if (error?.response?.status === 429) {
+        const retryAfterSeconds = Number(error.response.headers?.['retry-after']);
+        const delay = Number.isFinite(retryAfterSeconds)
+          ? Math.max(RATE_LIMIT_BACKOFF_MS, retryAfterSeconds * 1000)
+          : RATE_LIMIT_BACKOFF_MS;
+        weatherBackoff.set(key, Date.now() + delay);
+      }
+      if (stale) return {
+        ...stale,
+        cached: true,
+        stale: true,
+        message: 'Yeni hava verisi şu anda alınamıyor. Son başarılı tahmin gösteriliyor.'
+      };
+      throw error;
+    })
+    .finally(() => weatherInFlight.delete(key));
+  weatherInFlight.set(key, request);
+  return request;
 }
 
 router.get('/search', async (req, res) => {
@@ -672,7 +711,7 @@ router.get('/', async (req, res) => {
       error.message
     );
 
-    res.status(502).json({
+    res.status(error.statusCode || (error?.response?.status === 429 ? 503 : 502)).json({
       success: false,
       message:
         'Hava durumu şu anda alınamadı.',
@@ -693,8 +732,26 @@ router.get('/health', (req, res) => {
     searchCacheItems:
       searchCache.size,
     cacheTtlMinutes:
-      CACHE_TTL_MS / 60000
+      CACHE_TTL_MS / 60000,
+    staleCacheTtlMinutes: STALE_CACHE_TTL_MS / 60000,
+    inFlightRequests: weatherInFlight.size,
+    backoffLocations: weatherBackoff.size
   });
 });
 
 module.exports = router;
+module.exports._test = {
+  fetchWeather,
+  weatherCache,
+  weatherInFlight,
+  weatherBackoff,
+  setWeatherRequester(requester) {
+    weatherRequester = requester;
+  },
+  reset() {
+    weatherRequester = (url, options) => axios.get(url, options);
+    weatherCache.clear();
+    weatherInFlight.clear();
+    weatherBackoff.clear();
+  }
+};

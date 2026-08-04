@@ -45,7 +45,7 @@ class _SmartShortcutsSectionState extends State<SmartShortcutsSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'AKILLI KISAYOLLAR',
+          'TRENDORA ARAMA MOTORU',
           style: TextStyle(
             color: Colors.white,
             fontSize: 12,
@@ -53,7 +53,17 @@ class _SmartShortcutsSectionState extends State<SmartShortcutsSection> {
             letterSpacing: 1.4,
           ),
         ),
+        const SizedBox(height: 4),
+        const Text(
+          'Haberleri, fırsatları ve piyasaları arayın veya bir soru sorun.',
+          style: TextStyle(color: Colors.white54, fontSize: 11),
+        ),
         const SizedBox(height: 9),
+        const Text(
+          'Örnek aramalar',
+          style: TextStyle(color: Colors.white60, fontSize: 10),
+        ),
+        const SizedBox(height: 6),
         SizedBox(
           height: 40,
           child: ListView.separated(
