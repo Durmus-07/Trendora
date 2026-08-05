@@ -15,12 +15,47 @@ const {
   streamToText
 } = require('../services/newsContentService');
 const { extractNewsItems, findNewsRecord, router } = require('../routes/newsApi');
+const {
+  createNewsTranslationService
+} = require('../services/newsTranslationService');
 const express = require('express');
 
 const longText = Array.from(
   { length: 95 },
   (_, index) => `haber metninin güvenli ve anlamlı kelimesi ${index}`
 ).join(' ');
+
+test('yalnizca Ingilizce haber cevrilir ve ayni icerik cache kullanir', async () => {
+  let calls = 0;
+  const service = createNewsTranslationService({
+    translate: async fields => {
+      calls += 1;
+      return {
+        title: `TR ${fields.title}`,
+        summary: `TR ${fields.summary}`,
+        content: `TR ${fields.content}`
+      };
+    }
+  });
+  const record = {
+    id: 'translation-cache-test',
+    language: 'en',
+    title: 'English title',
+    description: 'English summary',
+    url: 'https://example.com/translation'
+  };
+  const first = await service.resolve(record, { content: 'English content' });
+  const second = await service.resolve(record, { content: 'English content' });
+
+  assert.equal(first.title, 'TR English title');
+  assert.equal(first.cached, false);
+  assert.equal(second.cached, true);
+  assert.equal(calls, 1);
+  await assert.rejects(
+    service.resolve({ ...record, language: 'tr' }, { content: 'Metin' }),
+    error => error.code === 'UNSUPPORTED_LANGUAGE'
+  );
+});
 
 test('yeterli RSS metni ağ çağrısı yapmadan kullanılır', async () => {
   let calls = 0;
@@ -236,12 +271,19 @@ test('haber route alias, bilinmeyen içerik, status ve health cevapları uyumlud
   try {
     const address = server.address();
     const base = `http://127.0.0.1:${address.port}/api/news`;
-    const [listResponse, missingResponse, statusResponse, healthResponse] =
+    const [
+      listResponse,
+      missingResponse,
+      statusResponse,
+      healthResponse,
+      translationDisabledResponse
+    ] =
       await Promise.all([
         fetch(`${base}?limit=1`),
         fetch(`${base}/content?id=definitely-unknown-news-id`),
         fetch(`${base}/status`),
-        fetch(`${base}/health`)
+        fetch(`${base}/health`),
+        fetch(`${base}/translation?id=definitely-unknown-news-id`)
       ]);
     const list = await listResponse.json();
     const missing = await missingResponse.json();
@@ -257,6 +299,7 @@ test('haber route alias, bilinmeyen içerik, status ve health cevapları uyumlud
     assert.ok(['fresh', 'delayed', 'stale', 'running', 'error'].includes(
       status.freshnessStatus));
     assert.equal(healthResponse.status, 200);
+    assert.equal(translationDisabledResponse.status, 503);
 
     const originalLookup = dns.promises.lookup;
     const originalGet = axios.get;

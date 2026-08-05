@@ -35,8 +35,16 @@ module.exports = {
     process.env.ENABLE_PREMIUM_AI_SUMMARY,
     false
   ),
+  newsTranslationEnabled: parseBoolean(
+    process.env.ENABLE_NEWS_TRANSLATION,
+    false
+  ),
   aiPremiumOnly: parseBoolean(process.env.AI_PREMIUM_ONLY, true),
   analysisModel:
+    String(process.env.TRENDORA_ANALYSIS_MODEL || '').trim() ||
+    'gpt-4.1-mini',
+  translationModel:
+    String(process.env.TRENDORA_TRANSLATION_MODEL || '').trim() ||
     String(process.env.TRENDORA_ANALYSIS_MODEL || '').trim() ||
     'gpt-4.1-mini',
   jsonLimit: process.env.JSON_BODY_LIMIT || '256kb',

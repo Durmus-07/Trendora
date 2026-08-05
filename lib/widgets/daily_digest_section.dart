@@ -13,6 +13,8 @@ import '../core/personalization/personalization_service.dart';
 import '../core/personalization/personalization_storage.dart';
 import '../core/premium_ai/premium_ai_summary_service.dart';
 import '../core/notifications/smart_notification_engine.dart';
+import '../core/news/saved_news_store.dart';
+import '../core/saved_analysis_store.dart';
 import '../theme/trendora_theme.dart';
 import 'premium_ai_digest_section.dart';
 
@@ -77,6 +79,8 @@ class _DailyDigestSectionState extends State<DailyDigestSection> {
   DailyDigestDependencies? _dependencies;
   PersonalizationPreferences? _preferences;
   DailyDigestSnapshot? _snapshot;
+  List<SavedAnalysis> _savedAnalyses = const [];
+  List<SavedNews> _savedNews = const [];
   Timer? _scheduleTimer;
   bool _initializing = true;
   bool _loadingDigest = false;
@@ -102,6 +106,8 @@ class _DailyDigestSectionState extends State<DailyDigestSection> {
               DailyDigestDependencies.create());
       final preferences = await dependencies.personalizationService
           .initialize();
+      final savedAnalyses = await SavedAnalysisStore.load();
+      final savedNews = await SavedNewsStore.load();
       if (!mounted) return;
       final cached = preferences.dailyDigestEnabled
           ? dependencies.digestService.cached(preferences.userId)
@@ -110,6 +116,8 @@ class _DailyDigestSectionState extends State<DailyDigestSection> {
         _dependencies = dependencies;
         _preferences = preferences;
         _snapshot = cached;
+        _savedAnalyses = savedAnalyses;
+        _savedNews = savedNews;
         _initializing = false;
       });
       await _loadDueDigest(forceRefresh: true);
@@ -371,12 +379,16 @@ class _DailyDigestSectionState extends State<DailyDigestSection> {
                 if (category != grouped.keys.last) const SizedBox(height: 10),
               ],
           ],
-          if (preferences.dailyDigestEnabled &&
-              _snapshot?.statistics.isEmpty == false) ...[
+          if (preferences.trackedFinancialAssets.isNotEmpty ||
+              _savedAnalyses.isNotEmpty ||
+              _savedNews.isNotEmpty) ...[
             const SizedBox(height: 13),
-            _DigestStatistics(
-              statistics: _snapshot!.statistics,
-              onOpenNews: widget.onOpenNews,
+            _SavedItemsSection(
+              trackedAssets: preferences.trackedFinancialAssets,
+              analyses: _savedAnalyses,
+              news: _savedNews,
+              onOpenFinance: widget.onOpenFinance,
+              onOpenNews: _openSavedNews,
             ),
           ],
           PremiumAiDigestSection(
@@ -430,55 +442,75 @@ class _DailyDigestSectionState extends State<DailyDigestSection> {
     }
   }
 
+  Future<void> _openSavedNews(SavedNews saved) async {
+    final item = DailyDigestItem(
+      id: 'saved-news:${saved.id}',
+      category: DailyDigestCategory.news,
+      title: saved.title,
+      detail: saved.summary,
+      source: saved.source.isEmpty ? 'Kaydedilen haber' : saved.source,
+      updatedAt: saved.publishedAt,
+      reference: saved.id,
+      itemType: 'news',
+      itemId: saved.id,
+      originalUrl: saved.url,
+      savedAt: saved.savedAt,
+      snapshot: saved.toJson(),
+      currentStatus: 'saved',
+    );
+    if (await widget.onOpenDirectItem?.call(item) == true) return;
+    widget.onOpenNews();
+  }
+
   static String _timeLabel(DateTime value) {
     final local = value.toLocal();
     return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
   }
 }
 
-class _DigestStatistics extends StatelessWidget {
-  const _DigestStatistics({required this.statistics, required this.onOpenNews});
+class _SavedItemsSection extends StatelessWidget {
+  const _SavedItemsSection({
+    required this.trackedAssets,
+    required this.analyses,
+    required this.news,
+    required this.onOpenFinance,
+    required this.onOpenNews,
+  });
 
-  final DailyDigestStatistics statistics;
-  final VoidCallback onOpenNews;
+  final Set<String> trackedAssets;
+  final List<SavedAnalysis> analyses;
+  final List<SavedNews> news;
+  final ValueChanged<String> onOpenFinance;
+  final ValueChanged<SavedNews> onOpenNews;
 
   @override
   Widget build(BuildContext context) {
-    final entries = <(String, int, IconData, VoidCallback?)>[
-      if (statistics.savedAssetCount > 0)
-        (
-          'Kaydedilen varlık',
-          statistics.savedAssetCount,
-          Icons.star_outline,
-          null,
+    final entries = <_SavedEntry>[
+      for (final asset in trackedAssets)
+        _SavedEntry(
+          title: asset,
+          subtitle: 'Takip edilen varlık',
+          icon: Icons.star_outline_rounded,
+          color: TrendoraColors.primary,
+          onTap: () => onOpenFinance(asset),
         ),
-      if (statistics.savedAnalysisCount > 0)
-        (
-          'Kaydedilen analiz',
-          statistics.savedAnalysisCount,
-          Icons.bookmark_outline,
-          null,
+      for (final analysis in analyses)
+        _SavedEntry(
+          title: analysis.title.trim().isEmpty
+              ? analysis.query
+              : analysis.title,
+          subtitle: 'Kaydedilen analiz',
+          icon: Icons.bookmark_outline_rounded,
+          color: const Color(0xFFB9A7FF),
+          onTap: () => onOpenFinance(analysis.query),
         ),
-      if (statistics.savedNewsCount > 0)
-        (
-          'Kaydedilen haber',
-          statistics.savedNewsCount,
-          Icons.article_outlined,
-          onOpenNews,
-        ),
-      if (statistics.updatedLast24HoursCount > 0)
-        (
-          '24 saatte güncellenen',
-          statistics.updatedLast24HoursCount,
-          Icons.update_rounded,
-          null,
-        ),
-      if (statistics.priceChangedCount > 0)
-        (
-          'Fiyatı değişen',
-          statistics.priceChangedCount,
-          Icons.swap_vert_rounded,
-          null,
+      for (final saved in news)
+        _SavedEntry(
+          title: saved.title,
+          subtitle: saved.source.isEmpty ? 'Kaydedilen haber' : saved.source,
+          icon: Icons.article_outlined,
+          color: TrendoraColors.secondary,
+          onTap: () => onOpenNews(saved),
         ),
     ];
     return Column(
@@ -494,22 +526,95 @@ class _DigestStatistics extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: entries
-              .map(
-                (entry) => ActionChip(
-                  avatar: Icon(entry.$3, size: 15),
-                  label: Text('${entry.$1}: ${entry.$2}'),
-                  onPressed: entry.$4,
+        SizedBox(
+          height: 84,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: entries.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final entry = entries[index];
+              return SizedBox(
+                width: 205,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: entry.onTap,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Ink(
+                      padding: const EdgeInsets.all(11),
+                      decoration: BoxDecoration(
+                        color: TrendoraColors.backgroundSoft,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: entry.color.withValues(alpha: 0.32),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(entry.icon, color: entry.color, size: 20),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  entry.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: TrendoraColors.textPrimary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  entry.subtitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: TrendoraColors.textSecondary,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: TrendoraColors.textSecondary,
+                            size: 17,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              )
-              .toList(growable: false),
+              );
+            },
+          ),
         ),
       ],
     );
   }
+}
+
+class _SavedEntry {
+  const _SavedEntry({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
 }
 
 class _DigestGroup extends StatelessWidget {

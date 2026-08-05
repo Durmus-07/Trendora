@@ -595,7 +595,8 @@ async function fetchWeather(latitude, longitude, locationName) {
       return { ...value, cached: false, stale: false };
     })
     .catch(error => {
-      if (error?.response?.status === 429) {
+      const providerStatus = Number(error?.response?.status);
+      if (providerStatus === 429 || providerStatus >= 500) {
         const retryAfterSeconds = Number(error.response.headers?.['retry-after']);
         const delay = Number.isFinite(retryAfterSeconds)
           ? Math.max(RATE_LIMIT_BACKOFF_MS, retryAfterSeconds * 1000)

@@ -25,6 +25,14 @@ enum SmartNotificationCategory {
   reminders,
 }
 
+const supportedSmartNotificationCategories = <SmartNotificationCategory>{
+  SmartNotificationCategory.importantNews,
+  SmartNotificationCategory.newOpportunities,
+  SmartNotificationCategory.followedAssets,
+  SmartNotificationCategory.dailyDigest,
+  SmartNotificationCategory.weatherAlerts,
+};
+
 enum SmartNotificationEventType {
   priceTarget,
   percentageMove,

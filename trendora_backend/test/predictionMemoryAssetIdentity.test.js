@@ -1,16 +1,15 @@
 const assert = require('node:assert/strict');
 const { after, before, beforeEach, test } = require('node:test');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
-const databasePath = path.join(
-  __dirname,
-  '..',
-  'database',
-  'prediction_memory.json'
+const temporaryDirectory = fs.mkdtempSync(
+  path.join(os.tmpdir(), 'trendora-prediction-identity-')
 );
-
-let originalDatabase = null;
+const databasePath = path.join(temporaryDirectory, 'prediction_memory.json');
+const previousMemoryFile = process.env.TRENDORA_PREDICTION_MEMORY_FILE;
+process.env.TRENDORA_PREDICTION_MEMORY_FILE = databasePath;
 
 function writeDatabase(predictions = []) {
   fs.mkdirSync(path.dirname(databasePath), { recursive: true });
@@ -46,22 +45,19 @@ function loadService() {
   return require('../services/trend/predictionMemoryService');
 }
 
-before(() => {
-  if (fs.existsSync(databasePath)) {
-    originalDatabase = fs.readFileSync(databasePath, 'utf8');
-  }
-});
+before(() => writeDatabase([]));
 
 beforeEach(() => {
   writeDatabase([]);
 });
 
 after(() => {
-  if (originalDatabase == null) {
-    if (fs.existsSync(databasePath)) fs.unlinkSync(databasePath);
-    return;
+  if (previousMemoryFile == null) {
+    delete process.env.TRENDORA_PREDICTION_MEMORY_FILE;
+  } else {
+    process.env.TRENDORA_PREDICTION_MEMORY_FILE = previousMemoryFile;
   }
-  fs.writeFileSync(databasePath, originalDatabase, 'utf8');
+  fs.rmSync(temporaryDirectory, { recursive: true, force: true });
 });
 
 test('ASELS aliases share the same central identity and pending record', () => {

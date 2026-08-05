@@ -7,6 +7,10 @@ abstract interface class NewsContentGateway {
   Future<NewsContentResult> load({required String id, required String url});
 }
 
+abstract interface class NewsTranslationGateway {
+  Future<NewsTranslationResult> load({required String id, required String url});
+}
+
 class NewsContentResult {
   const NewsContentResult({
     required this.content,
@@ -58,6 +62,60 @@ class ApiNewsContentGateway implements NewsContentGateway {
       throw const FormatException('Geçersiz tam metin yanıtı.');
     }
     return NewsContentResult.fromJson(decoded);
+  }
+}
+
+class NewsTranslationResult {
+  const NewsTranslationResult({
+    required this.title,
+    required this.summary,
+    required this.content,
+    this.cached = false,
+  });
+
+  factory NewsTranslationResult.fromJson(Map<String, dynamic> json) {
+    return NewsTranslationResult(
+      title: sanitizeNewsContentText(json['title']?.toString() ?? ''),
+      summary: sanitizeNewsContentText(json['summary']?.toString() ?? ''),
+      content: sanitizeNewsContentText(json['content']?.toString() ?? ''),
+      cached: json['cached'] == true,
+    );
+  }
+
+  final String title;
+  final String summary;
+  final String content;
+  final bool cached;
+}
+
+class ApiNewsTranslationGateway implements NewsTranslationGateway {
+  const ApiNewsTranslationGateway();
+
+  @override
+  Future<NewsTranslationResult> load({
+    required String id,
+    required String url,
+  }) async {
+    final uri = Uri.parse('${ApiConfig.news}/translation').replace(
+      queryParameters: {
+        if (id.trim().isNotEmpty) 'id': id.trim(),
+        if (url.trim().isNotEmpty) 'url': url.trim(),
+      },
+    );
+    final response = await ApiClient.get(
+      uri,
+      timeout: const Duration(seconds: 45),
+      cacheTtl: const Duration(days: 1),
+      retries: 0,
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StateError('Çeviri servisi ${response.statusCode} döndürdü.');
+    }
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('Geçersiz çeviri yanıtı.');
+    }
+    return NewsTranslationResult.fromJson(decoded);
   }
 }
 

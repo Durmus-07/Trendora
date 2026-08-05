@@ -9,6 +9,14 @@ import 'core/news/saved_news_store.dart';
 
 typedef NewsSourceLauncher = Future<bool> Function();
 typedef NewsShareAction = Future<void> Function();
+typedef _NewsTranslationBuilder =
+    Widget Function(
+      BuildContext context,
+      NewsTranslationResult? translation,
+      bool showOriginal,
+      bool loading,
+      ValueChanged<bool> onSelectionChanged,
+    );
 
 String _resolvedNewsId({
   required String id,
@@ -70,6 +78,7 @@ class HaberDetaySayfasi extends StatelessWidget {
     this.id = '',
     this.category = '',
     this.feedSource = '',
+    this.language = '',
     this.isBreaking = false,
     this.relatedNews = const [],
     this.onOpenSource,
@@ -78,12 +87,15 @@ class HaberDetaySayfasi extends StatelessWidget {
     NewsExplanationService? explanationService,
     NewsIntelligenceService? intelligenceService,
     NewsContentGateway? contentGateway,
+    NewsTranslationGateway? translationGateway,
     NewsIntelligenceResult? intelligence,
     this.hasValidPublishedAt = true,
     this.sourceCount = 1,
     this.confirmingSourceCount = 0,
   }) : _shareService = shareService ?? NewsShareService(),
        _contentGateway = contentGateway ?? const ApiNewsContentGateway(),
+       _translationGateway =
+           translationGateway ?? const ApiNewsTranslationGateway(),
        _resolvedContent = _ResolvedContentSnapshot(articleText.trim()),
        _explanation = (explanationService ?? NewsExplanationService.shared)
            .explain(
@@ -129,6 +141,7 @@ class HaberDetaySayfasi extends StatelessWidget {
   final String id;
   final String category;
   final String feedSource;
+  final String language;
   final bool isBreaking;
   final bool hasValidPublishedAt;
   final int sourceCount;
@@ -138,6 +151,7 @@ class HaberDetaySayfasi extends StatelessWidget {
   final NewsShareAction? onShare;
   final NewsShareService _shareService;
   final NewsContentGateway _contentGateway;
+  final NewsTranslationGateway _translationGateway;
   final _ResolvedContentSnapshot _resolvedContent;
   final NewsExplanation _explanation;
   final NewsIntelligenceResult _intelligence;
@@ -266,84 +280,119 @@ class HaberDetaySayfasi extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FB),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: const Color(0xFF091426),
-        foregroundColor: Colors.white,
-        title: const Text(
-          'Haber Detayı',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.3,
-          ),
-        ),
-        actions: [
-          IconButton(
-            key: const Key('haber-ust-paylas'),
-            tooltip: 'Paylaş',
-            onPressed: () => _share(context),
-            icon: const Icon(Icons.ios_share_rounded),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: SafeArea(
-        child: _PremiumReadingView(
-          readingMinutes: _readingMinutes,
-          slivers: [
-            SliverToBoxAdapter(child: _buildImage()),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
-              sliver: SliverList.list(
-                children: [
-                  Text(
-                    title.trim().isEmpty ? 'Başlıksız haber' : title.trim(),
-                    style: const TextStyle(
-                      color: Color(0xFF111827),
-                      fontSize: 29,
-                      height: 1.18,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
-                    ),
+    return _NewsTranslationController(
+      enabled: language.trim().toLowerCase() == 'en',
+      newsId: _newsId,
+      url: url,
+      gateway: _translationGateway,
+      builder:
+          (context, translation, showOriginal, translationLoading, onSelect) {
+            final visibleTranslation = showOriginal ? null : translation;
+            final visibleTitle =
+                visibleTranslation?.title.trim().isNotEmpty == true
+                ? visibleTranslation!.title.trim()
+                : title.trim();
+            final visibleSummary =
+                visibleTranslation?.summary.trim().isNotEmpty == true
+                ? visibleTranslation!.summary.trim()
+                : summary.trim();
+
+            return Scaffold(
+              backgroundColor: const Color(0xFFF7F8FB),
+              appBar: AppBar(
+                elevation: 0,
+                backgroundColor: const Color(0xFF091426),
+                foregroundColor: Colors.white,
+                title: const Text(
+                  'Haber Detayı',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.3,
                   ),
-                  const SizedBox(height: 14),
-                  _buildMetadata(),
-                  const SizedBox(height: 22),
-                  _AsyncNewsArticleSection(
-                    newsId: _newsId,
-                    url: url,
-                    initialArticleText: articleText,
-                    summary: summary,
-                    gateway: _contentGateway,
-                    onArticleResolved: (content) {
-                      _resolvedContent.value = content;
-                    },
+                ),
+                actions: [
+                  IconButton(
+                    key: const Key('haber-ust-paylas'),
+                    tooltip: 'Paylaş',
+                    onPressed: () => _share(context),
+                    icon: const Icon(Icons.ios_share_rounded),
                   ),
-                  if (_hasSeparateSummary) ...[
-                    const SizedBox(height: 18),
-                    _NewsTextSection(title: 'Kısa Bakış', text: summary.trim()),
-                  ],
-                  const SizedBox(height: 18),
-                  _WhyItMattersSection(points: _importancePoints),
-                  const SizedBox(height: 18),
-                  _TrendoraExplainsCard(explanation: _explanation),
-                  const SizedBox(height: 26),
-                  _buildActions(context),
-                  if (relatedNews.isNotEmpty) ...[
-                    const SizedBox(height: 30),
-                    _RelatedNewsSection(items: relatedNews),
-                  ],
-                  const SizedBox(height: 30),
-                  _TrendoraAssessmentCard(intelligence: _intelligence),
+                  const SizedBox(width: 8),
                 ],
               ),
-            ),
-          ],
-        ),
-      ),
+              body: SafeArea(
+                child: _PremiumReadingView(
+                  readingMinutes: _readingMinutes,
+                  slivers: [
+                    SliverToBoxAdapter(child: _buildImage()),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
+                      sliver: SliverList.list(
+                        children: [
+                          Text(
+                            visibleTitle.isEmpty
+                                ? 'Başlıksız haber'
+                                : visibleTitle,
+                            style: const TextStyle(
+                              color: Color(0xFF111827),
+                              fontSize: 29,
+                              height: 1.18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          if (language.trim().toLowerCase() == 'en') ...[
+                            const SizedBox(height: 14),
+                            _NewsTranslationToggle(
+                              showOriginal: showOriginal,
+                              loading: translationLoading,
+                              onSelectionChanged: onSelect,
+                            ),
+                          ],
+                          const SizedBox(height: 14),
+                          _buildMetadata(),
+                          const SizedBox(height: 22),
+                          _AsyncNewsArticleSection(
+                            newsId: _newsId,
+                            url: url,
+                            initialArticleText: articleText,
+                            summary: visibleSummary,
+                            translatedArticleText:
+                                visibleTranslation?.content ?? '',
+                            showTranslation: visibleTranslation != null,
+                            gateway: _contentGateway,
+                            onArticleResolved: (content) {
+                              _resolvedContent.value = content;
+                            },
+                          ),
+                          if (_hasSeparateSummary) ...[
+                            const SizedBox(height: 18),
+                            _NewsTextSection(
+                              title: 'Kısa Bakış',
+                              text: visibleSummary,
+                            ),
+                          ],
+                          const SizedBox(height: 18),
+                          _WhyItMattersSection(points: _importancePoints),
+                          const SizedBox(height: 18),
+                          _TrendoraExplainsCard(explanation: _explanation),
+                          const SizedBox(height: 26),
+                          _buildActions(context),
+                          if (relatedNews.isNotEmpty) ...[
+                            const SizedBox(height: 30),
+                            _RelatedNewsSection(items: relatedNews),
+                          ],
+                          const SizedBox(height: 30),
+                          _TrendoraAssessmentCard(intelligence: _intelligence),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
     );
   }
 
@@ -564,6 +613,136 @@ class HaberDetaySayfasi extends StatelessWidget {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _NewsTranslationController extends StatefulWidget {
+  const _NewsTranslationController({
+    required this.enabled,
+    required this.newsId,
+    required this.url,
+    required this.gateway,
+    required this.builder,
+  });
+
+  final bool enabled;
+  final String newsId;
+  final String url;
+  final NewsTranslationGateway gateway;
+  final _NewsTranslationBuilder builder;
+
+  @override
+  State<_NewsTranslationController> createState() =>
+      _NewsTranslationControllerState();
+}
+
+class _NewsTranslationControllerState
+    extends State<_NewsTranslationController> {
+  NewsTranslationResult? _translation;
+  bool _showOriginal = true;
+  bool _loading = false;
+
+  Future<void> _select(bool showOriginal) async {
+    if (showOriginal || !widget.enabled) {
+      if (!_showOriginal) setState(() => _showOriginal = true);
+      return;
+    }
+    if (_translation != null) {
+      setState(() => _showOriginal = false);
+      return;
+    }
+    if (_loading) return;
+
+    setState(() => _loading = true);
+    try {
+      final result = await widget.gateway.load(
+        id: widget.newsId,
+        url: widget.url,
+      );
+      if (!mounted) return;
+      setState(() {
+        _translation = result;
+        _showOriginal = false;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _showOriginal = true;
+        _loading = false;
+      });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Türkçe çeviri hazırlanamadı; orijinal haber gösteriliyor.',
+            ),
+          ),
+        );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.builder(
+      context,
+      _translation,
+      _showOriginal,
+      _loading,
+      _select,
+    );
+  }
+}
+
+class _NewsTranslationToggle extends StatelessWidget {
+  const _NewsTranslationToggle({
+    required this.showOriginal,
+    required this.loading,
+    required this.onSelectionChanged,
+  });
+
+  final bool showOriginal;
+  final bool loading;
+  final ValueChanged<bool> onSelectionChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: SegmentedButton<bool>(
+            key: const Key('haber-dil-gecisi'),
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment<bool>(
+                value: false,
+                label: Text('Türkçe'),
+                icon: Icon(Icons.translate_rounded, size: 17),
+              ),
+              ButtonSegment<bool>(
+                value: true,
+                label: Text('Orijinal'),
+                icon: Icon(Icons.article_outlined, size: 17),
+              ),
+            ],
+            selected: {showOriginal},
+            onSelectionChanged: loading
+                ? null
+                : (selection) => onSelectionChanged(selection.first),
+          ),
+        ),
+        if (loading) ...[
+          const SizedBox(width: 10),
+          const SizedBox(
+            key: Key('haber-ceviri-yukleniyor'),
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ],
+      ],
+    );
   }
 }
 
@@ -1758,6 +1937,8 @@ class _AsyncNewsArticleSection extends StatefulWidget {
     required this.url,
     required this.initialArticleText,
     required this.summary,
+    required this.translatedArticleText,
+    required this.showTranslation,
     required this.gateway,
     required this.onArticleResolved,
   });
@@ -1766,6 +1947,8 @@ class _AsyncNewsArticleSection extends StatefulWidget {
   final String url;
   final String initialArticleText;
   final String summary;
+  final String translatedArticleText;
+  final bool showTranslation;
   final NewsContentGateway gateway;
   final ValueChanged<String> onArticleResolved;
 
@@ -1825,9 +2008,15 @@ class _AsyncNewsArticleSectionState extends State<_AsyncNewsArticleSection> {
 
   @override
   Widget build(BuildContext context) {
-    final visibleText = _text.isEmpty
-        ? 'Haberin tam metni kaynaktan sağlanmadı.'
+    final translatedText = sanitizeNewsContentText(
+      widget.translatedArticleText,
+    );
+    final currentText = widget.showTranslation && translatedText.isNotEmpty
+        ? translatedText
         : _text;
+    final visibleText = currentText.isEmpty
+        ? 'Haberin tam metni kaynaktan sağlanmadı.'
+        : currentText;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

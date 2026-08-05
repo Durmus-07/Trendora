@@ -116,6 +116,36 @@ void main() {
     expect(find.text('Test Fırsatı'), findsNothing);
   });
 
+  testWidgets('different Migros ids with the same title are both preserved', (
+    tester,
+  ) async {
+    final items = [
+      for (final entry in ['migros-1', 'migros-2'].indexed)
+        {
+          'id': entry.$2,
+          'title': 'Aynı kampanya başlığı',
+          'description': entry.$1 == 0 ? 'Ürün bir' : 'Ürün iki',
+          'category': 'market',
+          'source': 'telegram',
+          'store': 'Migros',
+          'currentPrice': 80,
+          'officialUrl': 'https://www.migros.com.tr/${entry.$2}',
+          'updatedAt': '2026-08-03T10:00:00.000Z',
+          'active': true,
+        },
+    ];
+    await tester.pumpWidget(
+      app((_) async => response('migros-v1', items: items)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ürün bir'), findsOneWidget);
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+    expect(find.text('Ürün iki'), findsOneWidget);
+  });
+
+
   testWidgets('hidden route and dispose stop periodic requests', (
     tester,
   ) async {

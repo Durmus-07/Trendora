@@ -155,6 +155,75 @@ void main() {
     expect(opened?.target, 'newsDetail');
     expect(opened?.normalizedUrl, 'https://example.com/direct');
   });
+
+  testWidgets('service output preserves opportunity and asset identities', (
+    tester,
+  ) async {
+    final source = _FakeDigestSource(
+      opportunityRows: [
+        {
+          'id': 'migros-direct-1',
+          'title': 'Migros doğrudan fırsat',
+          'store': 'Migros',
+          'source': 'Migros',
+          'officialUrl': 'https://www.migros.com.tr/urun-1',
+          'active': true,
+          'updatedAt': now.subtract(const Duration(hours: 2)).toIso8601String(),
+        },
+      ],
+      marketRows: [
+        {
+          'id': 'asset-asels',
+          'internalAssetId': 'bist:ASELS',
+          'symbol': 'ASELS',
+          'label': 'ASELSAN',
+          'source': 'BIST',
+          'price': 182.5,
+          'changePercent': 1.25,
+          'updatedAt': now
+              .subtract(const Duration(minutes: 5))
+              .toIso8601String(),
+        },
+      ],
+    );
+    final dependencies = _dependencies(_MemoryStore(), source, now);
+    await dependencies.personalizationService.initialize();
+    await dependencies.personalizationService.update(
+      (current) => current.copyWith(
+        dailyDigestEnabled: true,
+        digestTime: '09:00',
+        digestCategories: {
+          DailyDigestCategory.opportunities,
+          DailyDigestCategory.finance,
+        },
+        trackedFinancialAssets: {'ASELS'},
+      ),
+    );
+    final opened = <DailyDigestItem>[];
+    await tester.pumpWidget(
+      _app(
+        dependencies,
+        now,
+        onOpenDirectItem: (item) async {
+          opened.add(item);
+          return true;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Migros doğrudan fırsat'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('ASELSAN'));
+    await tester.tap(find.text('ASELSAN'));
+    await tester.pump();
+
+    expect(opened, hasLength(2));
+    expect(opened.first.opportunityId, 'migros-direct-1');
+    expect(opened.first.snapshot?['store'], 'Migros');
+    expect(opened.last.canonicalSymbol, 'ASELS');
+    expect(opened.last.internalAssetId, 'bist:ASELS');
+  });
 }
 
 Widget _app(
@@ -199,9 +268,15 @@ DailyDigestDependencies _dependencies(
 }
 
 class _FakeDigestSource implements DailyDigestDataSource {
-  _FakeDigestSource({this.newsRows = const []});
+  _FakeDigestSource({
+    this.newsRows = const [],
+    this.opportunityRows = const [],
+    this.marketRows = const [],
+  });
 
   final List<Map<String, dynamic>> newsRows;
+  final List<Map<String, dynamic>> opportunityRows;
+  final List<Map<String, dynamic>> marketRows;
   int callCount = 0;
 
   @override
@@ -213,13 +288,13 @@ class _FakeDigestSource implements DailyDigestDataSource {
   @override
   Future<List<Map<String, dynamic>>> opportunities() async {
     callCount++;
-    return const [];
+    return opportunityRows;
   }
 
   @override
   Future<List<Map<String, dynamic>>> marketBoard() async {
     callCount++;
-    return const [];
+    return marketRows;
   }
 
   @override

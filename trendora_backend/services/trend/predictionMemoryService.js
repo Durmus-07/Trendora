@@ -2,13 +2,15 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const databasePath = path.join(
-  __dirname,
-  '..',
-  '..',
-  'database',
-  'prediction_memory.json'
-);
+const databasePath = process.env.TRENDORA_PREDICTION_MEMORY_FILE
+  ? path.resolve(process.env.TRENDORA_PREDICTION_MEMORY_FILE)
+  : path.join(
+      __dirname,
+      '..',
+      '..',
+      'database',
+      'prediction_memory.json'
+    );
 
 function matchPredictionAsset(value) {
   try {

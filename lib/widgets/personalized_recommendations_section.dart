@@ -11,12 +11,16 @@ class PersonalizedRecommendationsSection extends StatefulWidget {
     required this.onOpenNews,
     required this.onOpenOpportunities,
     required this.onOpenFinance,
+    this.onOpenDirectItem,
+    this.onConfigure,
     this.loadRecommendations,
   });
 
   final VoidCallback onOpenNews;
   final VoidCallback onOpenOpportunities;
   final ValueChanged<String> onOpenFinance;
+  final Future<bool> Function(RecommendationItem item)? onOpenDirectItem;
+  final Future<void> Function()? onConfigure;
   final Future<RecommendationBundle> Function()? loadRecommendations;
 
   @override
@@ -31,6 +35,8 @@ class _PersonalizedRecommendationsSectionState
   RecommendationFeedbackStore? _feedbackStore;
   String? _userId;
   bool _loading = true;
+  bool _personalizationEnabled = true;
+  bool _loadFailed = false;
 
   @override
   void initState() {
@@ -47,6 +53,7 @@ class _PersonalizedRecommendationsSectionState
         setState(() {
           _bundle = bundle;
           _loading = false;
+          _loadFailed = false;
         });
         return;
       }
@@ -57,7 +64,13 @@ class _PersonalizedRecommendationsSectionState
       );
       final preferences = await personalization.initialize();
       if (!preferences.personalizationEnabled) {
-        if (mounted) setState(() => _loading = false);
+        if (mounted) {
+          setState(() {
+            _personalizationEnabled = false;
+            _loading = false;
+            _loadFailed = false;
+          });
+        }
         return;
       }
       final feedbackStore = await RecommendationFeedbackStore.create();
@@ -72,9 +85,16 @@ class _PersonalizedRecommendationsSectionState
         _userId = preferences.userId;
         _bundle = bundle;
         _loading = false;
+        _personalizationEnabled = true;
+        _loadFailed = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _loadFailed = true;
+        });
+      }
     }
   }
 
@@ -148,7 +168,8 @@ class _PersonalizedRecommendationsSectionState
     }
   }
 
-  void _open(RecommendationItem item) {
+  Future<void> _open(RecommendationItem item) async {
+    if (await widget.onOpenDirectItem?.call(item) == true) return;
     switch (item.type) {
       case RecommendationType.news:
         widget.onOpenNews();
@@ -188,7 +209,26 @@ class _PersonalizedRecommendationsSectionState
 
   @override
   Widget build(BuildContext context) {
-    if (_loading || _bundle.isEmpty) return const SizedBox.shrink();
+    if (_loading) {
+      return const Padding(
+        padding: EdgeInsets.only(bottom: 16),
+        child: LinearProgressIndicator(minHeight: 2),
+      );
+    }
+    if (_bundle.isEmpty) {
+      return _RecommendationEmptyState(
+        personalizationEnabled: _personalizationEnabled,
+        loadFailed: _loadFailed,
+        onPressed: () async {
+          if (!_personalizationEnabled && widget.onConfigure != null) {
+            await widget.onConfigure!.call();
+          }
+          if (!mounted) return;
+          setState(() => _loading = true);
+          await _load();
+        },
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -220,6 +260,69 @@ class _PersonalizedRecommendationsSectionState
         ],
         const SizedBox(height: 16),
       ],
+    );
+  }
+}
+
+class _RecommendationEmptyState extends StatelessWidget {
+  const _RecommendationEmptyState({
+    required this.personalizationEnabled,
+    required this.loadFailed,
+    required this.onPressed,
+  });
+
+  final bool personalizationEnabled;
+  final bool loadFailed;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: TrendoraColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: TrendoraColors.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.auto_awesome_rounded, color: TrendoraColors.accent),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'SANA ÖZEL ÖNERİLER',
+                  style: TextStyle(
+                    color: TrendoraColors.textPrimary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  !personalizationEnabled
+                      ? 'Haber ve fırsat önerileri için ilgi alanlarını seç.'
+                      : loadFailed
+                      ? 'Öneriler şu anda alınamadı.'
+                      : 'Seçimlerinle eşleşen yeni öneri bulunamadı.',
+                  style: const TextStyle(
+                    color: TrendoraColors.textSecondary,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: onPressed,
+            child: Text(personalizationEnabled ? 'Yenile' : 'İlgi Seç'),
+          ),
+        ],
+      ),
     );
   }
 }

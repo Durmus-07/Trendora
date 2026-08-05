@@ -18,6 +18,22 @@ class _FakeContentGateway implements NewsContentGateway {
   }
 }
 
+class _FakeTranslationGateway implements NewsTranslationGateway {
+  _FakeTranslationGateway(this.future);
+
+  final Future<NewsTranslationResult> future;
+  int calls = 0;
+
+  @override
+  Future<NewsTranslationResult> load({
+    required String id,
+    required String url,
+  }) {
+    calls += 1;
+    return future;
+  }
+}
+
 Widget _detail(NewsContentGateway gateway) {
   return MaterialApp(
     home: HaberDetaySayfasi(
@@ -35,6 +51,105 @@ Widget _detail(NewsContentGateway gateway) {
 }
 
 void main() {
+  testWidgets('İngilizce haber yalnızca Türkçe seçilince çevrilir', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final translationGateway = _FakeTranslationGateway(
+      Future.value(
+        const NewsTranslationResult(
+          title: 'Türkçe başlık',
+          summary: 'Türkçe özet',
+          content: 'Türkçe tam haber metni',
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HaberDetaySayfasi(
+          id: 'english-news',
+          title: 'English title',
+          imageUrl: '',
+          source: 'Source',
+          publishedAt: DateTime(2026),
+          summary: 'English summary',
+          articleText: 'English article text',
+          url: 'https://example.com/english-news',
+          language: 'en',
+          contentGateway: _FakeContentGateway(
+            Future.value(
+              const NewsContentResult(
+                content: 'English article text',
+                status: 'summary',
+              ),
+            ),
+          ),
+          translationGateway: translationGateway,
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('haber-dil-gecisi')), findsOneWidget);
+    expect(find.text('English title'), findsOneWidget);
+    expect(translationGateway.calls, 0);
+
+    await tester.tap(find.text('Türkçe'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(translationGateway.calls, 1);
+    expect(find.text('Türkçe başlık'), findsOneWidget);
+    expect(find.textContaining('Türkçe tam haber metni'), findsOneWidget);
+
+    await tester.tap(find.text('Orijinal'));
+    await tester.pump();
+    expect(find.text('English title'), findsOneWidget);
+  });
+
+  testWidgets('çeviri hatasında İngilizce haber görünmeye devam eder', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final translationCompleter = Completer<NewsTranslationResult>();
+    final translationGateway = _FakeTranslationGateway(
+      translationCompleter.future,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HaberDetaySayfasi(
+          id: 'failed-translation',
+          title: 'Original English title',
+          imageUrl: '',
+          source: 'Source',
+          publishedAt: DateTime(2026),
+          summary: 'Original English summary',
+          articleText: 'Original English content',
+          url: 'https://example.com/failed-translation',
+          language: 'en',
+          contentGateway: _FakeContentGateway(
+            Future.value(
+              const NewsContentResult(
+                content: 'Original English content',
+                status: 'summary',
+              ),
+            ),
+          ),
+          translationGateway: translationGateway,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Türkçe'));
+    await tester.pump();
+    translationCompleter.completeError(StateError('unavailable'));
+    await tester.pump();
+
+    expect(find.text('Original English title'), findsOneWidget);
+    expect(find.textContaining('orijinal haber gösteriliyor'), findsOneWidget);
+  });
+
   testWidgets('özet hemen görünür, tam metin gelince yerini alır', (
     tester,
   ) async {

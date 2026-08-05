@@ -73,6 +73,46 @@ void main() {
   });
 
   test(
+    'forced same-slot refresh replaces cached content with newer data',
+    () async {
+      final store = _MemoryStore();
+      final preferences = _enabled(
+        userId: 'fresh-user',
+        categories: {DailyDigestCategory.news},
+      );
+      Map<String, dynamic> news(String id, DateTime updatedAt) => {
+        'id': id,
+        'title': 'Güncel haber $id',
+        'description': 'Özet',
+        'source': 'AA',
+        'category': 'gundem',
+        'updatedAt': updatedAt.toIso8601String(),
+        'isBreaking': true,
+        'url': 'https://example.com/$id',
+      };
+      final firstSource = _FakeDigestSource(newsRows: [news('old', now)]);
+      final firstService = _service(firstSource, store, now);
+      expect(
+        (await firstService.loadDue(preferences))!.items.single.itemId,
+        'old',
+      );
+
+      final secondSource = _FakeDigestSource(
+        newsRows: [news('new', now.add(const Duration(minutes: 5)))],
+      );
+      final secondService = _service(secondSource, store, now);
+      expect(secondService.cached('fresh-user')!.items.single.itemId, 'old');
+      final refreshed = await secondService.loadDue(
+        preferences,
+        forceRefresh: true,
+      );
+
+      expect(secondSource.newsCalls, 1);
+      expect(refreshed!.items.single.itemId, 'new');
+    },
+  );
+
+  test(
     'cached rows are hidden when they become stale without a new request',
     () async {
       final source = _FakeDigestSource(

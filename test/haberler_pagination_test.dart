@@ -6,6 +6,31 @@ import 'package:http/http.dart' as http;
 import 'package:trendora_app/haberler_sayfasi.dart';
 
 void main() {
+  testWidgets('real API image aliases reach the news card image widget', (
+    tester,
+  ) async {
+    Future<http.Response> request(Uri uri) async => _response(
+      items: [
+        _newsJson(1)
+          ..remove('imageUrl')
+          ..['urlToImage'] = 'https://cdn.example.com/fixture.jpg',
+      ],
+      offset: 0,
+      limit: 30,
+      total: 1,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: HaberlerSayfasi.paginationTest(request: request)),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey<String>('haber-ag-gorseli-news-1')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'aynı veri sürümünde arka plan yenilemesi listeyi yeniden kurmaz',
     (tester) async {

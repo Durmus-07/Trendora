@@ -4,6 +4,9 @@ const path = require('path');
 const {
   getTrendOverview
 } = require('./trendEngine');
+const {
+  evaluateAllDuePredictionsWithMarketData
+} = require('./trend/predictionEvaluatorService');
 
 const TRENDS_DATABASE_FILE = path.join(
   __dirname,
@@ -51,10 +54,10 @@ async function writeJsonAtomic(filePath, value) {
   );
 }
 
-async function writeStatus(status) {
+async function writeStatus(status, filePath = TRENDS_STATUS_FILE) {
   try {
     await writeJsonAtomic(
-      TRENDS_STATUS_FILE,
+      filePath,
       {
         ...status,
         processId: process.pid,
@@ -69,7 +72,7 @@ async function writeStatus(status) {
   }
 }
 
-async function collectTrends() {
+async function collectTrends(options = {}) {
   if (collecting) {
     console.log(
       '[TREND COLLECTOR] Önceki tarama sürüyor, yeni tur atlandı.'
@@ -79,6 +82,12 @@ async function collectTrends() {
 
   collecting = true;
   const startedAt = Date.now();
+  const trendsDatabaseFile = options.trendsDatabaseFile || TRENDS_DATABASE_FILE;
+  const trendsStatusFile = options.trendsStatusFile || TRENDS_STATUS_FILE;
+  const loadTrendOverview = options.getTrendOverview || getTrendOverview;
+  const evaluateDuePredictions =
+    options.evaluateDuePredictions || evaluateAllDuePredictionsWithMarketData;
+  const logger = options.logger || console;
 
   await writeStatus({
     running: true,
@@ -86,10 +95,10 @@ async function collectTrends() {
     startedAt: new Date(startedAt).toISOString(),
     completedAt: null,
     error: null
-  });
+  }, trendsStatusFile);
 
   try {
-    console.log(
+    logger.log(
       '[TREND COLLECTOR] Trend özeti hazırlanıyor...'
     );
 
@@ -98,7 +107,7 @@ async function collectTrends() {
       Collector eski RAM önbelleğini kullanmak yerine
       yeni analiz üretir. API ise bu işlemi beklemez.
     */
-    const overview = await getTrendOverview({
+    const overview = await loadTrendOverview({
       forceRefresh: true
     });
 
@@ -121,9 +130,25 @@ async function collectTrends() {
     };
 
     await writeJsonAtomic(
-      TRENDS_DATABASE_FILE,
+      trendsDatabaseFile,
       database
     );
+
+    try {
+      const evaluation = await evaluateDuePredictions();
+      logger.log(
+        '[TREND COLLECTOR] Tahmin değerlendirmesi: ' +
+        `${Number(evaluation?.evaluated || 0)} başarılı, ` +
+        `${Number(evaluation?.skipped || 0)} atlanan, ` +
+        `${Number(evaluation?.failed || 0)} başarısız.`
+      );
+    } catch (evaluationError) {
+      logger.error(
+        '[TREND COLLECTOR] Tahmin değerlendirmesi tamamlanamadı: ' +
+        '0 başarılı, 0 atlanan, 1 servis hatası.',
+        evaluationError?.message || evaluationError
+      );
+    }
 
     await writeStatus({
       running: false,
@@ -133,15 +158,15 @@ async function collectTrends() {
       durationMs: Date.now() - startedAt,
       trendCount: trends.length,
       error: null
-    });
+    }, trendsStatusFile);
 
-    console.log(
+    logger.log(
       `[TREND COLLECTOR] Tamamlandı: ` +
       `${trends.length} trend, ` +
       `${Date.now() - startedAt} ms`
     );
   } catch (error) {
-    console.error(
+    logger.error(
       '[TREND COLLECTOR] Tarama hatası:',
       error?.stack || error?.message || error
     );
@@ -153,7 +178,7 @@ async function collectTrends() {
       completedAt: new Date().toISOString(),
       durationMs: Date.now() - startedAt,
       error: error?.message || String(error)
-    });
+    }, trendsStatusFile);
   } finally {
     collecting = false;
   }
@@ -199,34 +224,41 @@ async function stop(signal) {
   process.exit(0);
 }
 
-process.on(
-  'SIGTERM',
-  () => void stop('SIGTERM')
-);
+if (require.main === module) {
+  process.on(
+    'SIGTERM',
+    () => void stop('SIGTERM')
+  );
 
-process.on(
-  'SIGINT',
-  () => void stop('SIGINT')
-);
+  process.on(
+    'SIGINT',
+    () => void stop('SIGINT')
+  );
 
-process.on(
-  'unhandledRejection',
-  error => {
-    console.error(
-      '[TREND COLLECTOR] Yakalanmamış Promise hatası:',
-      error?.stack || error
-    );
-  }
-);
+  process.on(
+    'unhandledRejection',
+    error => {
+      console.error(
+        '[TREND COLLECTOR] Yakalanmamış Promise hatası:',
+        error?.stack || error
+      );
+    }
+  );
 
-process.on(
-  'uncaughtException',
-  error => {
-    console.error(
-      '[TREND COLLECTOR] Yakalanmamış hata:',
-      error?.stack || error
-    );
-  }
-);
+  process.on(
+    'uncaughtException',
+    error => {
+      console.error(
+        '[TREND COLLECTOR] Yakalanmamış hata:',
+        error?.stack || error
+      );
+    }
+  );
 
-void start();
+  void start();
+}
+
+module.exports = {
+  collectTrends,
+  start
+};

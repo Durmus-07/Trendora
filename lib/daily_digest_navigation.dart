@@ -21,6 +21,7 @@ Future<bool> openDailyDigestItem(
     case 'savedAnalyses':
       final query =
           (item.canonicalSymbol ??
+                  item.internalAssetId ??
                   item.targetArguments?['query']?.toString() ??
                   item.reference)
               .trim();

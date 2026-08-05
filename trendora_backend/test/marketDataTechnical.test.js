@@ -2,7 +2,10 @@
 
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { analyzeTechnicalData } = require('../services/marketDataService');
+const {
+  analyzeTechnicalData,
+  choosePreviousClose
+} = require('../services/marketDataService');
 const { normalizeAnalysis } = require('../services/trend/analysisOrchestrator');
 
 function rows(count, {
@@ -120,6 +123,25 @@ test('zero values never create NaN, infinity or division errors', () => {
   assert.equal(result.atrPercent, null);
   assert.ok(result.score >= 0 && result.score <= 100);
   assertNoInvalidNumbers(result);
+});
+
+test('daily change uses the previous trading close before provider metadata', () => {
+  for (const fixture of [
+    { current: 110, previous: 100, expected: 10 },
+    { current: 90, previous: 100, expected: -10 },
+    { current: 100, previous: 100, expected: 0 }
+  ]) {
+    const previousClose = choosePreviousClose({
+      current: fixture.current,
+      latestOpen: 95,
+      previousRowClose: fixture.previous,
+      metaPreviousClose: 80,
+      chartPreviousClose: 70
+    });
+    const changePercent = ((fixture.current - previousClose) / previousClose) * 100;
+    assert.equal(previousClose, fixture.previous);
+    assert.equal(changePercent, fixture.expected);
+  }
 });
 
 test('MACD, Bollinger, support and resistance are generated from OHLCV', () => {

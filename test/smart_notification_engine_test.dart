@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:trendora_app/core/notifications/smart_notification_engine.dart';
 import 'package:trendora_app/core/daily_digest/daily_digest_models.dart';
@@ -125,7 +127,62 @@ void main() {
     );
     expect(DailyDigestNotificationEvents.fromSnapshot(snapshot), isEmpty);
   });
+
+  test(
+    'digest producers match supported categories and keep route payloads',
+    () {
+      final generatedAt = DateTime.utc(2026, 7, 27);
+      final snapshot = DailyDigestSnapshot(
+        userId: 'guest',
+        slotKey: '2026-07-27|morning',
+        generatedAt: generatedAt,
+        items: [
+          _digestItem('news', DailyDigestCategory.news, 'newsDetail'),
+          _digestItem(
+            'opportunity',
+            DailyDigestCategory.opportunities,
+            'opportunityDetail',
+          ),
+          _digestItem('asset', DailyDigestCategory.finance, 'trendAnalysis'),
+          _digestItem('weather', DailyDigestCategory.weather, 'weatherCenter'),
+          _digestItem('payment', DailyDigestCategory.payments, 'payments'),
+        ],
+      );
+
+      final events = [
+        ...DailyDigestNotificationEvents.fromSnapshot(snapshot),
+        ...DailyDigestNotificationEvents.dailySummary(snapshot),
+      ];
+      expect(
+        events.map((event) => event.category).toSet(),
+        supportedSmartNotificationCategories,
+      );
+      expect(events, hasLength(5));
+      for (final event in events) {
+        final payload = jsonDecode(event.target) as Map<String, dynamic>;
+        expect(payload['type'], isNotEmpty);
+        expect(payload['target'], isNotEmpty);
+      }
+    },
+  );
 }
+
+DailyDigestItem _digestItem(
+  String id,
+  DailyDigestCategory category,
+  String target,
+) => DailyDigestItem(
+  id: id,
+  category: category,
+  title: 'Başlık $id',
+  detail: 'Açıklama $id',
+  source: 'Test',
+  updatedAt: DateTime.utc(2026, 7, 27),
+  reference: id,
+  itemType: category.name,
+  itemId: id,
+  target: target,
+);
 
 SmartNotificationEvent _event(
   String id, {

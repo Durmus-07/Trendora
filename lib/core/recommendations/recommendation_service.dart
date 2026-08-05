@@ -20,6 +20,7 @@ class RecommendationItem {
     required this.updatedAt,
     required this.score,
     required this.reference,
+    this.snapshot = const {},
   });
 
   final String id;
@@ -31,6 +32,7 @@ class RecommendationItem {
   final DateTime? updatedAt;
   final int score;
   final String reference;
+  final Map<String, dynamic> snapshot;
 }
 
 class RecommendationBundle {
@@ -283,6 +285,7 @@ class RecommendationService {
               updatedAt: item.updatedAt,
               score: item.score - 40,
               reference: item.reference,
+              snapshot: item.snapshot,
             )
           : item;
       final existing = unique[item.id];
@@ -330,6 +333,7 @@ class RecommendationService {
           updatedAt: _date(row),
           score: 80 + _freshnessScore(_date(row)),
           reference: reference,
+          snapshot: Map<String, dynamic>.from(row),
         ),
       );
     }
@@ -345,7 +349,6 @@ class RecommendationService {
         interests.contains('market_opportunities') ||
         interests.contains('shopping_opportunities') ||
         interests.contains('automotive');
-    if (!interested) return const [];
     return rows
         .where((row) => row['active'] != false)
         .map((row) {
@@ -362,11 +365,14 @@ class RecommendationService {
             type: RecommendationType.opportunity,
             title: title,
             description: _opportunityDescription(row),
-            reason: 'Takip ettiğin fırsat kategorisiyle eşleşiyor',
+            reason: interested
+                ? 'Takip ettiğin fırsat kategorisiyle eşleşiyor'
+                : 'Sana uygun güncel ve doğrulanmış fırsat',
             source: _source(row),
             updatedAt: date,
             score: 70 + _freshnessScore(date),
             reference: reference,
+            snapshot: Map<String, dynamic>.from(row),
           );
         })
         .where((item) => item.title.isNotEmpty)
@@ -405,23 +411,17 @@ class RecommendationService {
             updatedAt: date,
             score: (isTracked ? 100 : 75) + _freshnessScore(date),
             reference: symbol,
+            snapshot: Map<String, dynamic>.from(row),
           );
         })
         .whereType<RecommendationItem>()
         .toList(growable: false);
   }
 
-  static bool _needsNews(PersonalizationPreferences preferences) =>
-      preferences.interests.any(_newsInterestIds.contains);
+  static bool _needsNews(PersonalizationPreferences preferences) => true;
 
   static bool _needsOpportunities(PersonalizationPreferences preferences) =>
-      preferences.interests.any(
-        const {
-          'market_opportunities',
-          'shopping_opportunities',
-          'automotive',
-        }.contains,
-      );
+      true;
 
   static bool _needsFinance(PersonalizationPreferences preferences) =>
       preferences.trackedFinancialAssets.isNotEmpty ||

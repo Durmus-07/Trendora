@@ -10,6 +10,7 @@ import 'dunya_tarama_sayfasi.dart';
 import 'firsatlar_sayfasi.dart';
 import 'haberler_sayfasi.dart';
 import 'hava_merkezi_sayfasi.dart';
+import 'ilgi_alanlari_sayfasi.dart';
 import 'daily_digest_navigation.dart';
 import 'theme/trendora_theme.dart';
 import 'trend_tahmini_sayfasi.dart';
@@ -21,6 +22,7 @@ import 'core/daily_digest/daily_digest_models.dart';
 import 'widgets/daily_digest_section.dart';
 import 'widgets/personalized_recommendations_section.dart';
 import 'widgets/smart_shortcuts_section.dart';
+import 'onboarding_sayfasi.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -114,8 +116,51 @@ class TrendoraApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const AcilisSayfasi(),
+      home: const TrendoraBaslangicAkisi(),
     );
+  }
+}
+
+class TrendoraBaslangicAkisi extends StatefulWidget {
+  const TrendoraBaslangicAkisi({super.key});
+
+  @override
+  State<TrendoraBaslangicAkisi> createState() => _TrendoraBaslangicAkisiState();
+}
+
+class _TrendoraBaslangicAkisiState extends State<TrendoraBaslangicAkisi> {
+  static const _onboardingTamamlandiAnahtari =
+      'trendora_onboarding_completed_v1';
+
+  bool? _onboardingTamamlandi;
+
+  @override
+  void initState() {
+    super.initState();
+    _durumuYukle();
+  }
+
+  Future<void> _durumuYukle() async {
+    final preferences = await SharedPreferences.getInstance();
+    final tamamlandi =
+        preferences.getBool(_onboardingTamamlandiAnahtari) ?? false;
+    if (!mounted) return;
+    setState(() => _onboardingTamamlandi = tamamlandi);
+  }
+
+  Future<void> _onboardingTamamla() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(_onboardingTamamlandiAnahtari, true);
+    if (!mounted) return;
+    setState(() => _onboardingTamamlandi = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tamamlandi = _onboardingTamamlandi;
+    if (tamamlandi == null) return const TrendoraSplashIcerigi();
+    if (tamamlandi) return const AcilisSayfasi();
+    return OnboardingSayfasi(onCompleted: _onboardingTamamla);
   }
 }
 
@@ -444,6 +489,46 @@ class _SabitAnaMenuIcerigi extends StatelessWidget {
                     PersonalizedRecommendationsSection(
                       onOpenNews: onHaberler,
                       onOpenOpportunities: onFirsatlar,
+                      onConfigure: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const IlgiAlanlariSayfasi(),
+                          ),
+                        );
+                      },
+                      onOpenDirectItem: (recommendation) async {
+                        final type = recommendation.type.name;
+                        if (type == 'finance') return false;
+                        final data = recommendation.snapshot;
+                        final updatedAt =
+                            recommendation.updatedAt ?? DateTime.now();
+                        final reference = recommendation.reference.trim();
+                        final item = DailyDigestItem(
+                          id: recommendation.id,
+                          category: type == 'news'
+                              ? DailyDigestCategory.news
+                              : DailyDigestCategory.opportunities,
+                          title: recommendation.title,
+                          detail: recommendation.description,
+                          source: recommendation.source.isEmpty
+                              ? 'Trendora veri ağı'
+                              : recommendation.source,
+                          updatedAt: updatedAt,
+                          reference: reference,
+                          itemType: type,
+                          itemId: '${data['id'] ?? reference}',
+                          originalUrl:
+                              '${data['officialUrl'] ?? data['url'] ?? data['link'] ?? ''}',
+                          snapshot: data,
+                          opportunityId: type == 'opportunity'
+                              ? '${data['id'] ?? reference}'
+                              : null,
+                          currentStatus: data['active'] == false
+                              ? 'expired'
+                              : 'active',
+                        );
+                        return openDailyDigestItem(context, item);
+                      },
                       onOpenFinance: (symbol) {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -456,6 +541,7 @@ class _SabitAnaMenuIcerigi extends StatelessWidget {
                         );
                       },
                     ),
+                    const SmartShortcutsSection(),
                     DailyDigestSection(
                       onOpenNews: onHaberler,
                       onOpenOpportunities: onFirsatlar,
@@ -475,7 +561,6 @@ class _SabitAnaMenuIcerigi extends StatelessWidget {
                         );
                       },
                     ),
-                    const SmartShortcutsSection(),
                     const SizedBox(height: 14),
                     const Align(
                       alignment: Alignment.centerLeft,

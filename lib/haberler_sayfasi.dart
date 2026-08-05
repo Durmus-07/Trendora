@@ -1539,6 +1539,7 @@ class _HaberlerSayfasiState extends State<HaberlerSayfasi>
           category: _haberKategorisi(haber),
           feedSource: haber.feedSource,
           isBreaking: haber.isBreaking,
+          language: haber.language,
           relatedNews: _ilgiliHaberleri(haber),
           intelligence: intelligence,
         ),
@@ -2611,6 +2612,7 @@ class TrendoraHaber {
   final String source;
   final String feedSource;
   final String category;
+  final String language;
   final DateTime publishedAt;
   final bool hasValidPublishedAt;
   final bool isBreaking;
@@ -2631,6 +2633,7 @@ class TrendoraHaber {
     required this.source,
     required this.feedSource,
     required this.category,
+    this.language = '',
     required this.publishedAt,
     this.hasValidPublishedAt = true,
     required this.isBreaking,
@@ -2671,6 +2674,7 @@ class TrendoraHaber {
       source: json['source']?.toString() ?? '',
       feedSource: json['feedSource']?.toString() ?? '',
       category: json['category']?.toString() ?? 'gundem',
+      language: json['language']?.toString() ?? '',
       publishedAt: parsedPublishedAt?.toLocal() ?? DateTime.now(),
       hasValidPublishedAt: parsedPublishedAt != null,
       isBreaking: json['isBreaking'] == true,

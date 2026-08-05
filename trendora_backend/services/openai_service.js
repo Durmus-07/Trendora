@@ -6,10 +6,11 @@ let openai = null;
 function shouldInitializeOpenAi({
   aiEnabled = environment.aiEnabled,
   premiumAiSummaryEnabled = environment.premiumAiSummaryEnabled,
+  newsTranslationEnabled = environment.newsTranslationEnabled,
   apiKey = process.env.OPENAI_API_KEY
 } = {}) {
   return Boolean(
-    (aiEnabled || premiumAiSummaryEnabled) &&
+    (aiEnabled || premiumAiSummaryEnabled || newsTranslationEnabled) &&
     apiKey &&
     String(apiKey).trim() !== ''
   );
@@ -24,7 +25,8 @@ if (shouldInitializeOpenAi()) {
   console.log("✅ Trendora AI aktif.");
 } else if (
   environment.aiEnabled ||
-  environment.premiumAiSummaryEnabled
+  environment.premiumAiSummaryEnabled ||
+  environment.newsTranslationEnabled
 ) {
   console.warn("⚠️ Trendora AI devre dışı (OPENAI_API_KEY bulunamadı).");
 }
@@ -123,9 +125,63 @@ async function createPremiumSummary({
   }
 }
 
+async function translateNewsFields({ title, summary, content, timeoutMs = 30000 }) {
+  if (!openai) {
+    const error = new Error('OpenAI yapilandirilmamis.');
+    error.code = 'AI_NOT_CONFIGURED';
+    throw error;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  timeout.unref?.();
+
+  try {
+    const response = await openai.responses.create({
+      model: environment.translationModel,
+      instructions:
+        'Ingilizce haber metnini dogal ve tarafsiz Turkceye cevir. ' +
+        'Anlami, ozel isimleri, sayilari ve paragraf yapisini koru; ' +
+        'yorum, ozet veya yeni bilgi ekleme.',
+      input: JSON.stringify({ title, summary, content }),
+      max_output_tokens: 16000,
+      store: false,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'trendora_news_translation',
+          strict: true,
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['title', 'summary', 'content'],
+            properties: {
+              title: { type: 'string' },
+              summary: { type: 'string' },
+              content: { type: 'string' }
+            }
+          }
+        }
+      }
+    }, { signal: controller.signal });
+
+    return JSON.parse(response.output_text);
+  } catch (error) {
+    if (controller.signal.aborted || error?.name === 'AbortError') {
+      const timeoutError = new Error('Ceviri istegi zaman asimina ugradi.');
+      timeoutError.code = 'AI_TIMEOUT';
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 module.exports = {
   askTrendora,
   createPremiumSummary,
+  translateNewsFields,
   isOpenAiConfigured,
   shouldInitializeOpenAi,
 };

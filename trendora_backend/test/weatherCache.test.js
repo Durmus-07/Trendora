@@ -63,3 +63,25 @@ test('429 returns stale successful data and activates backoff', async () => {
   assert.equal(calls, 1);
   assert.match(stale.message, /Son başarılı tahmin/);
 });
+
+test('provider 5xx returns stale data and prevents repeated provider calls', async () => {
+  weather.setWeatherRequester(async () => providerResponse());
+  await weather.fetchWeather(41.01, 28.97, 'İstanbul');
+  const entry = weather.weatherCache.get('41.01,28.97');
+  entry.expiresAt = Date.now() - 1;
+
+  let calls = 0;
+  weather.setWeatherRequester(async () => {
+    calls += 1;
+    const error = new Error('provider unavailable');
+    error.response = { status: 503, headers: {} };
+    throw error;
+  });
+
+  const stale = await weather.fetchWeather(41.01, 28.97, 'İstanbul');
+  const duringBackoff = await weather.fetchWeather(41.01, 28.97, 'İstanbul');
+
+  assert.equal(stale.stale, true);
+  assert.equal(duringBackoff.stale, true);
+  assert.equal(calls, 1);
+});

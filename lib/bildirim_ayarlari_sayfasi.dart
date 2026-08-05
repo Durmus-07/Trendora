@@ -6,7 +6,12 @@ import 'core/notifications/smart_notification_engine.dart';
 import 'core/personalization/personalization_storage.dart';
 
 class BildirimAyarlariSayfasi extends StatefulWidget {
-  const BildirimAyarlariSayfasi({super.key});
+  const BildirimAyarlariSayfasi({
+    super.key,
+    this.notificationPermissionRequester,
+  });
+
+  final Future<bool> Function()? notificationPermissionRequester;
 
   @override
   State<BildirimAyarlariSayfasi> createState() =>
@@ -36,12 +41,17 @@ class _BildirimAyarlariSayfasiState extends State<BildirimAyarlariSayfasi> {
       final userId = await identity.resolve();
       final store = SharedPreferencesSmartNotificationStore(shared);
       final preferences = await store.loadPreferences(userId);
-      final plugin = FlutterLocalNotificationsPlugin();
-      final android = plugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >();
-      final permissionAllowed = await android?.areNotificationsEnabled();
+      bool? permissionAllowed;
+      try {
+        final plugin = FlutterLocalNotificationsPlugin();
+        final android = plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
+        permissionAllowed = await android?.areNotificationsEnabled();
+      } catch (_) {
+        // İzin durumu okunamasa da kayıtlı kullanıcı tercihleri yüklenir.
+      }
       if (!mounted) return;
       setState(() {
         _store = store;
@@ -57,28 +67,52 @@ class _BildirimAyarlariSayfasiState extends State<BildirimAyarlariSayfasi> {
 
   Future<void> _setEnabled(bool enabled) async {
     if (enabled) {
-      final plugin = FlutterLocalNotificationsPlugin();
-      final android = plugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >();
-      final allowed = await android?.requestNotificationsPermission() ?? true;
+      final allowed = await _requestNotificationPermission();
       if (!allowed) {
-        if (mounted) {
-          setState(() => _permissionAllowed = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Bildirim izni kapalı. Sistem ayarlarından izin verebilirsin.',
-              ),
-            ),
-          );
-        }
+        _showPermissionDenied();
         return;
       }
       if (mounted) setState(() => _permissionAllowed = true);
     }
     await _save(_preferences.copyWith(enabled: enabled));
+  }
+
+  Future<void> _enableAllSupported() async {
+    final allowed = await _requestNotificationPermission();
+    if (!allowed) {
+      _showPermissionDenied();
+      return;
+    }
+    if (mounted) setState(() => _permissionAllowed = true);
+    await _save(
+      _preferences.copyWith(
+        enabled: true,
+        categories: supportedSmartNotificationCategories,
+      ),
+    );
+  }
+
+  Future<bool> _requestNotificationPermission() async {
+    final requester = widget.notificationPermissionRequester;
+    if (requester != null) return requester();
+    final plugin = FlutterLocalNotificationsPlugin();
+    final android = plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    return await android?.requestNotificationsPermission() ?? true;
+  }
+
+  void _showPermissionDenied() {
+    if (!mounted) return;
+    setState(() => _permissionAllowed = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Bildirim izni kapalı. Sistem ayarlarından izin verebilirsin.',
+        ),
+      ),
+    );
   }
 
   Future<void> _toggleCategory(
@@ -139,8 +173,17 @@ class _BildirimAyarlariSayfasiState extends State<BildirimAyarlariSayfasi> {
                     'Yalnızca önemli gelişmeler toplu ve kontrollü bildirilir.',
                   ),
                 ),
+                ListTile(
+                  leading: const Icon(Icons.done_all_rounded),
+                  title: const Text('Desteklenen tüm bildirimleri aç'),
+                  subtitle: const Text(
+                    'Yalnızca gerçek olay üreten kategorileri etkinleştirir.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: _enableAllSupported,
+                ),
                 const Divider(),
-                for (final category in _selectableCategories)
+                for (final category in supportedSmartNotificationCategories)
                   SwitchListTile(
                     value: _preferences.categories.contains(category),
                     onChanged: _preferences.enabled
@@ -178,17 +221,4 @@ class _BildirimAyarlariSayfasiState extends State<BildirimAyarlariSayfasi> {
         SmartNotificationCategory.weather => 'Hava uyarıları',
         SmartNotificationCategory.reminders => 'Hatırlatmalar',
       };
-
-  static const _selectableCategories = <SmartNotificationCategory>[
-    SmartNotificationCategory.breakingNews,
-    SmartNotificationCategory.importantNews,
-    SmartNotificationCategory.followedAssets,
-    SmartNotificationCategory.marketAlerts,
-    SmartNotificationCategory.newOpportunities,
-    SmartNotificationCategory.followedStores,
-    SmartNotificationCategory.savedContentChanges,
-    SmartNotificationCategory.dailyDigest,
-    SmartNotificationCategory.weatherAlerts,
-    SmartNotificationCategory.announcements,
-  ];
 }

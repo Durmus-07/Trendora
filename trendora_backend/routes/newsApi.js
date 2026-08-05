@@ -5,6 +5,10 @@ const {
   createNewsContentService,
   normalizeUrl
 } = require('../services/newsContentService');
+const {
+  createNewsTranslationService
+} = require('../services/newsTranslationService');
+const environment = require('../config/environment');
 const fs = require('fs');
 const path = require('path');
 const { normalizeNews } = require('../services/dataModels');
@@ -12,6 +16,7 @@ const sourceHealth = require('../services/sourceHealth');
 
 const router = express.Router();
 const newsContentService = createNewsContentService();
+const newsTranslationService = createNewsTranslationService();
 
 const NEWS_DATABASE_FILE = path.join(
   __dirname,
@@ -372,6 +377,54 @@ router.get('/content', async (req, res) => {
       success: false,
       contentStatus: 'unavailable',
       message: 'Haberin tam metni şu anda hazırlanamadı.'
+    });
+  }
+});
+
+router.get('/translation', async (req, res) => {
+  try {
+    if (!environment.newsTranslationEnabled) {
+      return res.status(503).json({
+        success: false,
+        message: 'Haber cevirisi su anda devre disi.'
+      });
+    }
+    if (!String(req.query.id || '').trim() && !String(req.query.url || '').trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Haber kimligi veya kayitli haber adresi gerekli.'
+      });
+    }
+
+    const database = await readNewsDatabase();
+    const record = findNewsRecord(database.items, req.query);
+    if (!record) {
+      return res.status(404).json({
+        success: false,
+        message: 'Haber kaydi bulunamadi.'
+      });
+    }
+    if (String(record.language || '').trim().toLowerCase() !== 'en') {
+      return res.status(409).json({
+        success: false,
+        message: 'Yalnizca Ingilizce haberler cevrilebilir.'
+      });
+    }
+
+    const contentResult = await newsContentService.resolve(record);
+    const { expiresAtMs, ...translation } =
+      await newsTranslationService.resolve(record, contentResult);
+    res.set('Cache-Control', 'private, max-age=86400');
+    return res.json({
+      success: true,
+      id: record.id || null,
+      ...translation
+    });
+  } catch (error) {
+    console.error('[NEWS TRANSLATION] Ceviri hazirlanamadi:', error.message);
+    return res.status(502).json({
+      success: false,
+      message: 'Haber cevirisi su anda hazirlanamadi.'
     });
   }
 });

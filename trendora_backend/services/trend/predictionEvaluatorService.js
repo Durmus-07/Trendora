@@ -174,14 +174,18 @@ function evaluateAllDuePredictions(priceResolver, options = {}) {
 }
 
 async function evaluateAllDuePredictionsWithMarketData(options = {}) {
+  const {
+    priceResolver = resolvePredictionFinalPrice,
+    ...evaluationOptions
+  } = options;
   const duePredictions = getDuePredictions();
   const results = [];
 
   for (const prediction of duePredictions) {
     try {
-      const finalPrice = await resolvePredictionFinalPrice(
+      const finalPrice = await priceResolver(
         prediction,
-        options
+        evaluationOptions
       );
 
       if (finalPrice == null) {
@@ -198,7 +202,7 @@ async function evaluateAllDuePredictionsWithMarketData(options = {}) {
       const updated = evaluateDuePredictionByPrice(
         prediction.id,
         finalPrice,
-        options
+        evaluationOptions
       );
 
       results.push({
