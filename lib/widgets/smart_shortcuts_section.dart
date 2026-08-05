@@ -11,9 +11,11 @@ class SmartShortcutsSection extends StatefulWidget {
 
 class _SmartShortcutsSectionState extends State<SmartShortcutsSection> {
   final TextEditingController _queryController = TextEditingController();
+  final FocusNode _queryFocusNode = FocusNode();
 
   @override
   void dispose() {
+    _queryFocusNode.dispose();
     _queryController.dispose();
     super.dispose();
   }
@@ -21,12 +23,19 @@ class _SmartShortcutsSectionState extends State<SmartShortcutsSection> {
   Future<void> _openQuery(String value) async {
     final query = value.trim();
     if (query.isEmpty) return;
-    FocusScope.of(context).unfocus();
+    _queryFocusNode.unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AkilliKisayollarSayfasi(initialCommand: query),
       ),
     );
+    if (mounted) {
+      _queryFocusNode.unfocus();
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
   }
 
   @override
@@ -51,6 +60,9 @@ class _SmartShortcutsSectionState extends State<SmartShortcutsSection> {
         const SizedBox(height: 10),
         TextField(
           controller: _queryController,
+          focusNode: _queryFocusNode,
+          autofocus: false,
+          onTapOutside: (_) => _queryFocusNode.unfocus(),
           textInputAction: TextInputAction.search,
           onSubmitted: _openQuery,
           decoration: InputDecoration(

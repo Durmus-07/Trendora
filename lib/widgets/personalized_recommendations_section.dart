@@ -37,6 +37,7 @@ class _PersonalizedRecommendationsSectionState
   bool _loading = true;
   bool _personalizationEnabled = true;
   bool _loadFailed = false;
+  bool _expanded = false;
 
   @override
   void initState() {
@@ -96,6 +97,19 @@ class _PersonalizedRecommendationsSectionState
         });
       }
     }
+  }
+
+  Future<void> _configure() async {
+    final configure = widget.onConfigure;
+    if (configure == null) return;
+    await configure();
+    if (!mounted) return;
+    setState(() => _loading = true);
+    await _load();
+  }
+
+  void _toggleExpanded() {
+    setState(() => _expanded = !_expanded);
   }
 
   Future<void> _handleAction(
@@ -209,57 +223,165 @@ class _PersonalizedRecommendationsSectionState
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.only(bottom: 16),
-        child: LinearProgressIndicator(minHeight: 2),
-      );
-    }
-    if (_bundle.isEmpty) {
-      return _RecommendationEmptyState(
-        personalizationEnabled: _personalizationEnabled,
-        loadFailed: _loadFailed,
-        onPressed: () async {
-          if (!_personalizationEnabled && widget.onConfigure != null) {
-            await widget.onConfigure!.call();
-          }
-          if (!mounted) return;
-          setState(() => _loading = true);
-          await _load();
-        },
-      );
-    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (_bundle.today.isNotEmpty) ...[
-          const _SectionTitle(
-            title: 'BUGÜN SENİN İÇİN',
-            subtitle: 'İlgi alanlarına göre güncel gelişmeler',
-          ),
-          const SizedBox(height: 9),
-          _RecommendationList(
-            items: _bundle.today,
-            onOpen: _open,
-            onAction: _handleAction,
-          ),
-        ],
-        if (_bundle.today.isNotEmpty && _bundle.forYou.isNotEmpty)
-          const SizedBox(height: 16),
-        if (_bundle.forYou.isNotEmpty) ...[
-          const _SectionTitle(
-            title: 'SANA ÖNERİLER',
-            subtitle: 'Seçimlerinle eşleşen diğer içerikler',
-          ),
-          const SizedBox(height: 9),
-          _RecommendationList(
-            items: _bundle.forYou,
-            onOpen: _open,
-            onAction: _handleAction,
-          ),
+        _RecommendationsHeader(
+          expanded: _expanded,
+          personalizationEnabled: _personalizationEnabled,
+          loading: _loading,
+          onToggle: _toggleExpanded,
+          onConfigure: widget.onConfigure == null ? null : _configure,
+        ),
+        if (_expanded) ...[
+          const SizedBox(height: 10),
+          if (_loading)
+            const LinearProgressIndicator(minHeight: 2)
+          else if (_bundle.isEmpty)
+            _RecommendationEmptyState(
+              personalizationEnabled: _personalizationEnabled,
+              loadFailed: _loadFailed,
+              onPressed: () async {
+                if (!_personalizationEnabled && widget.onConfigure != null) {
+                  await _configure();
+                  return;
+                }
+                if (!mounted) return;
+                setState(() => _loading = true);
+                await _load();
+              },
+            )
+          else ...[
+            if (_bundle.today.isNotEmpty) ...[
+              const _SectionTitle(
+                title: 'BUGÜN SENİN İÇİN',
+                subtitle: 'İlgi alanlarına göre güncel gelişmeler',
+              ),
+              const SizedBox(height: 9),
+              _RecommendationList(
+                items: _bundle.today,
+                onOpen: _open,
+                onAction: _handleAction,
+              ),
+            ],
+            if (_bundle.today.isNotEmpty && _bundle.forYou.isNotEmpty)
+              const SizedBox(height: 16),
+            if (_bundle.forYou.isNotEmpty) ...[
+              const _SectionTitle(
+                title: 'SANA ÖNERİLER',
+                subtitle: 'Seçimlerinle eşleşen diğer içerikler',
+              ),
+              const SizedBox(height: 9),
+              _RecommendationList(
+                items: _bundle.forYou,
+                onOpen: _open,
+                onAction: _handleAction,
+              ),
+            ],
+          ],
         ],
         const SizedBox(height: 16),
       ],
+    );
+  }
+}
+
+class _RecommendationsHeader extends StatelessWidget {
+  const _RecommendationsHeader({
+    required this.expanded,
+    required this.personalizationEnabled,
+    required this.loading,
+    required this.onToggle,
+    required this.onConfigure,
+  });
+
+  final bool expanded;
+  final bool personalizationEnabled;
+  final bool loading;
+  final VoidCallback onToggle;
+  final VoidCallback? onConfigure;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onToggle,
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(15, 13, 8, 13),
+          decoration: BoxDecoration(
+            color: TrendoraColors.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: TrendoraColors.border),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.auto_awesome_rounded,
+                color: TrendoraColors.accent,
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'SANA ÖZEL ÖNERİLER',
+                      style: TextStyle(
+                        color: TrendoraColors.textPrimary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      personalizationEnabled
+                          ? 'Kişisel haber, fırsat ve piyasa önerilerini gör'
+                          : 'İlgi alanlarını seçerek önerileri etkinleştir',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: TrendoraColors.textSecondary,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else ...[
+                if (onConfigure != null)
+                  IconButton(
+                    tooltip: 'Öneri ayarları',
+                    onPressed: onConfigure,
+                    icon: const Icon(
+                      Icons.tune_rounded,
+                      color: TrendoraColors.textSecondary,
+                      size: 20,
+                    ),
+                  ),
+                Icon(
+                  expanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: TrendoraColors.textSecondary,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

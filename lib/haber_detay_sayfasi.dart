@@ -45,7 +45,10 @@ bool _isEnglishNews({
   final identity = '$source $feedSource $url'.toLowerCase();
   const englishSourceHints = <String>[
     'associated press',
+    'al jazeera',
+    'ars technica',
     'bbc news',
+    'bbc.co.uk',
     'bloomberg',
     'cnbc',
     'cnn',
@@ -53,8 +56,10 @@ bool _isEnglishNews({
     'dw - top stories',
     'financial times',
     'france 24',
+    'france24.com/en',
     'guardian',
     'marketwatch',
+    'mit technology review',
     'new york times',
     'politico',
     'reuters',
@@ -63,6 +68,14 @@ bool _isEnglishNews({
     'wall street journal',
     'washington post',
     'wired',
+    'apnews.com',
+    'aljazeera.com',
+    'arstechnica.com',
+    'ft.com',
+    'nytimes.com',
+    'theguardian.com',
+    'washingtonpost.com',
+    'wsj.com',
   ];
   return englishSourceHints.any(identity.contains);
 }

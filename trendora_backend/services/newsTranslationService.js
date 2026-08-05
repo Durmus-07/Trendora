@@ -11,7 +11,10 @@ const FALLBACK_CHUNK_BYTES = 450;
 const FALLBACK_CONCURRENCY = 3;
 const ENGLISH_SOURCE_HINTS = [
   'associated press',
+  'al jazeera',
+  'ars technica',
   'bbc news',
+  'bbc.co.uk',
   'bloomberg',
   'cnbc',
   'cnn',
@@ -19,8 +22,10 @@ const ENGLISH_SOURCE_HINTS = [
   'dw - top stories',
   'financial times',
   'france 24',
+  'france24.com/en',
   'guardian',
   'marketwatch',
+  'mit technology review',
   'new york times',
   'politico',
   'reuters',
@@ -28,7 +33,15 @@ const ENGLISH_SOURCE_HINTS = [
   'the economist',
   'wall street journal',
   'washington post',
-  'wired'
+  'wired',
+  'apnews.com',
+  'aljazeera.com',
+  'arstechnica.com',
+  'ft.com',
+  'nytimes.com',
+  'theguardian.com',
+  'washingtonpost.com',
+  'wsj.com'
 ];
 
 function clean(value) {

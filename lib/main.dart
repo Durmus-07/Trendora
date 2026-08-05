@@ -409,18 +409,6 @@ class AnaMenu extends StatelessWidget {
                                 _sayfayaGit(context, const PremiumSayfasi());
                               },
                             ),
-                            const SizedBox(height: 10),
-                            _PremiumYatayKart(
-                              baslik: 'Akıllı Hava Merkezi',
-                              aciklama:
-                                  'Otomatik konum, saatlik tahmin ve isteğe bağlı bildirimler',
-                              icon: Icons.cloud_outlined,
-                              accent: const Color(0xFF6EE7F9),
-                              onTap: () => _sayfayaGit(
-                                context,
-                                const HavaMerkeziSayfasi(),
-                              ),
-                            ),
                           ],
                         ),
                       ),
@@ -588,8 +576,6 @@ class _SabitAnaMenuIcerigi extends StatelessWidget {
                       kilitli: true,
                       onTap: onPremium,
                     ),
-                    const SizedBox(height: 10),
-                    _CanliHavaKart(onTap: onHava),
                   ],
                 ),
               ),

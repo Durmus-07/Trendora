@@ -30,6 +30,7 @@ class AkilliKisayollarSayfasi extends StatefulWidget {
 class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
     with WidgetsBindingObserver {
   final _controller = TextEditingController();
+  final FocusNode _queryFocusNode = FocusNode();
   late final SpeechInputService _speechInput;
   SmartCommandRuntime? _runtime;
   List<SmartShortcutDefinition> _shortcuts = const [];
@@ -58,6 +59,7 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_speechInput.dispose());
+    _queryFocusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -98,7 +100,8 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
     final runtime = _runtime;
     if (command.isEmpty || runtime == null || _speechBusy) return;
     final executionId = ++_executionId;
-    FocusScope.of(context).unfocus();
+    _queryFocusNode.unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _executing = true;
       _speechMessage = null;
@@ -109,6 +112,8 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
       _result = result;
       _executing = false;
     });
+    _queryFocusNode.unfocus();
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   Future<void> _reorder() async {
@@ -329,6 +334,7 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
         ],
       ),
       body: ListView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: const EdgeInsets.all(16),
         children: [
           const Text(
@@ -338,6 +344,9 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
           const SizedBox(height: 12),
           TextField(
             controller: _controller,
+            focusNode: _queryFocusNode,
+            autofocus: false,
+            onTapOutside: (_) => _queryFocusNode.unfocus(),
             textInputAction: TextInputAction.search,
             onSubmitted: (value) {
               if (!_speechBusy) _execute(value);
