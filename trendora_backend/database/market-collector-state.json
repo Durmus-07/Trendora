@@ -1,19 +1,15 @@
 {
-  "level": 1,
-  "consecutiveFailures": 0,
+  "level": 0,
+  "consecutiveFailures": 1,
   "consecutiveSuccesses": 0,
-  "nextRunAt": "2026-08-01T13:07:19.687Z",
+  "nextRunAt": "2026-07-27T16:49:13.899Z",
   "markets": {
     "bim": {
-      "checkedAt": "2026-07-30T13:05:48.975Z",
-      "itemCount": 90,
-      "lastSuccessAt": "2026-07-30T13:05:49.025Z",
-      "lastDurationMs": 1080,
-      "lastError": null,
-      "level": 0,
-      "consecutiveSuccesses": 1,
-      "consecutiveFailures": 0,
-      "nextRunAt": "2026-07-31T13:05:49.025Z"
+      "checkedAt": "2026-07-26T16:46:57.942Z",
+      "itemCount": 16,
+      "lastSuccessAt": "2026-07-26T16:46:57.974Z",
+      "lastDurationMs": 501,
+      "lastError": null
     },
     "a101": {
       "lastFailureAt": "2026-07-26T16:47:43.220Z",
@@ -21,28 +17,20 @@
       "lastError": "Request failed with status code 403"
     },
     "migros": {
-      "contentHash": "81fe0a3a936500ad9fafdd3aedb946ffcbda69fc252c36a6e945bbf281307cbd",
+      "contentHash": "6e7a8b42e39b7178ce6f99eff15da7890b67c0cd4ee469d854338c770392f106",
       "etag": "",
       "lastModified": "",
-      "checkedAt": "2026-07-30T13:06:34.424Z",
+      "checkedAt": "2026-07-26T16:48:28.660Z",
       "itemCount": 0,
-      "lastSuccessAt": "2026-07-30T13:06:34.425Z",
-      "lastDurationMs": 392,
-      "lastError": null,
-      "level": 0,
-      "consecutiveSuccesses": 1,
-      "consecutiveFailures": 0,
-      "nextRunAt": "2026-07-31T13:06:34.425Z"
+      "lastSuccessAt": "2026-07-26T16:48:28.661Z",
+      "lastDurationMs": 426,
+      "lastError": null
     },
     "carrefoursa": {
-      "lastFailureAt": "2026-07-30T13:07:19.685Z",
-      "lastDurationMs": 251,
-      "lastError": "Request failed with status code 403",
-      "level": 1,
-      "consecutiveFailures": 1,
-      "consecutiveSuccesses": 0,
-      "nextRunAt": "2026-08-01T13:07:19.685Z"
+      "lastFailureAt": "2026-07-26T16:49:13.897Z",
+      "lastDurationMs": 227,
+      "lastError": "Request failed with status code 403"
     }
   },
-  "lastRunAt": "2026-07-30T13:07:19.687Z"
+  "lastRunAt": "2026-07-26T16:49:13.899Z"
 }

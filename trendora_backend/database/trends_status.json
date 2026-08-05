@@ -1,11 +1,11 @@
 {
   "running": false,
   "phase": "completed",
-  "startedAt": "2026-07-30T19:36:07.162Z",
-  "completedAt": "2026-07-30T19:36:10.155Z",
-  "durationMs": 2993,
+  "startedAt": "2026-07-27T09:44:22.968Z",
+  "completedAt": "2026-07-27T09:44:25.077Z",
+  "durationMs": 2110,
   "trendCount": 4,
   "error": null,
-  "processId": 20988,
-  "writtenAt": "2026-07-30T19:36:10.155Z"
+  "processId": 16072,
+  "writtenAt": "2026-07-27T09:44:25.078Z"
 }
