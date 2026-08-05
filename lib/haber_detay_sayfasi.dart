@@ -29,6 +29,44 @@ String _resolvedNewsId({
   return '${title.trim()}|${publishedAt.toUtc().toIso8601String()}';
 }
 
+bool _isEnglishNews({
+  required String language,
+  required String source,
+  required String feedSource,
+  required String url,
+}) {
+  final normalizedLanguage = language.trim().toLowerCase();
+  if (normalizedLanguage == 'en' ||
+      normalizedLanguage.startsWith('en-') ||
+      normalizedLanguage.startsWith('en_')) {
+    return true;
+  }
+
+  final identity = '$source $feedSource $url'.toLowerCase();
+  const englishSourceHints = <String>[
+    'associated press',
+    'bbc news',
+    'bloomberg',
+    'cnbc',
+    'cnn',
+    'deutsche welle',
+    'dw - top stories',
+    'financial times',
+    'france 24',
+    'guardian',
+    'marketwatch',
+    'new york times',
+    'politico',
+    'reuters',
+    'techcrunch',
+    'the economist',
+    'wall street journal',
+    'washington post',
+    'wired',
+  ];
+  return englishSourceHints.any(identity.contains);
+}
+
 class RelatedNewsItem {
   const RelatedNewsItem({
     required this.id,
@@ -280,8 +318,15 @@ class HaberDetaySayfasi extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final translationEnabled = _isEnglishNews(
+      language: language,
+      source: source,
+      feedSource: feedSource,
+      url: url,
+    );
+
     return _NewsTranslationController(
-      enabled: language.trim().toLowerCase() == 'en',
+      enabled: translationEnabled,
       newsId: _newsId,
       url: url,
       gateway: _translationGateway,
@@ -342,7 +387,7 @@ class HaberDetaySayfasi extends StatelessWidget {
                               letterSpacing: -0.5,
                             ),
                           ),
-                          if (language.trim().toLowerCase() == 'en') ...[
+                          if (translationEnabled) ...[
                             const SizedBox(height: 14),
                             _NewsTranslationToggle(
                               showOriginal: showOriginal,

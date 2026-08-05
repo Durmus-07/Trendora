@@ -6,7 +6,8 @@ const {
   normalizeUrl
 } = require('../services/newsContentService');
 const {
-  createNewsTranslationService
+  createNewsTranslationService,
+  isEnglishNews
 } = require('../services/newsTranslationService');
 const environment = require('../config/environment');
 const fs = require('fs');
@@ -404,7 +405,7 @@ router.get('/translation', async (req, res) => {
         message: 'Haber kaydi bulunamadi.'
       });
     }
-    if (String(record.language || '').trim().toLowerCase() !== 'en') {
+    if (!isEnglishNews(record)) {
       return res.status(409).json({
         success: false,
         message: 'Yalnizca Ingilizce haberler cevrilebilir.'

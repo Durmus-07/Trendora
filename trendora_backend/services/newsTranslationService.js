@@ -1,14 +1,60 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const axios = require('axios');
 const { normalizeUrl } = require('./newsContentService');
 const { translateNewsFields } = require('./openai_service');
 
 const TRANSLATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_CACHE_ITEMS = 300;
+const FALLBACK_CHUNK_BYTES = 450;
+const FALLBACK_CONCURRENCY = 3;
+const ENGLISH_SOURCE_HINTS = [
+  'associated press',
+  'bbc news',
+  'bloomberg',
+  'cnbc',
+  'cnn',
+  'deutsche welle',
+  'dw - top stories',
+  'financial times',
+  'france 24',
+  'guardian',
+  'marketwatch',
+  'new york times',
+  'politico',
+  'reuters',
+  'techcrunch',
+  'the economist',
+  'wall street journal',
+  'washington post',
+  'wired'
+];
 
 function clean(value) {
   return String(value || '').trim();
+}
+
+function normalizedIdentityText(value) {
+  return clean(value).toLowerCase();
+}
+
+function isEnglishNews(record = {}) {
+  const language = normalizedIdentityText(record.language);
+  if (language === 'en' || language.startsWith('en-') ||
+      language.startsWith('en_')) {
+    return true;
+  }
+
+  const sourceIdentity = [
+    record.source,
+    record.sourceName,
+    record.feedSource,
+    record.feed,
+    record.url
+  ].map(normalizedIdentityText).join(' ');
+
+  return ENGLISH_SOURCE_HINTS.some(hint => sourceIdentity.includes(hint));
 }
 
 function translationKey(record, fields) {
@@ -21,14 +67,95 @@ function translationKey(record, fields) {
   return `${identity}:${digest}`;
 }
 
+function splitUtf8(text, maxBytes = FALLBACK_CHUNK_BYTES) {
+  const value = clean(text);
+  if (!value) return [];
+
+  const chunks = [];
+  let current = '';
+
+  for (const character of value) {
+    const candidate = current + character;
+    if (Buffer.byteLength(candidate, 'utf8') <= maxBytes) {
+      current = candidate;
+      continue;
+    }
+    if (current) chunks.push(current);
+    current = character;
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function run() {
+    while (nextIndex < items.length) {
+      const index = nextIndex++;
+      results[index] = await worker(items[index]);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, () => run())
+  );
+  return results;
+}
+
+async function translateChunkWithMyMemory(text, options = {}) {
+  const http = options.http || axios;
+  const response = await http.get(
+    'https://api.mymemory.translated.net/get',
+    {
+      params: { q: text, langpair: 'en|tr', mt: 1 },
+      timeout: 12000,
+      maxContentLength: 256 * 1024,
+      validateStatus: status => status >= 200 && status < 300
+    }
+  );
+  const translated = clean(response?.data?.responseData?.translatedText);
+  if (!translated) {
+    const error = new Error('Temel ceviri servisi bos yanit dondurdu.');
+    error.code = 'FALLBACK_TRANSLATION_EMPTY';
+    throw error;
+  }
+  return translated;
+}
+
+async function translateTextWithFallback(text, options = {}) {
+  const chunks = splitUtf8(text);
+  if (chunks.length === 0) return '';
+  const translated = await mapWithConcurrency(
+    chunks,
+    FALLBACK_CONCURRENCY,
+    chunk => translateChunkWithMyMemory(chunk, options)
+  );
+  return translated.join('');
+}
+
+async function translateNewsFieldsWithFallback(fields, options = {}) {
+  const translateText = options.translateText ||
+    (text => translateTextWithFallback(text, options));
+  const [title, summary, content] = await Promise.all([
+    translateText(fields.title),
+    translateText(fields.summary),
+    translateText(fields.content)
+  ]);
+  return { title, summary, content };
+}
+
 function createNewsTranslationService(options = {}) {
   const translate = options.translate || translateNewsFields;
+  const fallbackTranslate = options.fallbackTranslate ||
+    (fields => translateNewsFieldsWithFallback(fields, options));
   const now = options.now || (() => Date.now());
   const cache = new Map();
   const inFlight = new Map();
 
   async function resolve(record, contentResult) {
-    if (clean(record.language).toLowerCase() !== 'en') {
+    if (!isEnglishNews(record)) {
       const error = new Error('Yalnizca Ingilizce haberler cevrilebilir.');
       error.code = 'UNSUPPORTED_LANGUAGE';
       throw error;
@@ -53,7 +180,19 @@ function createNewsTranslationService(options = {}) {
     if (inFlight.has(key)) return inFlight.get(key);
 
     const task = (async () => {
-      const translated = await translate(fields);
+      let translated;
+      let translationProvider = 'ai';
+      try {
+        translated = await translate(fields);
+      } catch (error) {
+        console.warn(
+          '[NEWS TRANSLATION] AI kullanilamadi, temel ceviriye geciliyor:',
+          error.code || error.message
+        );
+        translated = await fallbackTranslate(fields);
+        translationProvider = 'basic';
+      }
+
       const timestamp = now();
       const result = {
         title: clean(translated.title),
@@ -61,6 +200,7 @@ function createNewsTranslationService(options = {}) {
         content: clean(translated.content),
         sourceLanguage: 'en',
         targetLanguage: 'tr',
+        translationProvider,
         translatedAt: new Date(timestamp).toISOString(),
         expiresAtMs: timestamp + TRANSLATION_TTL_MS
       };
@@ -82,4 +222,10 @@ function createNewsTranslationService(options = {}) {
   return { resolve };
 }
 
-module.exports = { createNewsTranslationService, translationKey };
+module.exports = {
+  createNewsTranslationService,
+  isEnglishNews,
+  splitUtf8,
+  translateNewsFieldsWithFallback,
+  translationKey
+};
