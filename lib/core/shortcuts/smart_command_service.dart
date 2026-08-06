@@ -464,10 +464,10 @@ class SmartCommandService {
             target: SmartCommandTarget.home,
           ),
         ),
-        SmartCommandIntent.unknown => _unavailable(
+        SmartCommandIntent.unknown => _generalQuestion(
+          command,
           intent,
-          'Bu komutu henüz anlayamadım. Altın, döviz, hisse, haber, fırsat veya hava sorabilirsin.',
-          SmartCommandTarget.none,
+          plan,
         ),
       };
     } catch (_) {

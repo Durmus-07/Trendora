@@ -23,6 +23,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('SANA ÖZEL ÖNERİLER'));
+    await tester.pumpAndSettle();
+
     expect(find.text('BUGÜN SENİN İÇİN'), findsOneWidget);
     expect(find.text('SANA ÖNERİLER'), findsOneWidget);
     expect(find.text('Gerçek içerik today'), findsOneWidget);

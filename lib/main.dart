@@ -23,6 +23,7 @@ import 'widgets/daily_digest_section.dart';
 import 'widgets/personalized_recommendations_section.dart';
 import 'widgets/smart_shortcuts_section.dart';
 import 'onboarding_sayfasi.dart';
+import 'trendora_tanitim_turu_sayfasi.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -131,8 +132,11 @@ class TrendoraBaslangicAkisi extends StatefulWidget {
 class _TrendoraBaslangicAkisiState extends State<TrendoraBaslangicAkisi> {
   static const _onboardingTamamlandiAnahtari =
       'trendora_onboarding_completed_v1';
+  static const _tanitimTuruTamamlandiAnahtari =
+      'trendora_guided_tour_completed_v1';
 
   bool? _onboardingTamamlandi;
+  bool? _tanitimTuruTamamlandi;
 
   @override
   void initState() {
@@ -142,10 +146,15 @@ class _TrendoraBaslangicAkisiState extends State<TrendoraBaslangicAkisi> {
 
   Future<void> _durumuYukle() async {
     final preferences = await SharedPreferences.getInstance();
-    final tamamlandi =
+    final onboardingTamamlandi =
         preferences.getBool(_onboardingTamamlandiAnahtari) ?? false;
+    final tanitimTuruTamamlandi =
+        preferences.getBool(_tanitimTuruTamamlandiAnahtari) ?? false;
     if (!mounted) return;
-    setState(() => _onboardingTamamlandi = tamamlandi);
+    setState(() {
+      _onboardingTamamlandi = onboardingTamamlandi;
+      _tanitimTuruTamamlandi = tanitimTuruTamamlandi;
+    });
   }
 
   Future<void> _onboardingTamamla() async {
@@ -155,12 +164,29 @@ class _TrendoraBaslangicAkisiState extends State<TrendoraBaslangicAkisi> {
     setState(() => _onboardingTamamlandi = true);
   }
 
+  Future<void> _tanitimTurunuTamamla() async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setBool(_tanitimTuruTamamlandiAnahtari, true);
+    if (!mounted) return;
+    setState(() => _tanitimTuruTamamlandi = true);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final tamamlandi = _onboardingTamamlandi;
-    if (tamamlandi == null) return const TrendoraSplashIcerigi();
-    if (tamamlandi) return const AcilisSayfasi();
-    return OnboardingSayfasi(onCompleted: _onboardingTamamla);
+    final onboardingTamamlandi = _onboardingTamamlandi;
+    final tanitimTuruTamamlandi = _tanitimTuruTamamlandi;
+    if (onboardingTamamlandi == null || tanitimTuruTamamlandi == null) {
+      return const TrendoraSplashIcerigi();
+    }
+    if (!onboardingTamamlandi) {
+      return OnboardingSayfasi(onCompleted: _onboardingTamamla);
+    }
+    if (!tanitimTuruTamamlandi) {
+      return TrendoraTanitimTuruSayfasi(
+        onCompleted: _tanitimTurunuTamamla,
+      );
+    }
+    return const AcilisSayfasi();
   }
 }
 

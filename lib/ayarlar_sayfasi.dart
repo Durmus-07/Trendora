@@ -5,6 +5,7 @@ import 'bildirim_ayarlari_sayfasi.dart';
 import 'hava_merkezi_sayfasi.dart';
 import 'hesabim_sayfasi.dart';
 import 'ilgi_alanlari_sayfasi.dart';
+import 'trendora_tanitim_turu_sayfasi.dart';
 
 class AyarlarSayfasi extends StatelessWidget {
   const AyarlarSayfasi({super.key});
@@ -37,6 +38,18 @@ class AyarlarSayfasi extends StatelessWidget {
             baslik: 'Bildirimler',
             altBaslik: 'İzin, alarm ve bildirim tercihleri',
             sayfa: const BildirimAyarlariSayfasi(),
+          ),
+          _menu(
+            context,
+            ikon: Icons.school_outlined,
+            baslik: 'Trendora Kullanım Turu',
+            altBaslik: 'Uygulamayı deneyerek yeniden öğren',
+            sayfa: TrendoraTanitimTuruSayfasi(
+              tekrarModu: true,
+              onCompleted: () async {
+                if (context.mounted) Navigator.pop(context);
+              },
+            ),
           ),
           const SizedBox(height: 18),
           _baslik('Kişiselleştirme'),

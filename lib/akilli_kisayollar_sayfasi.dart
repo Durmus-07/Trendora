@@ -11,6 +11,33 @@ import 'hava_merkezi_sayfasi.dart';
 import 'trend_tahmini_sayfasi.dart';
 import 'trendora_ic_tarayıcı_sayfasi.dart';
 
+
+String _cleanSearchText(Object? value) {
+  var text = '${value ?? ''}';
+  const entities = <String, String>{
+    '&amp;': '&',
+    '&quot;': '"',
+    '&#x27;': "'",
+    '&#39;': "'",
+    '&lt;': '<',
+    '&gt;': '>',
+    '&nbsp;': ' ',
+  };
+  for (final entry in entities.entries) {
+    text = text.replaceAll(entry.key, entry.value);
+  }
+  text = text
+      .replaceAll(RegExp(r'<[^>]*>'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+  return text;
+}
+
+String _resultHost(Object? value) {
+  final uri = Uri.tryParse('${value ?? ''}'.trim());
+  return uri?.host.replaceFirst(RegExp(r'^www\.'), '') ?? '';
+}
+
 class AkilliKisayollarSayfasi extends StatefulWidget {
   const AkilliKisayollarSayfasi({
     super.key,
@@ -516,84 +543,218 @@ class _ResultCard extends StatelessWidget {
   final ValueChanged<String> onSelectAsset;
   final ValueChanged<Map<String, dynamic>> onOpenWebResult;
 
+  bool get _isSearchResult =>
+      result.source == 'Trendora Arama' || result.cards.any((item) => '${item['url'] ?? ''}'.trim().isNotEmpty);
+
   @override
   Widget build(BuildContext context) {
     final date = result.updatedAt?.toLocal();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              result.message,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
-            if (result.cards.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              ...result.cards
-                  .take(5)
-                  .map(
-                    (item) => ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        result.target == SmartCommandTarget.news
-                            ? Icons.article_outlined
-                            : result.target == SmartCommandTarget.opportunities
-                            ? Icons.local_offer_outlined
-                            : Icons.bookmark_outline,
-                      ),
-                      title: Text(
-                        '${item['title'] ?? item['name'] ?? 'Sonuç'}',
-                      ),
-                      subtitle: Text(
-                        [
-                          '${item['source'] ?? item['store'] ?? ''}',
-                          '${item['snippet'] ?? ''}',
-                        ].where((value) => value.trim().isNotEmpty).join(' • '),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: '${item['url'] ?? ''}'.trim().isNotEmpty
-                          ? const Icon(Icons.chevron_right_rounded)
-                          : null,
-                      onTap: '${item['url'] ?? ''}'.trim().isNotEmpty
-                          ? () => onOpenWebResult(item)
-                          : '${item['canonicalSymbol'] ?? ''}'.isEmpty
-                          ? null
-                          : () => onSelectAsset('${item['canonicalSymbol']}'),
+    final message = _cleanSearchText(result.message);
+    final isResultsOnly = message.toLowerCase().contains('bulduğu güncel sonuçlar');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: const Color(0xFF101D2E),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      _isSearchResult ? Icons.travel_explore_rounded : Icons.auto_awesome_rounded,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 21,
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      result.cards.isEmpty
+                          ? 'Trendora Yanıtı'
+                          : isResultsOnly
+                          ? 'Trendora Sonuçları'
+                          : 'Trendora Özeti',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                message,
+                style: const TextStyle(fontSize: 16, height: 1.55, color: Colors.white),
+              ),
+              if (date != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  "Güncellendi ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}",
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+              ],
             ],
-            const SizedBox(height: 10),
-            Text(
-              'Kaynak: ${result.source}',
-              style: const TextStyle(color: Colors.white60),
+          ),
+        ),
+        if (result.cards.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          const Text(
+            'İlgili sonuçlar',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 10),
+          ...result.cards.take(8).map((item) => _SearchResultTile(
+                item: item,
+                target: result.target,
+                onOpenWebResult: onOpenWebResult,
+                onSelectAsset: onSelectAsset,
+              )),
+        ],
+        if (result.target != SmartCommandTarget.none) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onOpen,
+              icon: const Icon(Icons.arrow_forward_rounded),
+              label: Text(result.buttonLabel ?? 'İlgili Trendora sayfasını aç'),
             ),
-            if (date != null)
-              Text(
-                'Güncelleme: ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}',
-                style: const TextStyle(color: Colors.white54),
+          ),
+        ],
+        if (result.suggestions.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          const Text(
+            'Bunları da deneyebilirsin',
+            style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: result.suggestions
+                .map((value) => Chip(label: Text(value)))
+                .toList(growable: false),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SearchResultTile extends StatelessWidget {
+  const _SearchResultTile({
+    required this.item,
+    required this.target,
+    required this.onOpenWebResult,
+    required this.onSelectAsset,
+  });
+
+  final Map<String, dynamic> item;
+  final SmartCommandTarget target;
+  final ValueChanged<Map<String, dynamic>> onOpenWebResult;
+  final ValueChanged<String> onSelectAsset;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = _cleanSearchText(item['title'] ?? item['name'] ?? 'Sonuç');
+    final snippet = _cleanSearchText(item['snippet'] ?? item['summary'] ?? '');
+    final url = '${item['url'] ?? ''}'.trim();
+    final source = _cleanSearchText(item['source'] ?? item['store'] ?? _resultHost(url));
+    final host = _resultHost(url);
+    final sourceLabel = source.isNotEmpty ? source : host;
+    final symbol = '${item['canonicalSymbol'] ?? ''}'.trim();
+    final canOpen = url.isNotEmpty;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: canOpen
+            ? () => onOpenWebResult(item)
+            : symbol.isEmpty
+                ? null
+                : () => onSelectAsset(symbol),
+        child: Padding(
+          padding: const EdgeInsets.all(15),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    target == SmartCommandTarget.news
+                        ? Icons.article_outlined
+                        : target == SmartCommandTarget.opportunities
+                            ? Icons.local_offer_outlined
+                            : Icons.language_rounded,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, height: 1.3),
+                    ),
+                  ),
+                ],
               ),
-            if (result.target != SmartCommandTarget.none) ...[
-              const SizedBox(height: 12),
-              TextButton.icon(
-                onPressed: onOpen,
-                icon: const Icon(Icons.open_in_new_rounded),
-                label: Text(result.buttonLabel ?? 'İlgili sayfayı aç'),
-              ),
+              if (snippet.isNotEmpty) ...[
+                const SizedBox(height: 9),
+                Text(
+                  snippet,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, height: 1.4, fontSize: 13),
+                ),
+              ],
+              if (sourceLabel.isNotEmpty || canOpen) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    if (sourceLabel.isNotEmpty)
+                      Expanded(
+                        child: Text(
+                          sourceLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white54, fontSize: 12),
+                        ),
+                      )
+                    else
+                      const Spacer(),
+                    if (canOpen) ...[
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Trendora’da aç',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.chevron_right_rounded, size: 18),
+                    ],
+                  ],
+                ),
+              ],
             ],
-            if (result.suggestions.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Öneriler: ${result.suggestions.join(' • ')}',
-                style: const TextStyle(color: Colors.white54, fontSize: 12),
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
   }
 }
+
