@@ -180,7 +180,7 @@ class SmartCommandParser {
     if (value.split(' ').where((part) => part.isNotEmpty).length >= 3) {
       return SmartCommandIntent.generalQuestion;
     }
-    return SmartCommandIntent.unknown;
+    return SmartCommandIntent.generalQuestion;
   }
 
   static String _normalize(String value) => value
@@ -553,13 +553,12 @@ class SmartCommandService {
               .map((item) => Map<String, dynamic>.from(item))
               .toList(growable: false)
         : const <Map<String, dynamic>>[];
-    final provider = '${response['provider'] ?? 'trendora'}'.trim();
     return SmartCommandResult(
       intent: intent,
       query: command,
       normalizedQuery: '${plan?['normalizedQuery'] ?? ''}',
       message: answer.isEmpty ? 'Bulduğum sonuçlar:' : answer,
-      source: 'Trendora Arama • $provider',
+      source: 'Trendora Arama',
       updatedAt: DateTime.now(),
       target: SmartCommandTarget.none,
       cards: cards,

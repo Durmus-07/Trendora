@@ -1,0 +1,21 @@
+TRENDORA GEMINI DÜZELTMESİ
+
+Değişiklikler:
+- Yeni Google AI Studio auth key'leri için Gemini çağrısı generateContent yerine resmi Interactions API'ye geçirildi.
+- API anahtarı yalnızca x-goog-api-key başlığında ve Render ortam değişkeninden kullanılıyor.
+- Render'daki GEMINI_MODEL eski/uyumsuz bir modelse, 404 durumunda ücretsiz gemini-3.1-flash-lite otomatik deneniyor.
+- Gemini/Brave/Tavily hataları API anahtarı gösterilmeden güvenli şekilde Render loguna yazılıyor.
+- Gemini -> Brave -> Tavily -> önbellek sırası korunuyor.
+
+Render ayarı:
+GEMINI_SEARCH_ENABLED=true
+GEMINI_API_KEY=<gizli anahtar>
+GEMINI_MODEL=gemini-3.1-flash-lite
+
+Uygulama:
+ZIP içindeki dosyaları trendora_backend klasörüne aynı yollarla kopyalayın ve üzerine yazın.
+Sonra ilgili testleri çalıştırın:
+node --test test/smartSearchAnswerService.test.js
+
+Not:
+Gerçek .env veya API anahtarı bu pakete eklenmemiştir.

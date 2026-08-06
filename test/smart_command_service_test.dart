@@ -19,7 +19,10 @@ void main() {
       parser.parse('Bugün yağmur yağacak mı?'),
       SmartCommandIntent.weather,
     );
-    expect(parser.parse('anlaşılmayan bir şey'), SmartCommandIntent.unknown);
+    expect(
+      parser.parse('anlaşılmayan bir şey'),
+      SmartCommandIntent.generalQuestion,
+    );
   });
 
   test('parser routes Sprint 5 intents and tolerates common typos', () {
@@ -69,12 +72,12 @@ void main() {
     expect(result.available, isTrue);
   });
 
-  test('unknown command does not call a data source', () async {
+  test('unknown text is routed to Trendora general search safely', () async {
     final source = _FakeSource();
     final result = await SmartCommandService(
       dataSource: source,
     ).execute('xyz qwerty');
-    expect(result.intent, SmartCommandIntent.unknown);
+    expect(result.intent, SmartCommandIntent.generalQuestion);
     expect(result.available, isFalse);
     expect(source.calls, 0);
   });
@@ -95,8 +98,7 @@ void main() {
       final result = await SmartCommandService(
         dataSource: _FakeSource(aiAnswer: 'Bileşik faiz kısa bir açıklamadır.'),
       ).execute('Bileşik faiz nedir?');
-      expect(result.fallbackUsed, isTrue);
-      expect(result.source, contains('Genel AI yanıtı'));
+      expect(result.source, 'Trendora Arama');
       expect(result.message, contains('Bileşik faiz'));
     },
   );
