@@ -7,6 +7,7 @@ const dns = require('node:dns');
 const axios = require('axios');
 const {
   createNewsContentService,
+  extractGoogleNewsTargetUrl,
   extractArticleContent,
   isPrivateIp,
   normalizeUrl,
@@ -116,6 +117,59 @@ test('yeterli RSS metni ağ çağrısı yapmadan kullanılır', async () => {
   assert.equal(result.contentStatus, 'full');
   assert.equal(result.contentSource, 'rss');
   assert.equal(calls, 0);
+});
+
+
+test('Google News bağlantısı gerçek kaynak URL çözülerek tam metin alınır', async () => {
+  const googleUrl = 'https://news.google.com/rss/articles/example';
+  const publisherUrl = 'https://publisher.example.com/haber/gercek-kaynak';
+  const calls = [];
+  const service = createNewsContentService({
+    fetchHtml: async url => {
+      calls.push(url);
+      if (url === googleUrl) {
+        return {
+          html: `<html><head><link rel="canonical" href="${publisherUrl}"></head></html>`,
+          resolvedUrl: googleUrl
+        };
+      }
+      assert.equal(url, publisherUrl);
+      return {
+        html: `<article><p>${longText}</p></article>`,
+        resolvedUrl: publisherUrl
+      };
+    }
+  });
+
+  const result = await service.resolve({
+    id: 'google-news-direct-source-test',
+    url: googleUrl,
+    title: 'Google News üzerinden bulunan haber'
+  });
+
+  assert.deepEqual(calls, [googleUrl, publisherUrl]);
+  assert.equal(result.contentStatus, 'full');
+  assert.equal(result.originalUrl, googleUrl);
+  assert.equal(result.resolvedUrl, publisherUrl);
+});
+
+test('Google News hedef çözümleyici Google alanlarını reddeder', () => {
+  const html = `
+    <link rel="canonical" href="https://news.google.com/rss/articles/example">
+    <meta property="og:url" content="https://publisher.example.com/news/1?utm_source=google">
+  `;
+  assert.equal(
+    extractGoogleNewsTargetUrl(html, 'https://news.google.com/rss/articles/example'),
+    'https://publisher.example.com/news/1'
+  );
+});
+
+test('Google News hedef çözümleyici gömülü kaçışlı kaynak URL bulur', () => {
+  const html = String.raw`<script>var target="https:\/\/publisher.example.com\/haber\/2?x\u003d1\u0026utm_source\u003dgoogle";</script>`;
+  assert.equal(
+    extractGoogleNewsTargetUrl(html, 'https://news.google.com/rss/articles/example'),
+    'https://publisher.example.com/haber/2?x=1'
+  );
 });
 
 test('eşzamanlı istekler tek fetch üzerinde birleşir ve sonuç cache edilir', async () => {

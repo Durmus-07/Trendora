@@ -35,6 +35,63 @@ function normalizeUrl(value) {
   }
 }
 
+
+function isGoogleNewsUrl(value) {
+  try {
+    const hostname = new URL(String(value || '')).hostname.toLowerCase();
+    return hostname === 'news.google.com';
+  } catch (_) {
+    return false;
+  }
+}
+
+function externalHttpUrl(value, baseUrl) {
+  try {
+    const url = new URL(String(value || '').trim(), baseUrl);
+    if (!['http:', 'https:'].includes(url.protocol)) return '';
+    const hostname = url.hostname.toLowerCase();
+    if (hostname === 'news.google.com' || hostname === 'google.com' ||
+        hostname.endsWith('.google.com') || hostname.endsWith('.gstatic.com') ||
+        hostname.endsWith('.googleusercontent.com')) return '';
+    return normalizeUrl(url.toString());
+  } catch (_) {
+    return '';
+  }
+}
+
+function extractGoogleNewsTargetUrl(html, baseUrl) {
+  const $ = cheerio.load(String(html || ''));
+  const candidates = [
+    $('link[rel="canonical"]').first().attr('href'),
+    $('meta[property="og:url"]').first().attr('content'),
+    $('meta[name="twitter:url"]').first().attr('content')
+  ];
+
+  $('meta[http-equiv]').each((_, node) => {
+    if (String($(node).attr('http-equiv') || '').toLowerCase() !== 'refresh') return;
+    const content = String($(node).attr('content') || '');
+    const match = content.match(/url\s*=\s*["']?([^"';]+)/i);
+    if (match?.[1]) candidates.push(match[1]);
+  });
+
+  $('a[href]').each((_, node) => candidates.push($(node).attr('href')));
+  for (const candidate of candidates) {
+    const resolved = externalHttpUrl(candidate, baseUrl);
+    if (resolved) return resolved;
+  }
+
+  const decoded = String(html || '')
+    .replace(/\\u003d/gi, '=')
+    .replace(/\\u0026/gi, '&')
+    .replace(/\\\//g, '/');
+  const matches = decoded.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+  for (const candidate of matches) {
+    const resolved = externalHttpUrl(candidate.replace(/[),.;]+$/, ''), baseUrl);
+    if (resolved) return resolved;
+  }
+  return '';
+}
+
 function isPrivateIp(address) {
   const value = String(address || '').toLowerCase();
   if (!value) return true;
@@ -297,13 +354,21 @@ function createNewsContentService(options = {}) {
       try {
         const safeUrl = normalizeUrl(record.url);
         if (!safeUrl) throw new Error('Kayıtlı kaynak URL geçersiz.');
-        const fetched = await requestHtml(safeUrl);
+        let fetched = await requestHtml(safeUrl);
+        let resolvedUrl = fetched.resolvedUrl || safeUrl;
+        if (isGoogleNewsUrl(safeUrl) || isGoogleNewsUrl(resolvedUrl)) {
+          const targetUrl = extractGoogleNewsTargetUrl(fetched.html, resolvedUrl);
+          if (targetUrl) {
+            fetched = await requestHtml(targetUrl);
+            resolvedUrl = fetched.resolvedUrl || targetUrl;
+          }
+        }
         const extracted = extractArticleContent(fetched.html);
         const status = contentStatus(extracted.content);
         if (status === 'summary') throw new Error('Yeterli haber metni çıkarılamadı.');
         const ttl = status === 'full' ? FULL_TTL_MS : PARTIAL_TTL_MS;
         return setCache(key, buildResult(record, extracted.content, status, extracted.method,
-          fetched.resolvedUrl || safeUrl, now(), ttl), now());
+          resolvedUrl, now(), ttl), now());
       } catch (error) {
         const result = unavailable(record, error.message, now());
         cache.set(key, result);
@@ -364,6 +429,7 @@ function unavailable(record, message, timestamp) {
 
 module.exports = {
   createNewsContentService,
+  extractGoogleNewsTargetUrl,
   extractArticleContent,
   isPrivateIp,
   normalizeUrl,
