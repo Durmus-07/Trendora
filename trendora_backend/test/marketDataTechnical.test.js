@@ -190,6 +190,23 @@ test('MACD, Bollinger, support and resistance are generated from OHLCV', () => {
   assertNoInvalidNumbers(result);
 });
 
+test('support and resistance ignore zero prices and prefer nearest levels', () => {
+  const normal = rows(120, { start: 300, step: 0.5 });
+  normal[80] = { ...normal[80], low: 0 };
+  normal[90] = { ...normal[90], low: 320, high: 419 };
+  normal[100] = { ...normal[100], low: 340, high: 413 };
+  normal[119] = { ...normal[119], close: 363, open: 360, low: 355, high: 370 };
+
+  const result = analyzeTechnicalData(normal, { current: 363 });
+
+  assert.ok(result.supportLevels.length > 0);
+  assert.ok(result.resistanceLevels.length > 0);
+  assert.ok(result.supportLevels.every((value) => value > 0 && value <= 363));
+  assert.ok(result.resistanceLevels.every((value) => value >= 363));
+  assert.ok(result.supportLevels[0] >= (result.supportLevels[1] ?? 0));
+  assert.ok(result.resistanceLevels[0] <= (result.resistanceLevels[1] ?? Infinity));
+});
+
 test('technical score exposes deterministic contributions within 0-100', () => {
   const first = analyzeTechnicalData(rows(240, { start: 70, step: 0.4 }));
   const second = analyzeTechnicalData(rows(240, { start: 70, step: 0.4 }));
