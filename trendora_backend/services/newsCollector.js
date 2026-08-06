@@ -40,28 +40,44 @@ const NEWS_SOURCES = [
   { name: 'Google Haberler - Spor', category: 'spor', googleQuery: 'Türkiye spor OR futbol OR basketbol', priority: 80, confidence: 82, region: 'tr', locale: GOOGLE_TR },
   { name: 'Google Haberler - Teknoloji', category: 'teknoloji', googleQuery: 'teknoloji OR yapay zeka OR yazılım', priority: 80, confidence: 82, region: 'tr', locale: GOOGLE_TR },
 
+
+  // Türkiye - şehir bazlı yerel haber kümeleri. Google News açık RSS indeksi kullanılır.
+  // city/area alanları mevcut akışı değiştirmez; ileride şehir önceliklendirmesine hazırdır.
+  { name: 'Yerel - Antalya', category: 'gundem', googleQuery: 'Antalya yerel haber OR belediye OR trafik OR etkinlik', priority: 88, confidence: 84, region: 'tr', city: 'Antalya', area: 'Akdeniz', locale: GOOGLE_TR },
+  { name: 'Yerel - Isparta', category: 'gundem', googleQuery: 'Isparta yerel haber OR belediye OR trafik OR etkinlik', priority: 84, confidence: 82, region: 'tr', city: 'Isparta', area: 'Akdeniz', locale: GOOGLE_TR },
+  { name: 'Yerel - Burdur', category: 'gundem', googleQuery: 'Burdur yerel haber OR belediye OR trafik OR etkinlik', priority: 82, confidence: 81, region: 'tr', city: 'Burdur', area: 'Akdeniz', locale: GOOGLE_TR },
+  { name: 'Yerel - Kahramanmaraş', category: 'gundem', googleQuery: 'Kahramanmaraş yerel haber OR belediye OR trafik OR etkinlik', priority: 89, confidence: 85, region: 'tr', city: 'Kahramanmaraş', area: 'Akdeniz', locale: GOOGLE_TR },
+  { name: 'Yerel - Adana', category: 'gundem', googleQuery: 'Adana yerel haber OR belediye OR trafik OR etkinlik', priority: 87, confidence: 84, region: 'tr', city: 'Adana', area: 'Akdeniz', locale: GOOGLE_TR },
+  { name: 'Yerel - Mersin', category: 'gundem', googleQuery: 'Mersin yerel haber OR belediye OR trafik OR etkinlik', priority: 87, confidence: 84, region: 'tr', city: 'Mersin', area: 'Akdeniz', locale: GOOGLE_TR },
+  { name: 'Yerel - Hatay', category: 'gundem', googleQuery: 'Hatay yerel haber OR belediye OR trafik OR etkinlik', priority: 87, confidence: 84, region: 'tr', city: 'Hatay', area: 'Akdeniz', locale: GOOGLE_TR },
+  { name: 'Yerel - Gaziantep', category: 'gundem', googleQuery: 'Gaziantep yerel haber OR belediye OR trafik OR etkinlik', priority: 88, confidence: 84, region: 'tr', city: 'Gaziantep', area: 'Güneydoğu Anadolu', locale: GOOGLE_TR },
+  { name: 'Yerel - Ankara', category: 'gundem', googleQuery: 'Ankara yerel haber OR belediye OR trafik OR etkinlik', priority: 90, confidence: 86, region: 'tr', city: 'Ankara', area: 'İç Anadolu', locale: GOOGLE_TR },
+  { name: 'Yerel - İstanbul', category: 'gundem', googleQuery: 'İstanbul yerel haber OR belediye OR trafik OR etkinlik', priority: 91, confidence: 86, region: 'tr', city: 'İstanbul', area: 'Marmara', locale: GOOGLE_TR },
+  { name: 'Yerel - İzmir', category: 'gundem', googleQuery: 'İzmir yerel haber OR belediye OR trafik OR etkinlik', priority: 89, confidence: 85, region: 'tr', city: 'İzmir', area: 'Ege', locale: GOOGLE_TR },
+  { name: 'Yerel - Bursa', category: 'gundem', googleQuery: 'Bursa yerel haber OR belediye OR trafik OR etkinlik', priority: 87, confidence: 84, region: 'tr', city: 'Bursa', area: 'Marmara', locale: GOOGLE_TR },
+  { name: 'Yerel - Konya', category: 'gundem', googleQuery: 'Konya yerel haber OR belediye OR trafik OR etkinlik', priority: 86, confidence: 83, region: 'tr', city: 'Konya', area: 'İç Anadolu', locale: GOOGLE_TR },
+  { name: 'Yerel - Kayseri', category: 'gundem', googleQuery: 'Kayseri yerel haber OR belediye OR trafik OR etkinlik', priority: 85, confidence: 83, region: 'tr', city: 'Kayseri', area: 'İç Anadolu', locale: GOOGLE_TR },
+  { name: 'Yerel - Eskişehir', category: 'gundem', googleQuery: 'Eskişehir yerel haber OR belediye OR trafik OR etkinlik', priority: 85, confidence: 83, region: 'tr', city: 'Eskişehir', area: 'İç Anadolu', locale: GOOGLE_TR },
+  { name: 'Yerel - Samsun', category: 'gundem', googleQuery: 'Samsun yerel haber OR belediye OR trafik OR etkinlik', priority: 85, confidence: 83, region: 'tr', city: 'Samsun', area: 'Karadeniz', locale: GOOGLE_TR },
+  { name: 'Yerel - Trabzon', category: 'gundem', googleQuery: 'Trabzon yerel haber OR belediye OR trafik OR etkinlik', priority: 85, confidence: 83, region: 'tr', city: 'Trabzon', area: 'Karadeniz', locale: GOOGLE_TR },
+  { name: 'Yerel - Diyarbakır', category: 'gundem', googleQuery: 'Diyarbakır yerel haber OR belediye OR trafik OR etkinlik', priority: 85, confidence: 83, region: 'tr', city: 'Diyarbakır', area: 'Güneydoğu Anadolu', locale: GOOGLE_TR },
+  { name: 'Yerel - Şanlıurfa', category: 'gundem', googleQuery: 'Şanlıurfa yerel haber OR belediye OR trafik OR etkinlik', priority: 85, confidence: 83, region: 'tr', city: 'Şanlıurfa', area: 'Güneydoğu Anadolu', locale: GOOGLE_TR },
+  { name: 'Yerel - Muğla', category: 'gundem', googleQuery: 'Muğla yerel haber OR belediye OR trafik OR etkinlik', priority: 86, confidence: 83, region: 'tr', city: 'Muğla', area: 'Ege', locale: GOOGLE_TR },
+
   // Dünya - yabancı kaynakların Google News kümeleri
   { name: 'World - Top Stories', category: 'dunya', googleQuery: 'world news', priority: 93, confidence: 88, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Europe', category: 'dunya', googleQuery: 'Europe latest news', priority: 88, confidence: 87, region: 'world', locale: GOOGLE_EN },
   { name: 'World - Middle East', category: 'dunya', googleQuery: 'Middle East latest news', priority: 91, confidence: 87, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - United States', category: 'dunya', googleQuery: 'United States latest news', priority: 87, confidence: 86, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Asia Pacific', category: 'dunya', googleQuery: 'Asia Pacific latest news', priority: 87, confidence: 86, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Russia Ukraine', category: 'dunya', googleQuery: 'Russia Ukraine latest news', priority: 92, confidence: 87, region: 'world', locale: GOOGLE_EN },
   { name: 'World - Economy', category: 'ekonomi', googleQuery: 'global economy markets central banks', priority: 88, confidence: 87, region: 'world', locale: GOOGLE_EN },
   { name: 'World - Technology', category: 'teknoloji', googleQuery: 'global technology AI cybersecurity', priority: 86, confidence: 86, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Sports', category: 'spor', googleQuery: 'world sports football basketball', priority: 78, confidence: 84, region: 'world', locale: GOOGLE_EN },
 
   // Türkiye - güvenilir yayınları Google News açık RSS indeksi üzerinden izleme
   { name: 'Türkiye - Anadolu Ajansı', category: 'gundem', googleQuery: 'site:aa.com.tr Türkiye', priority: 94, confidence: 95, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - NTV', category: 'gundem', googleQuery: 'site:ntv.com.tr Türkiye', priority: 88, confidence: 89, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - Habertürk', category: 'gundem', googleQuery: 'site:haberturk.com Türkiye', priority: 87, confidence: 87, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - Hürriyet', category: 'gundem', googleQuery: 'site:hurriyet.com.tr Türkiye', priority: 86, confidence: 86, region: 'tr', locale: GOOGLE_TR },
-  { name: 'Türkiye - Milliyet', category: 'gundem', googleQuery: 'site:milliyet.com.tr Türkiye', priority: 84, confidence: 84, region: 'tr', locale: GOOGLE_TR },
-  { name: 'Türkiye - Sabah', category: 'gundem', googleQuery: 'site:sabah.com.tr Türkiye', priority: 84, confidence: 84, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - Sözcü', category: 'gundem', googleQuery: 'site:sozcu.com.tr Türkiye', priority: 84, confidence: 84, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - Cumhuriyet', category: 'gundem', googleQuery: 'site:cumhuriyet.com.tr Türkiye', priority: 83, confidence: 84, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - T24', category: 'gundem', googleQuery: 'site:t24.com.tr Türkiye', priority: 83, confidence: 85, region: 'tr', locale: GOOGLE_TR },
-  { name: 'Türkiye - Gazete Duvar', category: 'gundem', googleQuery: 'site:gazeteduvar.com.tr Türkiye', priority: 82, confidence: 83, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - BBC Türkçe', category: 'dunya', googleQuery: 'site:bbc.com/turkce', priority: 91, confidence: 94, region: 'world', locale: GOOGLE_TR },
   { name: 'Türkiye - DW Türkçe', category: 'dunya', googleQuery: 'site:dw.com/tr', priority: 90, confidence: 93, region: 'world', locale: GOOGLE_TR },
   { name: 'Türkiye - Euronews Türkçe', category: 'dunya', googleQuery: 'site:tr.euronews.com', priority: 89, confidence: 91, region: 'world', locale: GOOGLE_TR },
@@ -75,35 +91,20 @@ const NEWS_SOURCES = [
   // Dünya - büyük yayınları Google News açık RSS indeksi üzerinden izleme
   { name: 'World - Reuters', category: 'dunya', googleQuery: 'site:reuters.com world', priority: 98, confidence: 98, region: 'world', locale: GOOGLE_EN },
   { name: 'World - Associated Press', category: 'dunya', googleQuery: 'site:apnews.com world', priority: 97, confidence: 98, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - BBC News', category: 'dunya', googleQuery: 'site:bbc.com/news world', priority: 96, confidence: 97, region: 'world', locale: GOOGLE_EN },
   { name: 'World - CNN', category: 'dunya', googleQuery: 'site:cnn.com world', priority: 91, confidence: 91, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Al Jazeera', category: 'dunya', googleQuery: 'site:aljazeera.com news', priority: 93, confidence: 93, region: 'world', locale: GOOGLE_EN },
   { name: 'World - Euronews', category: 'dunya', googleQuery: 'site:euronews.com world', priority: 90, confidence: 91, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - France 24', category: 'dunya', googleQuery: 'site:france24.com latest', priority: 90, confidence: 92, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Deutsche Welle', category: 'dunya', googleQuery: 'site:dw.com latest world', priority: 92, confidence: 94, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - The Guardian', category: 'dunya', googleQuery: 'site:theguardian.com/world', priority: 90, confidence: 91, region: 'world', locale: GOOGLE_EN },
   { name: 'World - New York Times', category: 'dunya', googleQuery: 'site:nytimes.com world', priority: 91, confidence: 92, region: 'world', locale: GOOGLE_EN },
   { name: 'World - Washington Post', category: 'dunya', googleQuery: 'site:washingtonpost.com world', priority: 90, confidence: 91, region: 'world', locale: GOOGLE_EN },
   { name: 'World - Financial Times', category: 'ekonomi', googleQuery: 'site:ft.com global economy', priority: 94, confidence: 95, region: 'world', locale: GOOGLE_EN },
   { name: 'World - Bloomberg', category: 'ekonomi', googleQuery: 'site:bloomberg.com markets economy', priority: 95, confidence: 96, region: 'world', locale: GOOGLE_EN },
   { name: 'World - CNBC', category: 'ekonomi', googleQuery: 'site:cnbc.com markets economy', priority: 91, confidence: 92, region: 'world', locale: GOOGLE_EN },
   { name: 'World - The Verge', category: 'teknoloji', googleQuery: 'site:theverge.com technology', priority: 88, confidence: 89, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - TechCrunch', category: 'teknoloji', googleQuery: 'site:techcrunch.com technology', priority: 88, confidence: 88, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - ESPN', category: 'spor', googleQuery: 'site:espn.com latest sports', priority: 86, confidence: 88, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Sky Sports', category: 'spor', googleQuery: 'site:skysports.com latest', priority: 85, confidence: 87, region: 'world', locale: GOOGLE_EN },
 
   // Bundle benzeri geniş kaynak havuzu: uygulamadan değil, yayıncıların açık Google News/RSS akışlarından
   // Teknoloji
   { name: 'Türkiye - Webtekno', category: 'teknoloji', googleQuery: 'site:webtekno.com teknoloji', priority: 86, confidence: 85, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - ShiftDelete.Net', category: 'teknoloji', googleQuery: 'site:shiftdelete.net teknoloji', priority: 86, confidence: 85, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - DonanımHaber', category: 'teknoloji', googleQuery: 'site:donanimhaber.com teknoloji', priority: 87, confidence: 87, region: 'tr', locale: GOOGLE_TR },
-  { name: 'Türkiye - Teknolojioku', category: 'teknoloji', googleQuery: 'site:teknolojioku.com teknoloji', priority: 81, confidence: 82, region: 'tr', locale: GOOGLE_TR },
-  { name: 'Türkiye - Log', category: 'teknoloji', googleQuery: 'site:log.com.tr teknoloji', priority: 83, confidence: 84, region: 'tr', locale: GOOGLE_TR },
-  { name: 'Türkiye - Chip Online', category: 'teknoloji', googleQuery: 'site:chip.com.tr teknoloji', priority: 82, confidence: 84, region: 'tr', locale: GOOGLE_TR },
-  { name: 'World - Ars Technica', category: 'teknoloji', googleQuery: 'site:arstechnica.com technology', priority: 91, confidence: 93, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Wired', category: 'teknoloji', googleQuery: 'site:wired.com technology', priority: 91, confidence: 92, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Engadget', category: 'teknoloji', googleQuery: 'site:engadget.com technology', priority: 88, confidence: 89, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - ZDNET', category: 'teknoloji', googleQuery: 'site:zdnet.com technology', priority: 88, confidence: 90, region: 'world', locale: GOOGLE_EN },
   { name: 'World - MIT Technology Review', category: 'teknoloji', googleQuery: 'site:technologyreview.com AI technology', priority: 93, confidence: 95, region: 'world', locale: GOOGLE_EN },
   { name: 'World - AI News', category: 'teknoloji', googleQuery: 'artificial intelligence OpenAI Google Microsoft Nvidia latest', priority: 90, confidence: 89, region: 'world', locale: GOOGLE_EN },
   { name: 'World - Cybersecurity', category: 'teknoloji', googleQuery: 'cybersecurity data breach malware latest', priority: 90, confidence: 90, region: 'world', locale: GOOGLE_EN },
@@ -115,7 +116,6 @@ const NEWS_SOURCES = [
   { name: 'World - MarketWatch', category: 'ekonomi', googleQuery: 'site:marketwatch.com markets economy', priority: 90, confidence: 91, region: 'world', locale: GOOGLE_EN },
   { name: 'World - Wall Street Journal', category: 'ekonomi', googleQuery: 'site:wsj.com economy markets', priority: 94, confidence: 95, region: 'world', locale: GOOGLE_EN },
   { name: 'World - The Economist', category: 'ekonomi', googleQuery: 'site:economist.com economy finance', priority: 94, confidence: 95, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Investing', category: 'ekonomi', googleQuery: 'site:investing.com news markets economy', priority: 87, confidence: 88, region: 'world', locale: GOOGLE_EN },
 
   // Spor
   { name: 'Türkiye - Sporx', category: 'spor', googleQuery: 'site:sporx.com spor', priority: 82, confidence: 82, region: 'tr', locale: GOOGLE_TR },
@@ -123,8 +123,6 @@ const NEWS_SOURCES = [
   { name: 'Türkiye - Fotomaç', category: 'spor', googleQuery: 'site:fotomac.com.tr spor', priority: 81, confidence: 81, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - beIN Sports', category: 'spor', googleQuery: 'site:beinsports.com.tr spor', priority: 86, confidence: 88, region: 'tr', locale: GOOGLE_TR },
   { name: 'World - BBC Sport', category: 'spor', googleQuery: 'site:bbc.com/sport latest', priority: 92, confidence: 94, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - The Athletic', category: 'spor', googleQuery: 'site:theathletic.com sports latest', priority: 89, confidence: 91, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Goal', category: 'spor', googleQuery: 'site:goal.com latest football', priority: 86, confidence: 87, region: 'world', locale: GOOGLE_EN },
 
   // Gündem ve dünya
   { name: 'Türkiye - Yeni Şafak', category: 'gundem', googleQuery: 'site:yenisafak.com gündem', priority: 81, confidence: 82, region: 'tr', locale: GOOGLE_TR },
@@ -132,10 +130,6 @@ const NEWS_SOURCES = [
   { name: 'Türkiye - Karar', category: 'gundem', googleQuery: 'site:karar.com gündem', priority: 82, confidence: 83, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - Independent Türkçe', category: 'gundem', googleQuery: 'site:indyturk.com Türkiye', priority: 86, confidence: 88, region: 'tr', locale: GOOGLE_TR },
   { name: 'World - Politico', category: 'dunya', googleQuery: 'site:politico.com world politics', priority: 91, confidence: 92, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - NBC News', category: 'dunya', googleQuery: 'site:nbcnews.com world latest', priority: 89, confidence: 90, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - CBS News', category: 'dunya', googleQuery: 'site:cbsnews.com world latest', priority: 88, confidence: 89, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - ABC News', category: 'dunya', googleQuery: 'site:abcnews.go.com international latest', priority: 88, confidence: 89, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - TIME', category: 'dunya', googleQuery: 'site:time.com world latest', priority: 89, confidence: 90, region: 'world', locale: GOOGLE_EN },
 
   // Tematik açık akışlar
   { name: 'CoinDesk', category: 'ekonomi', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', priority: 84, confidence: 90, region: 'world' },
@@ -145,7 +139,6 @@ const NEWS_SOURCES = [
   // Google News'e bağımlı kalmadan dolmasını sağlar.
   { name: 'BBC News - World RSS', category: 'dunya', url: 'https://feeds.bbci.co.uk/news/world/rss.xml', priority: 96, confidence: 97, region: 'world' },
   { name: 'BBC News - Top Stories RSS', category: 'dunya', url: 'https://feeds.bbci.co.uk/news/rss.xml', priority: 94, confidence: 97, region: 'world' },
-  { name: 'The Guardian - World RSS', category: 'dunya', url: 'https://www.theguardian.com/world/rss', priority: 91, confidence: 92, region: 'world' },
   { name: 'Al Jazeera - All RSS', category: 'dunya', url: 'https://www.aljazeera.com/xml/rss/all.xml', priority: 92, confidence: 93, region: 'world' },
   { name: 'France 24 - English RSS', category: 'dunya', url: 'https://www.france24.com/en/rss', priority: 90, confidence: 92, region: 'world' },
   { name: 'DW - Top Stories RSS', category: 'dunya', url: 'https://rss.dw.com/rdf/rss-en-top', priority: 91, confidence: 94, region: 'world' },
@@ -1445,6 +1438,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  NEWS_SOURCES,
   classifyNewsItems,
   collectAndSaveNews,
   fetchSource,
