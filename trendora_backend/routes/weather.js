@@ -14,6 +14,9 @@ const FORECAST_URL =
 const GEOCODING_URL =
   'https://geocoding-api.open-meteo.com/v1/search';
 
+const BACKUP_FORECAST_URL =
+  'https://api.met.no/weatherapi/locationforecast/2.0/compact';
+
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const STALE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const RATE_LIMIT_BACKOFF_MS = 5 * 60 * 1000;
@@ -26,6 +29,7 @@ const searchCache = new Map();
 const weatherInFlight = new Map();
 const weatherBackoff = new Map();
 let weatherRequester = (url, options) => axios.get(url, options);
+let backupWeatherRequester = (url, options) => axios.get(url, options);
 
 function normalizeText(value) {
   return String(value || '').trim();
@@ -567,6 +571,183 @@ async function fetchWeatherFromProvider(
   return value;
 }
 
+
+
+function metSymbolToWeatherCode(symbolCode) {
+  const symbol = String(symbolCode || '').toLowerCase();
+  if (symbol.includes('thunder')) return 95;
+  if (symbol.includes('heavysnow')) return 75;
+  if (symbol.includes('snow')) return 73;
+  if (symbol.includes('sleet')) return 67;
+  if (symbol.includes('heavyrain')) return 65;
+  if (symbol.includes('rainshowers')) return 80;
+  if (symbol.includes('rain')) return 63;
+  if (symbol.includes('fog')) return 45;
+  if (symbol.includes('cloudy')) return 3;
+  if (symbol.includes('partlycloudy')) return 2;
+  if (symbol.includes('fair')) return 1;
+  if (symbol.includes('clearsky')) return 0;
+  return 1;
+}
+
+function pickMetPeriod(data) {
+  return data?.next_1_hours || data?.next_6_hours || data?.next_12_hours || {};
+}
+
+function average(values) {
+  const usable = values.filter(value => Number.isFinite(Number(value))).map(Number);
+  if (!usable.length) return null;
+  return usable.reduce((sum, value) => sum + value, 0) / usable.length;
+}
+
+function aggregateMetDays(hours) {
+  const grouped = new Map();
+  for (const hour of hours) {
+    const date = String(hour.time || '').slice(0, 10);
+    if (!date) continue;
+    if (!grouped.has(date)) grouped.set(date, []);
+    grouped.get(date).push(hour);
+  }
+
+  return [...grouped.entries()].slice(0, 8).map(([date, items]) => {
+    const temperatures = items.map(item => item.temperature);
+    const apparent = items.map(item => item.apparentTemperature);
+    const precipitations = items.map(item => item.precipitation);
+    const probabilities = items.map(item => item.precipitationProbability);
+    const winds = items.map(item => item.windSpeed);
+    const gusts = items.map(item => item.windGust);
+    const representative = items.find(item => {
+      const hour = Number(String(item.time || '').slice(11, 13));
+      return hour >= 11 && hour <= 14;
+    }) || items[0] || {};
+
+    return {
+      date,
+      weatherCode: representative.weatherCode,
+      description: representative.description || 'Bilinmiyor',
+      maxTemperature: Math.max(...temperatures.filter(value => Number.isFinite(Number(value))).map(Number)),
+      minTemperature: Math.min(...temperatures.filter(value => Number.isFinite(Number(value))).map(Number)),
+      maxApparentTemperature: Math.max(...apparent.filter(value => Number.isFinite(Number(value))).map(Number)),
+      minApparentTemperature: Math.min(...apparent.filter(value => Number.isFinite(Number(value))).map(Number)),
+      sunrise: null,
+      sunset: null,
+      uvIndex: null,
+      precipitationSum: precipitations.filter(value => Number.isFinite(Number(value))).map(Number).reduce((sum, value) => sum + value, 0),
+      precipitationProbability: probabilities.filter(value => Number.isFinite(Number(value))).map(Number).reduce((max, value) => Math.max(max, value), 0),
+      maxWindSpeed: winds.filter(value => Number.isFinite(Number(value))).map(Number).reduce((max, value) => Math.max(max, value), 0),
+      maxWindGust: gusts.filter(value => Number.isFinite(Number(value))).map(Number).reduce((max, value) => Math.max(max, value), 0)
+    };
+  });
+}
+
+async function fetchWeatherFromBackupProvider(latitude, longitude, locationName) {
+  const response = await backupWeatherRequester(BACKUP_FORECAST_URL, {
+    timeout: REQUEST_TIMEOUT_MS,
+    params: { lat: latitude, lon: longitude },
+    headers: {
+      'User-Agent': 'Trendora/1.0 weather-fallback contact@trendora.app',
+      Accept: 'application/json'
+    }
+  });
+
+  const data = response.data || {};
+  const timeseries = Array.isArray(data?.properties?.timeseries)
+    ? data.properties.timeseries
+    : [];
+  if (!timeseries.length) throw new Error('Yedek hava sağlayıcısı boş veri döndürdü.');
+
+  const hours = timeseries.slice(0, 192).map(item => {
+    const instant = item?.data?.instant?.details || {};
+    const period = pickMetPeriod(item?.data);
+    const periodDetails = period.details || {};
+    const symbolCode = period.summary?.symbol_code || '';
+    const weatherCode = metSymbolToWeatherCode(symbolCode);
+    return {
+      time: item.time,
+      temperature: finiteNumber(instant.air_temperature),
+      apparentTemperature: finiteNumber(instant.air_temperature),
+      precipitationProbability: finiteNumber(periodDetails.probability_of_precipitation),
+      precipitation: finiteNumber(periodDetails.precipitation_amount),
+      weatherCode,
+      description: weatherDescription(weatherCode),
+      cloudCover: finiteNumber(instant.cloud_area_fraction),
+      visibility: finiteNumber(instant.fog_area_fraction) !== null
+        ? Math.max(500, 10000 - finiteNumber(instant.fog_area_fraction) * 95)
+        : null,
+      windSpeed: finiteNumber(instant.wind_speed) !== null
+        ? finiteNumber(instant.wind_speed) * 3.6
+        : null,
+      windGust: finiteNumber(instant.wind_speed_of_gust) !== null
+        ? finiteNumber(instant.wind_speed_of_gust) * 3.6
+        : null,
+      humidity: finiteNumber(instant.relative_humidity),
+      uvIndex: finiteNumber(instant.ultraviolet_index_clear_sky)
+    };
+  });
+
+  const currentHour = hours[0];
+  const currentRaw = timeseries[0]?.data?.instant?.details || {};
+  const days = aggregateMetDays(hours);
+  const baseWarnings = buildWarnings(
+    {
+      weather_code: currentHour.weatherCode,
+      wind_speed_10m: currentHour.windSpeed,
+      wind_gusts_10m: currentHour.windGust
+    },
+    {
+      precipitation_probability: hours.map(item => item.precipitationProbability),
+      wind_speed_10m: hours.map(item => item.windSpeed),
+      wind_gusts_10m: hours.map(item => item.windGust)
+    },
+    {
+      uv_index_max: days.map(item => item.uvIndex),
+      temperature_2m_max: days.map(item => item.maxTemperature),
+      temperature_2m_min: days.map(item => item.minTemperature)
+    }
+  );
+  const guidance = buildWeatherInsights(currentHour, hours.slice(0, 24), days, baseWarnings);
+  const coordinates = data?.geometry?.coordinates || [];
+
+  return {
+    success: true,
+    location: {
+      name: locationName || '',
+      latitude: finiteNumber(coordinates[1]) ?? latitude,
+      longitude: finiteNumber(coordinates[0]) ?? longitude,
+      elevation: finiteNumber(coordinates[2]),
+      timezone: 'UTC',
+      utcOffsetSeconds: 0
+    },
+    current: {
+      time: currentHour.time,
+      temperature: currentHour.temperature,
+      apparentTemperature: currentHour.apparentTemperature,
+      humidity: currentHour.humidity,
+      precipitation: currentHour.precipitation,
+      rain: currentHour.precipitation,
+      weatherCode: currentHour.weatherCode,
+      description: currentHour.description,
+      cloudCover: currentHour.cloudCover,
+      pressure: finiteNumber(currentRaw.air_pressure_at_sea_level),
+      windSpeed: currentHour.windSpeed,
+      windDirection: finiteNumber(currentRaw.wind_from_direction),
+      windGust: currentHour.windGust,
+      isDay: true
+    },
+    hourly: hours.slice(0, 24),
+    daily: days,
+    warnings: guidance.warnings,
+    insights: guidance.insights,
+    activities: guidance.activities,
+    drivingWarning: guidance.drivingWarning,
+    sponsoredRecommendations: guidance.sponsoredRecommendations,
+    source: 'MET Norway',
+    attribution: 'Weather data by MET Norway',
+    updatedAt: new Date().toISOString(),
+    fallback: true
+  };
+}
+
 async function fetchWeather(latitude, longitude, locationName) {
   const key = `${latitude},${longitude}`;
   const cached = getCached(weatherCache, key);
@@ -589,12 +770,7 @@ async function fetchWeather(latitude, longitude, locationName) {
   if (weatherInFlight.has(key)) return weatherInFlight.get(key);
 
   const request = fetchWeatherFromProvider(latitude, longitude, locationName)
-    .then(value => {
-      setCached(weatherCache, key, value, CACHE_TTL_MS, STALE_CACHE_TTL_MS);
-      weatherBackoff.delete(key);
-      return { ...value, cached: false, stale: false };
-    })
-    .catch(error => {
+    .catch(async error => {
       const providerStatus = Number(error?.response?.status);
       if (providerStatus === 429 || providerStatus >= 500) {
         const retryAfterSeconds = Number(error.response.headers?.['retry-after']);
@@ -602,14 +778,26 @@ async function fetchWeather(latitude, longitude, locationName) {
           ? Math.max(RATE_LIMIT_BACKOFF_MS, retryAfterSeconds * 1000)
           : RATE_LIMIT_BACKOFF_MS;
         weatherBackoff.set(key, Date.now() + delay);
+        if (stale) return {
+          ...stale,
+          cached: true,
+          stale: true,
+          message: 'Yeni hava verisi şu anda alınamıyor. Son başarılı tahmin gösteriliyor.'
+        };
+        try {
+          return await fetchWeatherFromBackupProvider(latitude, longitude, locationName);
+        } catch (backupError) {
+          backupError.cause = error;
+          throw backupError;
+        }
       }
-      if (stale) return {
-        ...stale,
-        cached: true,
-        stale: true,
-        message: 'Yeni hava verisi şu anda alınamıyor. Son başarılı tahmin gösteriliyor.'
-      };
       throw error;
+    })
+    .then(value => {
+      if (value?.stale) return value;
+      setCached(weatherCache, key, value, CACHE_TTL_MS, STALE_CACHE_TTL_MS);
+      if (!value.fallback) weatherBackoff.delete(key);
+      return { ...value, cached: false, stale: false };
     })
     .finally(() => weatherInFlight.delete(key));
   weatherInFlight.set(key, request);
@@ -749,8 +937,12 @@ module.exports._test = {
   setWeatherRequester(requester) {
     weatherRequester = requester;
   },
+  setBackupWeatherRequester(requester) {
+    backupWeatherRequester = requester;
+  },
   reset() {
     weatherRequester = (url, options) => axios.get(url, options);
+    backupWeatherRequester = (url, options) => axios.get(url, options);
     weatherCache.clear();
     weatherInFlight.clear();
     weatherBackoff.clear();

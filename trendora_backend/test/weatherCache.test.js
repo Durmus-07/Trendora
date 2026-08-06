@@ -85,3 +85,48 @@ test('provider 5xx returns stale data and prevents repeated provider calls', asy
   assert.equal(duringBackoff.stale, true);
   assert.equal(calls, 1);
 });
+
+test('429 without stale cache uses non-AI backup weather provider', async () => {
+  weather.setWeatherRequester(async () => {
+    const error = new Error('rate limited');
+    error.response = { status: 429, headers: { 'retry-after': '60' } };
+    throw error;
+  });
+  weather.setBackupWeatherRequester(async () => ({
+    data: {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [36.87, 37.6, 520] },
+      properties: {
+        timeseries: [
+          {
+            time: '2026-08-06T20:00:00Z',
+            data: {
+              instant: {
+                details: {
+                  air_temperature: 29,
+                  relative_humidity: 35,
+                  air_pressure_at_sea_level: 1008,
+                  wind_speed: 3,
+                  wind_from_direction: 190,
+                  cloud_area_fraction: 12
+                }
+              },
+              next_1_hours: {
+                summary: { symbol_code: 'clearsky_day' },
+                details: { precipitation_amount: 0, probability_of_precipitation: 0 }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }));
+
+  const result = await weather.fetchWeather(37.6, 36.87, 'Kahramanmaraş');
+
+  assert.equal(result.success, true);
+  assert.equal(result.source, 'MET Norway');
+  assert.equal(result.fallback, true);
+  assert.equal(result.current.temperature, 29);
+  assert.equal(result.current.windSpeed, 10.8);
+});
