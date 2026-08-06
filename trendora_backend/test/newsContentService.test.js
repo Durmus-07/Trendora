@@ -16,7 +16,9 @@ const {
 } = require('../services/newsContentService');
 const { extractNewsItems, findNewsRecord, router } = require('../routes/newsApi');
 const {
-  createNewsTranslationService
+  createNewsTranslationService,
+  googleTranslationText,
+  translateNewsFieldsWithFallback
 } = require('../services/newsTranslationService');
 const express = require('express');
 
@@ -28,7 +30,7 @@ const longText = Array.from(
 test('yalnizca Ingilizce haber cevrilir ve ayni icerik cache kullanir', async () => {
   let calls = 0;
   const service = createNewsTranslationService({
-    translate: async fields => {
+    fallbackTranslate: async fields => {
       calls += 1;
       return {
         title: `TR ${fields.title}`,
@@ -55,6 +57,47 @@ test('yalnizca Ingilizce haber cevrilir ve ayni icerik cache kullanir', async ()
     service.resolve({ ...record, language: 'tr' }, { content: 'Metin' }),
     error => error.code === 'UNSUPPORTED_LANGUAGE'
   );
+});
+
+
+test('AI olmadan temel ceviri once kullanilir ve alanlar sirayla cevrilir', async () => {
+  const calls = [];
+  const result = await translateNewsFieldsWithFallback({
+    title: 'English title',
+    summary: 'English summary',
+    content: 'English content'
+  }, {
+    translateText: async text => {
+      calls.push(text);
+      return `TR ${text}`;
+    }
+  });
+
+  assert.deepEqual(calls, [
+    'English title',
+    'English summary',
+    'English content'
+  ]);
+  assert.deepEqual(result, {
+    title: 'TR English title',
+    summary: 'TR English summary',
+    content: 'TR English content'
+  });
+});
+
+test('Google temel ceviri cevabi metne donusturulur', () => {
+  assert.equal(
+    googleTranslationText([
+      [
+        ['Merhaba ', 'Hello ', null, null],
+        ['dünya', 'world', null, null]
+      ],
+      null,
+      'en'
+    ]),
+    'Merhaba dünya'
+  );
+  assert.equal(googleTranslationText({}), '');
 });
 
 test('yeterli RSS metni ağ çağrısı yapmadan kullanılır', async () => {

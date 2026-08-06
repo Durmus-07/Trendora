@@ -3,12 +3,15 @@
 const crypto = require('node:crypto');
 const axios = require('axios');
 const { normalizeUrl } = require('./newsContentService');
-const { translateNewsFields } = require('./openai_service');
+const {
+  isOpenAiConfigured,
+  translateNewsFields
+} = require('./openai_service');
 
 const TRANSLATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_CACHE_ITEMS = 300;
-const FALLBACK_CHUNK_BYTES = 450;
-const FALLBACK_CONCURRENCY = 3;
+const GOOGLE_CHUNK_BYTES = 3500;
+const MYMEMORY_CHUNK_BYTES = 450;
 const ENGLISH_SOURCE_HINTS = [
   'associated press',
   'al jazeera',
@@ -80,7 +83,7 @@ function translationKey(record, fields) {
   return `${identity}:${digest}`;
 }
 
-function splitUtf8(text, maxBytes = FALLBACK_CHUNK_BYTES) {
+function splitUtf8(text, maxBytes = GOOGLE_CHUNK_BYTES) {
   const value = clean(text);
   if (!value) return [];
 
@@ -100,21 +103,37 @@ function splitUtf8(text, maxBytes = FALLBACK_CHUNK_BYTES) {
   return chunks;
 }
 
-async function mapWithConcurrency(items, limit, worker) {
-  const results = new Array(items.length);
-  let nextIndex = 0;
+function googleTranslationText(data) {
+  if (!Array.isArray(data?.[0])) return '';
+  return clean(data[0]
+    .map(part => Array.isArray(part) ? part[0] : '')
+    .join(''));
+}
 
-  async function run() {
-    while (nextIndex < items.length) {
-      const index = nextIndex++;
-      results[index] = await worker(items[index]);
+async function translateChunkWithGoogle(text, options = {}) {
+  const http = options.http || axios;
+  const response = await http.get(
+    'https://translate.googleapis.com/translate_a/single',
+    {
+      params: {
+        client: 'gtx',
+        sl: 'en',
+        tl: 'tr',
+        dt: 't',
+        q: text
+      },
+      timeout: 10000,
+      maxContentLength: 512 * 1024,
+      validateStatus: status => status >= 200 && status < 300
     }
-  }
-
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, () => run())
   );
-  return results;
+  const translated = googleTranslationText(response?.data);
+  if (!translated) {
+    const error = new Error('Google temel ceviri servisi bos yanit dondurdu.');
+    error.code = 'GOOGLE_TRANSLATION_EMPTY';
+    throw error;
+  }
+  return translated;
 }
 
 async function translateChunkWithMyMemory(text, options = {}) {
@@ -123,39 +142,57 @@ async function translateChunkWithMyMemory(text, options = {}) {
     'https://api.mymemory.translated.net/get',
     {
       params: { q: text, langpair: 'en|tr', mt: 1 },
-      timeout: 12000,
+      timeout: 10000,
       maxContentLength: 256 * 1024,
       validateStatus: status => status >= 200 && status < 300
     }
   );
   const translated = clean(response?.data?.responseData?.translatedText);
   if (!translated) {
-    const error = new Error('Temel ceviri servisi bos yanit dondurdu.');
-    error.code = 'FALLBACK_TRANSLATION_EMPTY';
+    const error = new Error('MyMemory temel ceviri servisi bos yanit dondurdu.');
+    error.code = 'MYMEMORY_TRANSLATION_EMPTY';
     throw error;
   }
   return translated;
 }
 
+async function translateTextWithMyMemory(text, options = {}) {
+  const chunks = splitUtf8(text, MYMEMORY_CHUNK_BYTES);
+  const translated = [];
+  for (const chunk of chunks) {
+    translated.push(await translateChunkWithMyMemory(chunk, options));
+  }
+  return translated.join('');
+}
+
 async function translateTextWithFallback(text, options = {}) {
-  const chunks = splitUtf8(text);
+  const chunks = splitUtf8(text, GOOGLE_CHUNK_BYTES);
   if (chunks.length === 0) return '';
-  const translated = await mapWithConcurrency(
-    chunks,
-    FALLBACK_CONCURRENCY,
-    chunk => translateChunkWithMyMemory(chunk, options)
-  );
+
+  const translated = [];
+  for (const chunk of chunks) {
+    try {
+      translated.push(await translateChunkWithGoogle(chunk, options));
+    } catch (googleError) {
+      console.warn(
+        '[NEWS TRANSLATION] Google temel ceviri kullanilamadi, ' +
+        'MyMemory deneniyor:',
+        googleError?.response?.status || googleError?.code || googleError?.message
+      );
+      translated.push(await translateTextWithMyMemory(chunk, options));
+    }
+  }
   return translated.join('');
 }
 
 async function translateNewsFieldsWithFallback(fields, options = {}) {
   const translateText = options.translateText ||
     (text => translateTextWithFallback(text, options));
-  const [title, summary, content] = await Promise.all([
-    translateText(fields.title),
-    translateText(fields.summary),
-    translateText(fields.content)
-  ]);
+
+  // Ücretsiz servislerde kota patlamasını önlemek için alanları sırayla çevir.
+  const title = await translateText(fields.title);
+  const summary = await translateText(fields.summary);
+  const content = await translateText(fields.content);
   return { title, summary, content };
 }
 
@@ -194,16 +231,19 @@ function createNewsTranslationService(options = {}) {
 
     const task = (async () => {
       let translated;
-      let translationProvider = 'ai';
+      let translationProvider = 'basic';
+
       try {
-        translated = await translate(fields);
-      } catch (error) {
-        console.warn(
-          '[NEWS TRANSLATION] AI kullanilamadi, temel ceviriye geciliyor:',
-          error.code || error.message
-        );
         translated = await fallbackTranslate(fields);
-        translationProvider = 'basic';
+      } catch (basicError) {
+        if (!isOpenAiConfigured()) throw basicError;
+
+        console.warn(
+          '[NEWS TRANSLATION] Temel ceviri kullanilamadi, AI deneniyor:',
+          basicError?.response?.status || basicError?.code || basicError?.message
+        );
+        translated = await translate(fields);
+        translationProvider = 'ai';
       }
 
       const timestamp = now();
@@ -239,6 +279,7 @@ module.exports = {
   createNewsTranslationService,
   isEnglishNews,
   splitUtf8,
+  googleTranslationText,
   translateNewsFieldsWithFallback,
   translationKey
 };
