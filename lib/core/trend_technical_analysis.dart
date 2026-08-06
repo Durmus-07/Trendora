@@ -84,6 +84,9 @@ class TrendTeknikAnalizi {
     List<double> numberList(dynamic value) => _list(
       value,
     ).map(_number).whereType<double>().take(4).toList(growable: false);
+    List<double> priceLevelList(dynamic value) => numberList(
+      value,
+    ).where((number) => number > 0).toList(growable: false);
     final contributions = <String, double>{};
     for (final entry in _map(json['scoreContributions']).entries) {
       final value = _number(entry.value);
@@ -119,8 +122,8 @@ class TrendTeknikAnalizi {
       bollingerMiddle: _number(json['bollingerMiddle']),
       bollingerLower: _number(json['bollingerLower']),
       atr14: _number(json['atr14']),
-      supportLevels: numberList(json['supportLevels']),
-      resistanceLevels: numberList(json['resistanceLevels']),
+      supportLevels: priceLevelList(json['supportLevels']),
+      resistanceLevels: priceLevelList(json['resistanceLevels']),
       scoreContributions: Map.unmodifiable(contributions),
     );
   }

@@ -19,6 +19,8 @@ const WEB_TIMEOUT_MS = Number(process.env.TRENDORA_WEB_TIMEOUT_MS || 10000);
 const FALLBACK_NEWS_TIMEOUT_MS = Number(process.env.TRENDORA_FALLBACK_NEWS_TIMEOUT_MS || 6500);
 
 function finiteNumber(value) {
+  if (value == null) return null;
+  if (typeof value === 'string' && !value.trim()) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }

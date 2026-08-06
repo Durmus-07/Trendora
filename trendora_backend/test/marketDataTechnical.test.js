@@ -227,6 +227,33 @@ test('analysis normalization preserves legacy fields and optional technical mode
   assert.equal(result.confidence, 70);
 });
 
+
+
+test('analysis normalization does not turn missing technical values into zero', () => {
+  const result = normalizeAnalysis(
+    {
+      confidence: 40,
+      technical: {
+        supportLevels: [null, '', undefined],
+        resistanceLevels: [null],
+        rsi14: null,
+        atr14: null
+      }
+    },
+    'ASELS teknik analiz',
+    {
+      domain: 'finance', label: 'Finans', intent: 'technical_analysis',
+      period: { label: '1 Ay', days: 30 }, entity: { symbol: 'ASELS.IS' }
+    },
+    { sources: [] }
+  );
+
+  assert.deepEqual(result.technical.supportLevels, []);
+  assert.deepEqual(result.technical.resistanceLevels, []);
+  assert.equal(result.technical.rsi14, null);
+  assert.equal(result.technical.atr14, null);
+});
+
 test('gram altın spot ons başarısızsa GC=F yedeğiyle hesaplanır', async () => {
   const { fetchDerivedGoldMarketData } = require('../services/marketDataService');
   const calls = [];

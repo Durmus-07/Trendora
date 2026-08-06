@@ -3,6 +3,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:trendora_app/trendora_tanitim_turu_sayfasi.dart';
 
 void main() {
+  testWidgets('deneme butonu once ornek ekrani acar', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrendoraTanitimTuruSayfasi(onCompleted: () async {}),
+      ),
+    );
+
+    await tester.tap(find.text('Taramayı dene'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dünya Taranıyor denemesi'), findsOneWidget);
+    expect(find.text('Canlı tarama sonucu'), findsOneWidget);
+    expect(find.text('Denemeyi tamamla ve devam et'), findsOneWidget);
+    expect(find.text('Akıllı Arama'), findsNothing);
+  });
+
   testWidgets('tanitim turu tum deneme adimlarini tamamlar', (tester) async {
     var tamamlandi = false;
 
@@ -27,6 +43,9 @@ void main() {
       'Örnek bildirimi dene',
     ]) {
       await tester.tap(find.text(eylem));
+      await tester.pumpAndSettle();
+      expect(find.text('Denemeyi tamamla ve devam et'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('denemeyi_tamamla')));
       await tester.pumpAndSettle();
     }
 

@@ -82,6 +82,19 @@ void main() {
     expect(technical.hasAny, isTrue);
   });
 
+
+  test('zero and negative price levels are ignored', () {
+    final result = TrendAnalizi.fromJson(
+      analysisJson({
+        'supportLevels': [0, -1, null, 99.5],
+        'resistanceLevels': [0, -5, 106.4],
+      }),
+    );
+
+    expect(result.technical.supportLevels, [99.5]);
+    expect(result.technical.resistanceLevels, [106.4]);
+  });
+
   test('old API response remains valid without technical fields', () {
     final result = TrendAnalizi.fromJson(analysisJson());
 
