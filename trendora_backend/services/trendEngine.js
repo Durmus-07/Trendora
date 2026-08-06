@@ -1,12 +1,9 @@
 const { analyzeQuestion } = require('./trend/analysisOrchestrator');
 const { buildPredictionFromAnalysis, savePrediction } = require('./trend/predictionMemoryService');
 
-const DEFAULT_QUESTIONS = [
-  'Türkiye’de ikinci el otomobil fiyatlarında genel eğilim nedir?',
-  'Gram altının kısa vadeli görünümü nasıl?',
-  'Türkiye’de konut ve arsa piyasasının genel eğilimi nedir?',
-  'Teknoloji ürünlerinde fiyatların düşme olasılığı var mı?'
-];
+const DEFAULT_QUESTIONS = Object.freeze([
+  'Gram altının kısa vadeli görünümü nasıl?'
+]);
 
 const ANALYSIS_CACHE_TTL_MS = Number(
   process.env.TRENDORA_ANALYSIS_CACHE_TTL_MS || 10 * 60 * 1000
@@ -228,6 +225,7 @@ async function getTrendOverview(options = {}) {
 }
 
 module.exports = {
+  DEFAULT_QUESTIONS,
   analyzeQuery,
   getTrendOverview
 };
