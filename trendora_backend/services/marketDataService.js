@@ -299,17 +299,20 @@ function calculateSupportResistance(rows, lookback = 60) {
     return { support1: null, support2: null, resistance1: null, resistance2: null };
   }
 
-  const sortedLows = [...lows].sort((a, b) => a - b);
-  const sortedHighs = [...highs].sort((a, b) => b - a);
   const current = closes[closes.length - 1];
   const distanceBase = Math.max(Math.abs(current), Number.EPSILON);
+  const validPrice = (value) => Number.isFinite(value) && value > 0;
 
-  const supports = sortedLows
+  const supports = lows
+    .filter(validPrice)
     .filter((value) => value <= current)
+    .sort((a, b) => b - a)
     .filter((value, index, list) => index === 0 || Math.abs(value - list[index - 1]) / distanceBase > 0.01);
 
-  const resistances = sortedHighs
+  const resistances = highs
+    .filter(validPrice)
     .filter((value) => value >= current)
+    .sort((a, b) => a - b)
     .filter((value, index, list) => index === 0 || Math.abs(value - list[index - 1]) / distanceBase > 0.01);
 
   return {
