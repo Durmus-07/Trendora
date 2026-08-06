@@ -12,7 +12,7 @@ function sourceNamed(name) {
 }
 
 test('haber kaynakları sadeleştirilir ve adlar benzersiz kalır', () => {
-  assert.equal(NEWS_SOURCES.length, 100);
+  assert.equal(NEWS_SOURCES.length, 80);
   assert.equal(new Set(names).size, names.length);
   assert.ok(NEWS_SOURCES.every(source => source.name && source.category));
 });
@@ -33,36 +33,15 @@ test('temel ulusal ve uluslararası kaynaklar korunur', () => {
   }
 });
 
-test('şehir bazlı yerel kaynaklar Türkiye bölgelerini temsil eder', () => {
-  const expectedCities = [
-    'Antalya', 'Isparta', 'Burdur', 'Kahramanmaraş', 'Adana', 'Mersin',
-    'Hatay', 'Gaziantep', 'Ankara', 'İstanbul', 'İzmir', 'Bursa', 'Konya',
-    'Kayseri', 'Eskişehir', 'Samsun', 'Trabzon', 'Diyarbakır', 'Şanlıurfa',
-    'Muğla'
-  ];
-
-  for (const city of expectedCities) {
-    const source = sourceNamed(`Yerel - ${city}`);
-    assert.ok(source, `${city} yerel kaynağı bulunmalı`);
-    assert.equal(source.category, 'gundem');
-    assert.equal(source.region, 'tr');
-    assert.equal(source.city, city);
-    assert.ok(source.area);
-    assert.match(source.googleQuery, new RegExp(city, 'i'));
-  }
-
-  const representedAreas = new Set(
-    NEWS_SOURCES.filter(source => source.city).map(source => source.area)
-  );
-  for (const area of ['Akdeniz', 'Marmara', 'Ege', 'İç Anadolu', 'Karadeniz', 'Güneydoğu Anadolu']) {
-    assert.ok(representedAreas.has(area), `${area} temsil edilmeli`);
-  }
+test('tam metni belirsiz şehir bazlı Google News akışları otomatik turdan çıkarılır', () => {
+  assert.equal(NEWS_SOURCES.some(source => source.city), false);
+  assert.equal(NEWS_SOURCES.some(source => source.name.startsWith('Yerel - ')), false);
 });
 
-test('yerel kaynaklar doğrudan site kazımak yerine Google News açık indeksini kullanır', () => {
-  const localSources = NEWS_SOURCES.filter(source => source.city);
-  assert.equal(localSources.length, 20);
-  assert.ok(localSources.every(source => source.googleQuery && !source.url));
+test('yabancı kaynaklar yalnızca Dünya kategorisinde yer alır', () => {
+  const foreignSources = NEWS_SOURCES.filter(source => source.region === 'world');
+  assert.ok(foreignSources.length > 0);
+  assert.ok(foreignSources.every(source => source.category === 'dunya'));
 });
 
 test('tekrarlayan düşük öncelikli yabancı kaynaklar otomatik turdan çıkarılır', () => {

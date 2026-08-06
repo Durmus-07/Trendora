@@ -41,34 +41,11 @@ const NEWS_SOURCES = [
   { name: 'Google Haberler - Teknoloji', category: 'teknoloji', googleQuery: 'teknoloji OR yapay zeka OR yazılım', priority: 80, confidence: 82, region: 'tr', locale: GOOGLE_TR },
 
 
-  // Türkiye - şehir bazlı yerel haber kümeleri. Google News açık RSS indeksi kullanılır.
-  // city/area alanları mevcut akışı değiştirmez; ileride şehir önceliklendirmesine hazırdır.
-  { name: 'Yerel - Antalya', category: 'gundem', googleQuery: 'Antalya yerel haber OR belediye OR trafik OR etkinlik', priority: 88, confidence: 84, region: 'tr', city: 'Antalya', area: 'Akdeniz', locale: GOOGLE_TR },
-  { name: 'Yerel - Isparta', category: 'gundem', googleQuery: 'Isparta yerel haber OR belediye OR trafik OR etkinlik', priority: 84, confidence: 82, region: 'tr', city: 'Isparta', area: 'Akdeniz', locale: GOOGLE_TR },
-  { name: 'Yerel - Burdur', category: 'gundem', googleQuery: 'Burdur yerel haber OR belediye OR trafik OR etkinlik', priority: 82, confidence: 81, region: 'tr', city: 'Burdur', area: 'Akdeniz', locale: GOOGLE_TR },
-  { name: 'Yerel - Kahramanmaraş', category: 'gundem', googleQuery: 'Kahramanmaraş yerel haber OR belediye OR trafik OR etkinlik', priority: 89, confidence: 85, region: 'tr', city: 'Kahramanmaraş', area: 'Akdeniz', locale: GOOGLE_TR },
-  { name: 'Yerel - Adana', category: 'gundem', googleQuery: 'Adana yerel haber OR belediye OR trafik OR etkinlik', priority: 87, confidence: 84, region: 'tr', city: 'Adana', area: 'Akdeniz', locale: GOOGLE_TR },
-  { name: 'Yerel - Mersin', category: 'gundem', googleQuery: 'Mersin yerel haber OR belediye OR trafik OR etkinlik', priority: 87, confidence: 84, region: 'tr', city: 'Mersin', area: 'Akdeniz', locale: GOOGLE_TR },
-  { name: 'Yerel - Hatay', category: 'gundem', googleQuery: 'Hatay yerel haber OR belediye OR trafik OR etkinlik', priority: 87, confidence: 84, region: 'tr', city: 'Hatay', area: 'Akdeniz', locale: GOOGLE_TR },
-  { name: 'Yerel - Gaziantep', category: 'gundem', googleQuery: 'Gaziantep yerel haber OR belediye OR trafik OR etkinlik', priority: 88, confidence: 84, region: 'tr', city: 'Gaziantep', area: 'Güneydoğu Anadolu', locale: GOOGLE_TR },
-  { name: 'Yerel - Ankara', category: 'gundem', googleQuery: 'Ankara yerel haber OR belediye OR trafik OR etkinlik', priority: 90, confidence: 86, region: 'tr', city: 'Ankara', area: 'İç Anadolu', locale: GOOGLE_TR },
-  { name: 'Yerel - İstanbul', category: 'gundem', googleQuery: 'İstanbul yerel haber OR belediye OR trafik OR etkinlik', priority: 91, confidence: 86, region: 'tr', city: 'İstanbul', area: 'Marmara', locale: GOOGLE_TR },
-  { name: 'Yerel - İzmir', category: 'gundem', googleQuery: 'İzmir yerel haber OR belediye OR trafik OR etkinlik', priority: 89, confidence: 85, region: 'tr', city: 'İzmir', area: 'Ege', locale: GOOGLE_TR },
-  { name: 'Yerel - Bursa', category: 'gundem', googleQuery: 'Bursa yerel haber OR belediye OR trafik OR etkinlik', priority: 87, confidence: 84, region: 'tr', city: 'Bursa', area: 'Marmara', locale: GOOGLE_TR },
-  { name: 'Yerel - Konya', category: 'gundem', googleQuery: 'Konya yerel haber OR belediye OR trafik OR etkinlik', priority: 86, confidence: 83, region: 'tr', city: 'Konya', area: 'İç Anadolu', locale: GOOGLE_TR },
-  { name: 'Yerel - Kayseri', category: 'gundem', googleQuery: 'Kayseri yerel haber OR belediye OR trafik OR etkinlik', priority: 85, confidence: 83, region: 'tr', city: 'Kayseri', area: 'İç Anadolu', locale: GOOGLE_TR },
-  { name: 'Yerel - Eskişehir', category: 'gundem', googleQuery: 'Eskişehir yerel haber OR belediye OR trafik OR etkinlik', priority: 85, confidence: 83, region: 'tr', city: 'Eskişehir', area: 'İç Anadolu', locale: GOOGLE_TR },
-  { name: 'Yerel - Samsun', category: 'gundem', googleQuery: 'Samsun yerel haber OR belediye OR trafik OR etkinlik', priority: 85, confidence: 83, region: 'tr', city: 'Samsun', area: 'Karadeniz', locale: GOOGLE_TR },
-  { name: 'Yerel - Trabzon', category: 'gundem', googleQuery: 'Trabzon yerel haber OR belediye OR trafik OR etkinlik', priority: 85, confidence: 83, region: 'tr', city: 'Trabzon', area: 'Karadeniz', locale: GOOGLE_TR },
-  { name: 'Yerel - Diyarbakır', category: 'gundem', googleQuery: 'Diyarbakır yerel haber OR belediye OR trafik OR etkinlik', priority: 85, confidence: 83, region: 'tr', city: 'Diyarbakır', area: 'Güneydoğu Anadolu', locale: GOOGLE_TR },
-  { name: 'Yerel - Şanlıurfa', category: 'gundem', googleQuery: 'Şanlıurfa yerel haber OR belediye OR trafik OR etkinlik', priority: 85, confidence: 83, region: 'tr', city: 'Şanlıurfa', area: 'Güneydoğu Anadolu', locale: GOOGLE_TR },
-  { name: 'Yerel - Muğla', category: 'gundem', googleQuery: 'Muğla yerel haber OR belediye OR trafik OR etkinlik', priority: 86, confidence: 83, region: 'tr', city: 'Muğla', area: 'Ege', locale: GOOGLE_TR },
-
   // Dünya - yabancı kaynakların Google News kümeleri
   { name: 'World - Top Stories', category: 'dunya', googleQuery: 'world news', priority: 93, confidence: 88, region: 'world', locale: GOOGLE_EN },
   { name: 'World - Middle East', category: 'dunya', googleQuery: 'Middle East latest news', priority: 91, confidence: 87, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Economy', category: 'ekonomi', googleQuery: 'global economy markets central banks', priority: 88, confidence: 87, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Technology', category: 'teknoloji', googleQuery: 'global technology AI cybersecurity', priority: 86, confidence: 86, region: 'world', locale: GOOGLE_EN },
+  { name: 'World - Economy', category: 'dunya', googleQuery: 'global economy markets central banks', priority: 88, confidence: 87, region: 'world', locale: GOOGLE_EN },
+  { name: 'World - Technology', category: 'dunya', googleQuery: 'global technology AI cybersecurity', priority: 86, confidence: 86, region: 'world', locale: GOOGLE_EN },
 
   // Türkiye - güvenilir yayınları Google News açık RSS indeksi üzerinden izleme
   { name: 'Türkiye - Anadolu Ajansı', category: 'gundem', googleQuery: 'site:aa.com.tr Türkiye', priority: 94, confidence: 95, region: 'tr', locale: GOOGLE_TR },
@@ -95,34 +72,34 @@ const NEWS_SOURCES = [
   { name: 'World - Euronews', category: 'dunya', googleQuery: 'site:euronews.com world', priority: 90, confidence: 91, region: 'world', locale: GOOGLE_EN },
   { name: 'World - New York Times', category: 'dunya', googleQuery: 'site:nytimes.com world', priority: 91, confidence: 92, region: 'world', locale: GOOGLE_EN },
   { name: 'World - Washington Post', category: 'dunya', googleQuery: 'site:washingtonpost.com world', priority: 90, confidence: 91, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Financial Times', category: 'ekonomi', googleQuery: 'site:ft.com global economy', priority: 94, confidence: 95, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Bloomberg', category: 'ekonomi', googleQuery: 'site:bloomberg.com markets economy', priority: 95, confidence: 96, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - CNBC', category: 'ekonomi', googleQuery: 'site:cnbc.com markets economy', priority: 91, confidence: 92, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - The Verge', category: 'teknoloji', googleQuery: 'site:theverge.com technology', priority: 88, confidence: 89, region: 'world', locale: GOOGLE_EN },
+  { name: 'World - Financial Times', category: 'dunya', googleQuery: 'site:ft.com global economy', priority: 94, confidence: 95, region: 'world', locale: GOOGLE_EN },
+  { name: 'World - Bloomberg', category: 'dunya', googleQuery: 'site:bloomberg.com markets economy', priority: 95, confidence: 96, region: 'world', locale: GOOGLE_EN },
+  { name: 'World - CNBC', category: 'dunya', googleQuery: 'site:cnbc.com markets economy', priority: 91, confidence: 92, region: 'world', locale: GOOGLE_EN },
+  { name: 'World - The Verge', category: 'dunya', googleQuery: 'site:theverge.com technology', priority: 88, confidence: 89, region: 'world', locale: GOOGLE_EN },
 
   // Bundle benzeri geniş kaynak havuzu: uygulamadan değil, yayıncıların açık Google News/RSS akışlarından
   // Teknoloji
   { name: 'Türkiye - Webtekno', category: 'teknoloji', googleQuery: 'site:webtekno.com teknoloji', priority: 86, confidence: 85, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - ShiftDelete.Net', category: 'teknoloji', googleQuery: 'site:shiftdelete.net teknoloji', priority: 86, confidence: 85, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - DonanımHaber', category: 'teknoloji', googleQuery: 'site:donanimhaber.com teknoloji', priority: 87, confidence: 87, region: 'tr', locale: GOOGLE_TR },
-  { name: 'World - MIT Technology Review', category: 'teknoloji', googleQuery: 'site:technologyreview.com AI technology', priority: 93, confidence: 95, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - AI News', category: 'teknoloji', googleQuery: 'artificial intelligence OpenAI Google Microsoft Nvidia latest', priority: 90, confidence: 89, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Cybersecurity', category: 'teknoloji', googleQuery: 'cybersecurity data breach malware latest', priority: 90, confidence: 90, region: 'world', locale: GOOGLE_EN },
+  { name: 'World - MIT Technology Review', category: 'dunya', googleQuery: 'site:technologyreview.com AI technology', priority: 93, confidence: 95, region: 'world', locale: GOOGLE_EN },
+  { name: 'World - AI News', category: 'dunya', googleQuery: 'artificial intelligence OpenAI Google Microsoft Nvidia latest', priority: 90, confidence: 89, region: 'world', locale: GOOGLE_EN },
+  { name: 'World - Cybersecurity', category: 'dunya', googleQuery: 'cybersecurity data breach malware latest', priority: 90, confidence: 90, region: 'world', locale: GOOGLE_EN },
 
   // Ekonomi
   { name: 'Türkiye - ParaAnaliz', category: 'ekonomi', googleQuery: 'site:paraanaliz.com ekonomi piyasalar', priority: 84, confidence: 85, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - Foreks', category: 'ekonomi', googleQuery: 'site:foreks.com ekonomi piyasa', priority: 87, confidence: 89, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - Bigpara', category: 'ekonomi', googleQuery: 'site:bigpara.hurriyet.com.tr ekonomi', priority: 85, confidence: 86, region: 'tr', locale: GOOGLE_TR },
-  { name: 'World - MarketWatch', category: 'ekonomi', googleQuery: 'site:marketwatch.com markets economy', priority: 90, confidence: 91, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - Wall Street Journal', category: 'ekonomi', googleQuery: 'site:wsj.com economy markets', priority: 94, confidence: 95, region: 'world', locale: GOOGLE_EN },
-  { name: 'World - The Economist', category: 'ekonomi', googleQuery: 'site:economist.com economy finance', priority: 94, confidence: 95, region: 'world', locale: GOOGLE_EN },
+  { name: 'World - MarketWatch', category: 'dunya', googleQuery: 'site:marketwatch.com markets economy', priority: 90, confidence: 91, region: 'world', locale: GOOGLE_EN },
+  { name: 'World - Wall Street Journal', category: 'dunya', googleQuery: 'site:wsj.com economy markets', priority: 94, confidence: 95, region: 'world', locale: GOOGLE_EN },
+  { name: 'World - The Economist', category: 'dunya', googleQuery: 'site:economist.com economy finance', priority: 94, confidence: 95, region: 'world', locale: GOOGLE_EN },
 
   // Spor
   { name: 'Türkiye - Sporx', category: 'spor', googleQuery: 'site:sporx.com spor', priority: 82, confidence: 82, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - Ajansspor', category: 'spor', googleQuery: 'site:ajansspor.com spor', priority: 83, confidence: 84, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - Fotomaç', category: 'spor', googleQuery: 'site:fotomac.com.tr spor', priority: 81, confidence: 81, region: 'tr', locale: GOOGLE_TR },
   { name: 'Türkiye - beIN Sports', category: 'spor', googleQuery: 'site:beinsports.com.tr spor', priority: 86, confidence: 88, region: 'tr', locale: GOOGLE_TR },
-  { name: 'World - BBC Sport', category: 'spor', googleQuery: 'site:bbc.com/sport latest', priority: 92, confidence: 94, region: 'world', locale: GOOGLE_EN },
+  { name: 'World - BBC Sport', category: 'dunya', googleQuery: 'site:bbc.com/sport latest', priority: 92, confidence: 94, region: 'world', locale: GOOGLE_EN },
 
   // Gündem ve dünya
   { name: 'Türkiye - Yeni Şafak', category: 'gundem', googleQuery: 'site:yenisafak.com gündem', priority: 81, confidence: 82, region: 'tr', locale: GOOGLE_TR },
@@ -132,27 +109,27 @@ const NEWS_SOURCES = [
   { name: 'World - Politico', category: 'dunya', googleQuery: 'site:politico.com world politics', priority: 91, confidence: 92, region: 'world', locale: GOOGLE_EN },
 
   // Tematik açık akışlar
-  { name: 'CoinDesk', category: 'ekonomi', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', priority: 84, confidence: 90, region: 'world' },
-  { name: 'NASA Breaking News', category: 'teknoloji', url: 'https://www.nasa.gov/news-release/feed/', priority: 82, confidence: 97, region: 'world' },
+  { name: 'CoinDesk', category: 'dunya', url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', priority: 84, confidence: 90, region: 'world' },
+  { name: 'NASA Breaking News', category: 'dunya', url: 'https://www.nasa.gov/news-release/feed/', priority: 82, confidence: 97, region: 'world' },
 
-  // Doğrudan yabancı RSS akışları: Dünya, teknoloji ve ekonomi kategorilerinin
-  // Google News'e bağımlı kalmadan dolmasını sağlar.
+  // Doğrudan yabancı RSS akışları yalnızca Dünya kategorisini besler.
+  // Böylece ekonomi, teknoloji ve spor akışları yerli kaynaklarla daha temiz kalır.
   { name: 'BBC News - World RSS', category: 'dunya', url: 'https://feeds.bbci.co.uk/news/world/rss.xml', priority: 96, confidence: 97, region: 'world' },
   { name: 'BBC News - Top Stories RSS', category: 'dunya', url: 'https://feeds.bbci.co.uk/news/rss.xml', priority: 94, confidence: 97, region: 'world' },
   { name: 'Al Jazeera - All RSS', category: 'dunya', url: 'https://www.aljazeera.com/xml/rss/all.xml', priority: 92, confidence: 93, region: 'world' },
   { name: 'France 24 - English RSS', category: 'dunya', url: 'https://www.france24.com/en/rss', priority: 90, confidence: 92, region: 'world' },
   { name: 'DW - Top Stories RSS', category: 'dunya', url: 'https://rss.dw.com/rdf/rss-en-top', priority: 91, confidence: 94, region: 'world' },
 
-  { name: 'BBC News - Technology RSS', category: 'teknoloji', url: 'https://feeds.bbci.co.uk/news/technology/rss.xml', priority: 93, confidence: 96, region: 'world' },
-  { name: 'TechCrunch RSS', category: 'teknoloji', url: 'https://techcrunch.com/feed/', priority: 90, confidence: 90, region: 'world' },
-  { name: 'Ars Technica RSS', category: 'teknoloji', url: 'https://feeds.arstechnica.com/arstechnica/index', priority: 92, confidence: 94, region: 'world' },
-  { name: 'The Guardian - Technology RSS', category: 'teknoloji', url: 'https://www.theguardian.com/uk/technology/rss', priority: 89, confidence: 91, region: 'world' },
-  { name: 'WIRED RSS', category: 'teknoloji', url: 'https://www.wired.com/feed/rss', priority: 90, confidence: 92, region: 'world' },
+  { name: 'BBC News - Technology RSS', category: 'dunya', url: 'https://feeds.bbci.co.uk/news/technology/rss.xml', priority: 93, confidence: 96, region: 'world' },
+  { name: 'TechCrunch RSS', category: 'dunya', url: 'https://techcrunch.com/feed/', priority: 90, confidence: 90, region: 'world' },
+  { name: 'Ars Technica RSS', category: 'dunya', url: 'https://feeds.arstechnica.com/arstechnica/index', priority: 92, confidence: 94, region: 'world' },
+  { name: 'The Guardian - Technology RSS', category: 'dunya', url: 'https://www.theguardian.com/uk/technology/rss', priority: 89, confidence: 91, region: 'world' },
+  { name: 'WIRED RSS', category: 'dunya', url: 'https://www.wired.com/feed/rss', priority: 90, confidence: 92, region: 'world' },
 
-  { name: 'BBC News - Business RSS', category: 'ekonomi', url: 'https://feeds.bbci.co.uk/news/business/rss.xml', priority: 94, confidence: 96, region: 'world' },
-  { name: 'The Guardian - Business RSS', category: 'ekonomi', url: 'https://www.theguardian.com/uk/business/rss', priority: 90, confidence: 92, region: 'world' },
-  { name: 'CNBC - World News RSS', category: 'ekonomi', url: 'https://www.cnbc.com/id/100727362/device/rss/rss.html', priority: 91, confidence: 92, region: 'world' },
-  { name: 'CNBC - Finance RSS', category: 'ekonomi', url: 'https://www.cnbc.com/id/10000664/device/rss/rss.html', priority: 92, confidence: 93, region: 'world' },
+  { name: 'BBC News - Business RSS', category: 'dunya', url: 'https://feeds.bbci.co.uk/news/business/rss.xml', priority: 94, confidence: 96, region: 'world' },
+  { name: 'The Guardian - Business RSS', category: 'dunya', url: 'https://www.theguardian.com/uk/business/rss', priority: 90, confidence: 92, region: 'world' },
+  { name: 'CNBC - World News RSS', category: 'dunya', url: 'https://www.cnbc.com/id/100727362/device/rss/rss.html', priority: 91, confidence: 92, region: 'world' },
+  { name: 'CNBC - Finance RSS', category: 'dunya', url: 'https://www.cnbc.com/id/10000664/device/rss/rss.html', priority: 92, confidence: 93, region: 'world' },
 ];
 
 const CACHE_DURATION_MS = 3 * 60 * 1000;
