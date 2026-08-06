@@ -1,0 +1,68 @@
+TRENDORA ARAMA MOTORU - DEĞİŞİKLİK RAPORU
+Tarih: 2026-08-06
+
+YAPILAN İŞLEMLER
+- Mevcut Trendora Arama Motoru korunarak genel soru akışı genişletildi.
+- Mevcut OpenAI /api/ai rotasına dokunulmadı ve aktif edilmedi.
+- Genel sorular artık /api/smart-search/answer üzerinden çalışıyor.
+- Sağlayıcı sırası: Gemini -> Brave Search -> Tavily -> kısa süreli Trendora önbelleği.
+- Bir sağlayıcı kota, timeout veya servis hatası verirse otomatik olarak sıradaki sağlayıcı deneniyor.
+- Web sonuçları Trendora ekranında kart olarak gösteriliyor.
+- Web sonucuna dokunulduğunda sayfa Trendora iç tarayıcısında açılıyor.
+- Doğal aramalar (ör. "Antalya'da en ucuz otelleri sırala") genel arama olarak algılanıyor.
+
+DEĞİŞEN / EKLENEN DOSYALAR
+- trendora_backend/services/smartSearchAnswerService.js (yeni)
+- trendora_backend/routes/smartSearch.js
+- trendora_backend/services/smartSearchService.js
+- trendora_backend/test/smartSearchAnswerService.test.js (yeni)
+- trendora_backend/test/smartSearchService.test.js
+- trendora_backend/.env.example
+- lib/core/shortcuts/smart_command_service.dart
+- lib/akilli_kisayollar_sayfasi.dart
+- lib/trendora_ic_tarayıcı_sayfasi.dart (yeni)
+- test/smart_command_service_test.dart
+- test/akilli_kisayollar_sesli_komut_test.dart
+- pubspec.yaml
+
+DOKUNULMAYAN SİSTEMLER
+- Mevcut OpenAI servisi ve /api/ai rotası
+- Haber Merkezi
+- Fırsatlar Merkezi
+- Trend Merkezi ve tahmin motoru
+- Bildirimler
+- Premium sistemi
+
+BACKEND TESTLERİ
+- npm test çalıştırıldı.
+- 241 testin 241'i geçti.
+- Başarısız test: 0
+
+FLUTTER DOĞRULAMASI
+- Bu çalışma ortamında Flutter SDK bulunmadığından flutter pub get, flutter analyze ve flutter test çalıştırılamadı.
+- Yeni bağımlılık: webview_flutter ^4.13.0
+- Projeyi kendi bilgisayarında açınca önce flutter pub get çalıştırılmalıdır.
+- Ardından ilgili testler ve flutter analyze çalıştırılmalıdır.
+
+RENDER ORTAM DEĞİŞKENLERİ
+Ana sağlayıcı:
+GEMINI_SEARCH_ENABLED=true
+GEMINI_API_KEY=<Google AI Studio anahtarı>
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_DAILY_LIMIT=20
+
+Birinci yedek:
+BRAVE_SEARCH_ENABLED=true
+BRAVE_SEARCH_API_KEY=<Brave Search API anahtarı>
+
+İkinci yedek:
+TAVILY_SEARCH_ENABLED=true
+TAVILY_API_KEY=<Tavily API anahtarı>
+
+NOTLAR
+- API anahtarları kaynak koda eklenmedi.
+- Sağlayıcı anahtarlarından biri yoksa o sağlayıcı sessizce atlanır.
+- Tüm dış sağlayıcılar kullanılamazsa aynı sorgunun son başarılı kısa süreli önbelleği denenir.
+- Hiç sonuç yoksa uygulama çökmez; güvenli bir erişilemiyor mesajı gösterilir.
+- Bazı siteler kendi güvenlik politikaları nedeniyle WebView içinde giriş veya ödeme işlemlerini engelleyebilir.
+- APK, deploy ve git push yapılmadı.

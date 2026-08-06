@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api_client.dart';
 import '../api_config.dart';
-import '../auth/trendora_auth_service.dart';
 import '../news/saved_news_store.dart';
 import '../personalization/personalization_service.dart';
 import '../personalization/personalization_storage.dart';
@@ -170,7 +169,15 @@ class SmartCommandParser {
     }
     if (value.endsWith(' nedir') ||
         value.startsWith('nasil ') ||
-        value.startsWith('neden ')) {
+        value.startsWith('neden ') ||
+        value.contains(' nerede') ||
+        value.startsWith('hangi ') ||
+        value.contains(' sirala') ||
+        value.contains(' goster') ||
+        value.contains(' bul')) {
+      return SmartCommandIntent.generalQuestion;
+    }
+    if (value.split(' ').where((part) => part.isNotEmpty).length >= 3) {
       return SmartCommandIntent.generalQuestion;
     }
     return SmartCommandIntent.unknown;
@@ -216,7 +223,7 @@ class SmartCommandParser {
 
 abstract interface class SmartCommandDataSource {
   Future<Map<String, dynamic>?> smartSearchPlan(String query);
-  Future<String?> generalAi(String query);
+  Future<Map<String, dynamic>?> generalSearch(String query);
   Future<List<Map<String, dynamic>>> marketBoard();
   Future<List<Map<String, dynamic>>> news({
     String? category,
@@ -260,23 +267,16 @@ class DefaultSmartCommandDataSource implements SmartCommandDataSource {
   }
 
   @override
-  Future<String?> generalAi(String query) async {
-    final auth = TrendoraAuthService.instance;
-    await auth.initialize();
-    final token = await auth.getIdToken();
-    if (token == null || token.isEmpty) return null;
-    final response = await http
-        .post(
-          Uri.parse('${ApiConfig.baseUrl}/api/ai'),
-          headers: {...ApiClient.jsonHeaders, 'Authorization': 'Bearer $token'},
-          body: jsonEncode({'message': query}),
-        )
-        .timeout(const Duration(seconds: 12));
+  Future<Map<String, dynamic>?> generalSearch(String query) async {
+    final response = await ApiClient.post(
+      Uri.parse('${ApiConfig.baseUrl}/api/smart-search/answer'),
+      body: jsonEncode({'query': query}),
+      timeout: const Duration(seconds: 14),
+    );
     if (response.statusCode < 200 || response.statusCode >= 300) return null;
     final decoded = jsonDecode(utf8.decode(response.bodyBytes));
     if (decoded is! Map || decoded['success'] != true) return null;
-    final answer = '${decoded['answer'] ?? ''}'.trim();
-    return answer.isEmpty ? null : answer;
+    return Map<String, dynamic>.from(decoded);
   }
 
   @override
@@ -537,23 +537,33 @@ class SmartCommandService {
         SmartCommandTarget.none,
       );
     }
-    final answer = await _dataSource.generalAi(command);
-    if (answer == null) {
+    final response = await _dataSource.generalSearch(command);
+    if (response == null) {
       return _unavailable(
         intent,
-        'Genel AI yanıtı şu anda kullanılamıyor.',
+        'Trendora Arama şu anda güncel sonuçlara ulaşamıyor.',
         SmartCommandTarget.none,
       );
     }
+    final answer = '${response['answer'] ?? ''}'.trim();
+    final rawResults = response['results'];
+    final cards = rawResults is List
+        ? rawResults
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList(growable: false)
+        : const <Map<String, dynamic>>[];
+    final provider = '${response['provider'] ?? 'trendora'}'.trim();
     return SmartCommandResult(
       intent: intent,
       query: command,
       normalizedQuery: '${plan?['normalizedQuery'] ?? ''}',
-      message: answer,
-      source: 'Genel AI yanıtı • Trendora AI',
+      message: answer.isEmpty ? 'Bulduğum sonuçlar:' : answer,
+      source: 'Trendora Arama • $provider',
       updatedAt: DateTime.now(),
       target: SmartCommandTarget.none,
-      fallbackUsed: true,
+      cards: cards,
+      fallbackUsed: response['fallbackReason'] != null,
       suggestions: const ['Son dakika haberleri', 'Güncel fırsatlar'],
     );
   }

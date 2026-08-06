@@ -199,7 +199,15 @@ class _FakeSource implements SmartCommandDataSource {
   }
 
   @override
-  Future<String?> generalAi(String query) async => aiAnswer;
+  Future<Map<String, dynamic>?> generalSearch(String query) async =>
+      aiAnswer == null
+      ? null
+      : {
+          'success': true,
+          'answer': aiAnswer,
+          'provider': 'gemini',
+          'results': const [],
+        };
 
   @override
   Future<List<Map<String, dynamic>>> marketBoard() async {

@@ -9,6 +9,7 @@ import 'firsatlar_sayfasi.dart';
 import 'haberler_sayfasi.dart';
 import 'hava_merkezi_sayfasi.dart';
 import 'trend_tahmini_sayfasi.dart';
+import 'trendora_ic_tarayıcı_sayfasi.dart';
 
 class AkilliKisayollarSayfasi extends StatefulWidget {
   const AkilliKisayollarSayfasi({
@@ -482,6 +483,18 @@ class _AkilliKisayollarSayfasiState extends State<AkilliKisayollarSayfasi>
                 _controller.text = command;
                 _execute(command);
               },
+              onOpenWebResult: (item) {
+                final url = '${item['url'] ?? ''}'.trim();
+                if (url.isEmpty) return;
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => TrendoraIcTarayiciSayfasi(
+                      url: url,
+                      title: '${item['title'] ?? 'Trendora'}',
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ],
@@ -495,11 +508,13 @@ class _ResultCard extends StatelessWidget {
     required this.result,
     required this.onOpen,
     required this.onSelectAsset,
+    required this.onOpenWebResult,
   });
 
   final SmartCommandResult result;
   final VoidCallback onOpen;
   final ValueChanged<String> onSelectAsset;
+  final ValueChanged<Map<String, dynamic>> onOpenWebResult;
 
   @override
   Widget build(BuildContext context) {
@@ -533,11 +548,19 @@ class _ResultCard extends StatelessWidget {
                         '${item['title'] ?? item['name'] ?? 'Sonuç'}',
                       ),
                       subtitle: Text(
-                        '${item['source'] ?? item['store'] ?? ''}',
-                        maxLines: 2,
+                        [
+                          '${item['source'] ?? item['store'] ?? ''}',
+                          '${item['snippet'] ?? ''}',
+                        ].where((value) => value.trim().isNotEmpty).join(' • '),
+                        maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      onTap: '${item['canonicalSymbol'] ?? ''}'.isEmpty
+                      trailing: '${item['url'] ?? ''}'.trim().isNotEmpty
+                          ? const Icon(Icons.chevron_right_rounded)
+                          : null,
+                      onTap: '${item['url'] ?? ''}'.trim().isNotEmpty
+                          ? () => onOpenWebResult(item)
+                          : '${item['canonicalSymbol'] ?? ''}'.isEmpty
                           ? null
                           : () => onSelectAsset('${item['canonicalSymbol']}'),
                     ),

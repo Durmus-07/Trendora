@@ -15,7 +15,8 @@ function appIntent(query) {
   if (/kaç\s*(?:tl|lira)|ne kadar|fiyat/.test(normalized)) return 'market_price';
   const trendIntent = detectIntent(query);
   if (trendIntent.type !== 'general_analysis') return 'market_analysis';
-  if (/\?|\b(?:nedir|ne demek|nasıl|nasil|neden)\b/.test(normalized) && normalized.length >= 8) return 'general_question';
+  if (/\?|\b(?:nedir|ne demek|nasıl|nasil|neden|nerede|hangi|kim|kaç|kac|bul|sırala|sirala|göster|goster)\b/.test(normalized) && normalized.length >= 8) return 'general_question';
+  if (normalized.split(/\s+/).filter(Boolean).length >= 3) return 'general_question';
   return 'unknown';
 }
 

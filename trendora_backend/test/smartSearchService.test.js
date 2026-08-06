@@ -48,3 +48,8 @@ test('ambiguous catalog query returns canonical selection cards', () => {
   assert.ok(plan.candidates.every(item => item.canonicalSymbol && item.internalAssetId));
   assert.equal(plan.requestedIntent, 'market_price');
 });
+test('natural search queries use Trendora general search', () => {
+  const plan = createSmartSearchPlan("Antalya'da en ucuz otelleri sırala");
+  assert.equal(plan.intent, 'general_question');
+  assert.equal(plan.service, 'ai');
+});
