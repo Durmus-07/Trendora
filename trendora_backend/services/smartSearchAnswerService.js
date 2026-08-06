@@ -55,11 +55,14 @@ async function askGemini(query) {
     },
     contents: [{ role: 'user', parts: [{ text: query }] }],
     generationConfig: { temperature: 0.25, maxOutputTokens: 900 }
-  }, {
-    params: { key: apiKey },
-    timeout: 12000,
-    maxContentLength: 1_000_000
-  });
+ }, {
+  headers: {
+    'Content-Type': 'application/json',
+    'x-goog-api-key': apiKey,
+  },
+  timeout: 12000,
+  maxContentLength: 1_000_000,
+});
   const answer = response.data?.candidates?.[0]?.content?.parts
     ?.map(part => String(part?.text || ''))
     .join('\n')
