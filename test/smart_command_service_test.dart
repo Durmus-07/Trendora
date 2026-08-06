@@ -147,6 +147,38 @@ void main() {
     expect(result.message, contains('şu anda alınamıyor'));
   });
 
+  test('short general query falls back to Trendora search', () async {
+    final result = await SmartCommandService(
+      dataSource: _FakeSource(aiAnswer: 'Antalya için güncel web sonuçları.'),
+    ).execute('Antalya');
+    expect(result.message, contains('Antalya'));
+    expect(result.source, 'Trendora Arama');
+  });
+
+  test('unmatched price query falls back to Trendora search', () async {
+    final result = await SmartCommandService(
+      dataSource: _FakeSource(aiAnswer: 'iPhone 17 için güncel fiyat sonuçları.'),
+    ).execute('iPhone 17 fiyatı');
+    expect(result.message, contains('iPhone 17'));
+    expect(result.source, 'Trendora Arama');
+  });
+
+  test('missing financial board value falls back to Trendora search', () async {
+    final result = await SmartCommandService(
+      dataSource: _FakeSource(aiAnswer: 'ASELSAN için güncel sonuçlar.'),
+    ).execute('ASELSAN');
+    expect(result.message, contains('ASELSAN'));
+    expect(result.source, 'Trendora Arama');
+  });
+
+  test('empty opportunity filter falls back to Trendora search', () async {
+    final result = await SmartCommandService(
+      dataSource: _FakeSource(aiAnswer: 'Migros indirimleri için web sonuçları.'),
+    ).execute('Migros indirimleri');
+    expect(result.message, contains('Migros'));
+    expect(result.source, 'Trendora Arama');
+  });
+
   test(
     'shortcut order is persisted and missing defaults are appended',
     () async {

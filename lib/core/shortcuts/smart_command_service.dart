@@ -510,12 +510,7 @@ class SmartCommandService {
     }
     final asset = plan?['asset'];
     if (resolution != 'matched' || asset is! Map) {
-      return _unavailable(
-        intent,
-        'Varlık merkezi katalogda güvenle eşleştirilemedi.',
-        SmartCommandTarget.trend,
-        query: command,
-      );
+      return _generalQuestion(command, intent, plan);
     }
     final symbol = '${asset['canonicalSymbol'] ?? ''}'.trim();
     final name = '${asset['displayName'] ?? symbol}'.trim();
@@ -530,13 +525,6 @@ class SmartCommandService {
     SmartCommandIntent intent,
     Map<String, dynamic>? plan,
   ) async {
-    if (plan?['service'] != 'ai') {
-      return _unavailable(
-        intent,
-        'Bu sorgu güvenli bir genel bilgi sorusu olarak doğrulanamadı.',
-        SmartCommandTarget.none,
-      );
-    }
     final response = await _dataSource.generalSearch(command);
     if (response == null) {
       return _unavailable(
@@ -598,12 +586,7 @@ class SmartCommandService {
       }
     }
     if (match == null) {
-      return await _unavailable(
-        intent,
-        'Sorulan varlık için güncel fiyat bulunamadı.',
-        SmartCommandTarget.trend,
-        query: command,
-      );
+      return _generalQuestion(command, intent, null);
     }
     final label = '${match['label'] ?? match['symbol']}';
     final price = match['price'];
@@ -629,12 +612,7 @@ class SmartCommandService {
   }) async {
     final resolved = symbol ?? SmartCommandParser.assetSymbol(command);
     if (resolved == null) {
-      return _unavailable(
-        intent,
-        'Varlık güvenle eşleştirilemedi.',
-        SmartCommandTarget.trend,
-        query: command,
-      );
+      return _generalQuestion(command, intent, null);
     }
     return SmartCommandResult(
       intent: intent,
@@ -679,11 +657,7 @@ class SmartCommandService {
         .take(5)
         .toList(growable: false);
     if (filtered.isEmpty) {
-      return _unavailable(
-        intent,
-        'Şu anda bu filtreye uygun güncel haber bulunamadı.',
-        SmartCommandTarget.news,
-      );
+      return _generalQuestion(command, intent, null);
     }
     return SmartCommandResult(
       intent: intent,
@@ -746,11 +720,7 @@ class SmartCommandService {
         .take(5)
         .toList(growable: false);
     if (filtered.isEmpty) {
-      return _unavailable(
-        intent,
-        'Şu anda bu filtreye uygun güncel fırsat bulunamadı.',
-        SmartCommandTarget.opportunities,
-      );
+      return _generalQuestion(command, intent, null);
     }
     return SmartCommandResult(
       intent: intent,
