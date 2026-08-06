@@ -125,7 +125,7 @@ test('zero values never create NaN, infinity or division errors', () => {
   assertNoInvalidNumbers(result);
 });
 
-test('daily change uses the previous trading close before provider metadata', () => {
+test('daily change prefers regular market previous close', () => {
   for (const fixture of [
     { current: 110, previous: 100, expected: 10 },
     { current: 90, previous: 100, expected: -10 },
@@ -134,14 +134,42 @@ test('daily change uses the previous trading close before provider metadata', ()
     const previousClose = choosePreviousClose({
       current: fixture.current,
       latestOpen: 95,
-      previousRowClose: fixture.previous,
-      metaPreviousClose: 80,
+      latestRowClose: fixture.current,
+      previousRowClose: 80,
+      metaPreviousClose: fixture.previous,
       chartPreviousClose: 70
     });
     const changePercent = ((fixture.current - previousClose) / previousClose) * 100;
     assert.equal(previousClose, fixture.previous);
     assert.equal(changePercent, fixture.expected);
   }
+});
+
+test('daily change uses latest chart close when the current day candle is missing', () => {
+  const previousClose = choosePreviousClose({
+    current: 102,
+    latestOpen: 101,
+    latestRowClose: 100,
+    previousRowClose: 82,
+    metaPreviousClose: null,
+    chartPreviousClose: 81
+  });
+
+  assert.equal(previousClose, 100);
+  assert.equal(((102 - previousClose) / previousClose) * 100, 2);
+});
+
+test('daily change uses previous chart row when the latest candle matches current price', () => {
+  const previousClose = choosePreviousClose({
+    current: 102,
+    latestOpen: 101,
+    latestRowClose: 102,
+    previousRowClose: 100,
+    metaPreviousClose: null,
+    chartPreviousClose: 81
+  });
+
+  assert.equal(previousClose, 100);
 });
 
 test('MACD, Bollinger, support and resistance are generated from OHLCV', () => {

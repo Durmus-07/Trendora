@@ -578,21 +578,45 @@ function analyzeTechnicalData(inputRows, options = {}) {
 }
 
 
-function choosePreviousClose({ current, latestOpen, previousRowClose, metaPreviousClose, chartPreviousClose }) {
-  const candidates = [previousRowClose, metaPreviousClose, chartPreviousClose]
-    .map(finite)
-    .filter((value) => value != null && value > 0);
+function choosePreviousClose({
+  current,
+  latestOpen,
+  latestRowClose,
+  previousRowClose,
+  metaPreviousClose,
+  chartPreviousClose
+}) {
+  const currentPrice = finite(current);
+  const latestClose = finite(latestRowClose);
+  const previousClose = finite(previousRowClose);
+  const regularPreviousClose = finite(metaPreviousClose);
+  const chartPrevious = finite(chartPreviousClose);
 
-  const plausible = candidates.find((value) => {
-    if (current == null || current <= 0) return true;
-    return Math.abs((current - value) / value) <= 0.25;
-  });
+  const isPlausible = (value) => {
+    if (value == null || value <= 0) return false;
+    if (currentPrice == null || currentPrice <= 0) return true;
+    return Math.abs((currentPrice - value) / value) <= 0.25;
+  };
 
-  if (plausible != null) return plausible;
+  // regularMarketPreviousClose doğrudan günlük değişim referansıdır. Yahoo'nun
+  // günlük mum serisi bazen gün içi fiyatı içermediğinde önceki satır iki işlem
+  // günü geriye kayabilir; bu durumda yanlış ve büyük yüzdeler oluşur.
+  if (isPlausible(regularPreviousClose)) return regularPreviousClose;
+
+  // Günlük seri güncel fiyatı içermiyorsa son kapanış, bir önceki kapanıştır.
+  // Seri güncelse son satır güncel güne aittir ve ikinci son satır kullanılmalıdır.
+  const latestMatchesCurrent = currentPrice != null && latestClose != null
+    ? Math.abs(currentPrice - latestClose) / Math.max(Math.abs(currentPrice), 1) <= 0.005
+    : false;
+  const rowPreviousClose = latestMatchesCurrent ? previousClose : latestClose;
+  if (isPlausible(rowPreviousClose)) return rowPreviousClose;
+
+  if (isPlausible(previousClose)) return previousClose;
+  if (isPlausible(chartPrevious)) return chartPrevious;
 
   const open = finite(latestOpen);
   if (open != null && open > 0) return open;
-  return candidates[0] ?? null;
+  return regularPreviousClose ?? rowPreviousClose ?? previousClose ?? chartPrevious ?? null;
 }
 
 function signalFromScore(score) {
@@ -665,6 +689,7 @@ async function fetchMarketData(query, classification, options = {}) {
   const previousClose = choosePreviousClose({
     current,
     latestOpen: latest.open,
+    latestRowClose: latest.close,
     previousRowClose: previous?.close,
     metaPreviousClose: meta.regularMarketPreviousClose,
     chartPreviousClose: meta.chartPreviousClose
