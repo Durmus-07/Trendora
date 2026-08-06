@@ -226,3 +226,41 @@ test('analysis normalization preserves legacy fields and optional technical mode
   assert.equal(result.technical.integration.newsImpactReady, true);
   assert.equal(result.confidence, 70);
 });
+
+test('gram altın spot ons başarısızsa GC=F yedeğiyle hesaplanır', async () => {
+  const { fetchDerivedGoldMarketData } = require('../services/marketDataService');
+  const calls = [];
+  const marketDataLoader = async (_query, classification, options = {}) => {
+    calls.push({ symbol: classification.entity.symbol, providerSymbol: options.providerSymbol || null });
+    if (classification.entity.symbol === 'XAUUSD') {
+      throw new Error('spot unavailable');
+    }
+    if (options.providerSymbol === 'GC=F') {
+      return {
+        updatedAt: '2026-08-06T10:00:00.000Z', marketState: 'REGULAR',
+        dailyPrice: { available: true, date: '2026-08-06T00:00:00.000Z', current: 2400, open: 2390, high: 2410, low: 2380 },
+        priceHistory: [
+          { date: '2026-08-05T00:00:00.000Z', open: 2380, high: 2400, low: 2370, close: 2390 },
+          { date: '2026-08-06T00:00:00.000Z', open: 2390, high: 2410, low: 2380, close: 2400 }
+        ]
+      };
+    }
+    return {
+      updatedAt: '2026-08-06T10:00:00.000Z', marketState: 'REGULAR',
+      dailyPrice: { available: true, date: '2026-08-06T00:00:00.000Z', current: 33, open: 32.9, high: 33.1, low: 32.8 },
+      priceHistory: [
+        { date: '2026-08-05T00:00:00.000Z', open: 32.8, high: 33, low: 32.7, close: 32.9 },
+        { date: '2026-08-06T00:00:00.000Z', open: 32.9, high: 33.1, low: 32.8, close: 33 }
+      ]
+    };
+  };
+
+  const result = await fetchDerivedGoldMarketData(
+    { factor: 1, name: '24 Ayar Gram Altın' },
+    { marketDataLoader }
+  );
+
+  assert.ok(result.dailyPrice.available);
+  assert.ok(Math.abs(result.dailyPrice.current - (2400 * 33 / 31.1034768)) < 0.001);
+  assert.deepEqual(calls.map(call => call.providerSymbol), [null, null, 'GC=F']);
+});

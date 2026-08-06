@@ -639,7 +639,7 @@ async function fetchMarketData(query, classification, options = {}) {
   const goldType = derivedGold[normalizeTurkish(classification?.entity?.symbol)];
   if (goldType) return fetchDerivedGoldMarketData(goldType, options);
 
-  const symbol = resolveYahooSymbol(query, classification);
+  const symbol = options.providerSymbol || resolveYahooSymbol(query, classification);
   if (!symbol) return null;
 
   const forceRefresh = options.forceRefresh === true;
@@ -802,13 +802,33 @@ async function fetchMarketData(query, classification, options = {}) {
 }
 
 async function fetchDerivedGoldMarketData(goldType, options = {}) {
+  const loadMarketData = options.marketDataLoader || fetchMarketData;
+  const childOptions = { ...options };
+  delete childOptions.marketDataLoader;
+  delete childOptions.providerSymbol;
+
+  const loadOunceGold = async () => {
+    try {
+      const spot = await loadMarketData('ons altın', {
+        domain: 'finance',
+        entity: { symbol: 'XAUUSD', name: 'Ons Altın', subtype: 'commodity' }
+      }, childOptions);
+      if (spot?.dailyPrice?.available) return spot;
+    } catch (_) {
+      // Spot ons verisi alınamazsa Yahoo altın vadeli kontratı güvenli yedektir.
+    }
+
+    return loadMarketData('altın vadeli', {
+      domain: 'finance',
+      entity: { symbol: 'GOLD_FUTURES', name: 'Altın Vadeli', subtype: 'commodity' }
+    }, { ...childOptions, providerSymbol: 'GC=F' });
+  };
+
   const [ounce, usdTry] = await Promise.all([
-    fetchMarketData('ons altın', {
-      domain: 'finance', entity: { symbol: 'XAUUSD', name: 'Ons Altın', subtype: 'commodity' }
-    }, options),
-    fetchMarketData('dolar tl', {
+    loadOunceGold(),
+    loadMarketData('dolar tl', {
       domain: 'finance', entity: { symbol: 'USDTRY', name: 'Dolar/TL', subtype: 'fx' }
-    }, options)
+    }, childOptions)
   ]);
   if (!ounce?.dailyPrice?.available || !usdTry?.dailyPrice?.available) return null;
 
@@ -875,5 +895,6 @@ module.exports = {
   analyzeTechnicalData,
   fetchMarketData,
   choosePreviousClose,
-  resolveYahooSymbol
+  resolveYahooSymbol,
+  fetchDerivedGoldMarketData
 };
