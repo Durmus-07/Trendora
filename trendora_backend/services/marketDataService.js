@@ -285,7 +285,7 @@ function atr(rows, period = 14) {
   return average(trueRanges.slice(-period));
 }
 
-function calculateSupportResistance(rows, lookback = 60) {
+function calculateSupportResistance(rows, lookback = 60, referencePrice = null) {
   if (!Array.isArray(rows) || !rows.length) {
     return { support1: null, support2: null, resistance1: null, resistance2: null };
   }
@@ -299,7 +299,7 @@ function calculateSupportResistance(rows, lookback = 60) {
     return { support1: null, support2: null, resistance1: null, resistance2: null };
   }
 
-  const current = closes[closes.length - 1];
+  const current = finite(referencePrice) ?? closes[closes.length - 1];
   const distanceBase = Math.max(Math.abs(current), Number.EPSILON);
   const validPrice = (value) => Number.isFinite(value) && value > 0;
 
@@ -487,7 +487,7 @@ function analyzeTechnicalData(inputRows, options = {}) {
   const changePercent = finite(options.changePercent) ?? computedChange;
   const macdValues = macd(closes);
   const bands = bollingerBands(closes);
-  const supportResistance = calculateSupportResistance(rows);
+  const supportResistance = calculateSupportResistance(rows, 60, current);
   const atr14 = atr(rows, 14);
 
   const indicators = {
